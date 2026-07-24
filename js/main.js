@@ -1,28 +1,15 @@
 /**
  * CreatorLoop™ Main JavaScript
- * Navigation, forms, Google Sheets integration, analytics
+ * Navigation, forms, Google Sheets integration
+ * Analytics calls go through window.CL (analytics.js)
  */
 
-// ─── Analytics Placeholders ────────────────────────────────────────────────
-// Replace these IDs when ready
-const GA4_ID = ''; // e.g. 'G-XXXXXXXXXX'
-const META_PIXEL_ID = ''; // e.g. '1234567890'
-
-function trackEvent(name, params) {
-  if (typeof gtag !== 'undefined' && GA4_ID) {
-    gtag('event', name, params || {});
-  }
-  if (typeof fbq !== 'undefined' && META_PIXEL_ID) {
-    fbq('track', name, params || {});
-  }
-  console.log('[CL Analytics]', name, params || {});
-}
-
 // ─── Google Sheets Blueprint Form ─────────────────────────────────────────
-// Replace SHEET_URL with your Google Apps Script Web App URL
+// Replace SHEET_URL with your Google Apps Script Web App URL after setup
+// See README.md for full Google Sheets setup instructions
 const SHEET_URL = 'https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec';
 
-async function submitBlueprintForm(formData) {
+async function submitToGoogleSheets(formData) {
   const payload = {
     timestamp: new Date().toISOString(),
     firstName: formData.firstName,
@@ -36,7 +23,7 @@ async function submitBlueprintForm(formData) {
   };
 
   try {
-    const res = await fetch(SHEET_URL, {
+    await fetch(SHEET_URL, {
       method: 'POST',
       mode: 'no-cors',
       headers: { 'Content-Type': 'application/json' },
@@ -44,8 +31,8 @@ async function submitBlueprintForm(formData) {
     });
     return { success: true };
   } catch (err) {
-    console.error('[CL Form] Submission error:', err);
-    // Still allow download even if sheet fails — don't block the user
+    console.error('[CL Form] Sheet submission error:', err);
+    // Still allow download even if sheet fails — never block the user
     return { success: true, sheetError: true };
   }
 }
@@ -55,19 +42,19 @@ function initBlueprintForm() {
   const form = document.getElementById('blueprint-form');
   if (!form) return;
 
-  const submitBtn = form.querySelector('#blueprint-submit');
-  const fields = ['bp-firstname', 'bp-lastname', 'bp-email', 'bp-role'];
+  const submitBtn = document.getElementById('blueprint-submit');
+  const requiredFields = ['bp-firstname', 'bp-lastname', 'bp-email', 'bp-role'];
 
-  // Enable/disable button based on required fields
+  // Enable/disable submit button based on required field completion
   function checkFields() {
-    const allFilled = fields.every(id => {
+    const allFilled = requiredFields.every(id => {
       const el = document.getElementById(id);
       return el && el.value.trim() !== '';
     });
     if (submitBtn) submitBtn.disabled = !allFilled;
   }
 
-  fields.forEach(id => {
+  requiredFields.forEach(id => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('input', checkFields);
   });
@@ -81,7 +68,7 @@ function initBlueprintForm() {
     const email     = document.getElementById('bp-email')?.value.trim();
     const role      = document.getElementById('bp-role')?.value;
 
-    // Validate email
+    // Email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       const emailInput = document.getElementById('bp-email');
@@ -90,22 +77,24 @@ function initBlueprintForm() {
       return;
     }
 
-    // Show loading state
+    // Loading state
     if (submitBtn) {
       submitBtn.disabled = true;
       submitBtn.textContent = 'PROCESSING...';
     }
 
     // Submit to Google Sheets
-    const result = await submitBlueprintForm({ firstName, lastName, email, role });
+    const result = await submitToGoogleSheets({ firstName, lastName, email, role });
 
-    // Track event
-    trackEvent('blueprint_form_submit', { email_domain: email.split('@')[1] });
+    // Track form submission
+    if (window.CL) CL.blueprintFormSubmit(role);
 
     if (result.success) {
       // Trigger download
       triggerBlueprintDownload();
-      trackEvent('blueprint_download', { source: 'Blueprint Page' });
+
+      // Track download
+      if (window.CL) CL.blueprintDownload(true);
 
       // Show success state
       showBlueprintSuccess();
@@ -146,7 +135,6 @@ function showBlueprintSuccess() {
   if (formSection) formSection.classList.add('hidden');
   if (successSection) {
     successSection.classList.remove('hidden');
-    // Trigger typing animation
     startTypingAnimation();
   }
 }
@@ -162,7 +150,6 @@ function startTypingAnimation() {
     i++;
     if (i >= text.length) {
       clearInterval(interval);
-      // After animation, show redirect button
       setTimeout(() => {
         const redirectBtn = document.getElementById('success-redirect-btn');
         if (redirectBtn) redirectBtn.classList.remove('hidden');
@@ -174,10 +161,9 @@ function startTypingAnimation() {
 // ─── Navigation active state ───────────────────────────────────────────────
 function initNav() {
   const currentPath = window.location.pathname;
-  const navLinks = document.querySelectorAll('.cl-nav-links a');
-  navLinks.forEach(link => {
+  document.querySelectorAll('.cl-nav-links a').forEach(link => {
     const href = link.getAttribute('href');
-    if (href && (currentPath === href || currentPath.startsWith(href + '/'))) {
+    if (href && (currentPath === href || currentPath === href.replace(/\/$/, ''))) {
       link.classList.add('active');
     }
   });
@@ -214,7 +200,9 @@ function initMobileNav() {
   const menu = document.getElementById('cl-mobile-menu');
   if (!toggle || !menu) return;
   toggle.addEventListener('click', () => {
+    const isOpen = !menu.classList.contains('hidden');
     menu.classList.toggle('hidden');
+    toggle.setAttribute('aria-expanded', String(!isOpen));
   });
 }
 

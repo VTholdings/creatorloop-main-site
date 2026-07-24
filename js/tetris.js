@@ -2,11 +2,12 @@
  * CreatorLoop™ Tetris Engine
  * Custom HTML5 Canvas-based Tetris game
  * Branded with CreatorLoop color palette
+ * Analytics via window.CL (analytics.js)
  */
 
 const COLS = 10;
 const ROWS = 20;
-const BLOCK = 28; // px per block
+const BLOCK = 28;
 
 // CreatorLoop branded piece colors
 const PIECE_COLORS = [
@@ -193,22 +194,18 @@ class Tetris {
     const pad = 1;
     ctx.fillStyle = color;
     ctx.fillRect(x * s + pad, y * s + pad, s - pad * 2, s - pad * 2);
-    // Highlight
     ctx.fillStyle = 'rgba(255,255,255,0.15)';
     ctx.fillRect(x * s + pad, y * s + pad, s - pad * 2, 3);
     ctx.fillRect(x * s + pad, y * s + pad, 3, s - pad * 2);
-    // Shadow
     ctx.fillStyle = 'rgba(0,0,0,0.3)';
     ctx.fillRect(x * s + s - pad - 3, y * s + pad, 3, s - pad * 2);
     ctx.fillRect(x * s + pad, y * s + s - pad - 3, s - pad * 2, 3);
   }
 
   drawBoard() {
-    // Background
     this.ctx.fillStyle = '#0D0D0D';
     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
-    // Grid lines
     this.ctx.strokeStyle = 'rgba(255,255,255,0.03)';
     this.ctx.lineWidth = 0.5;
     for (let r = 0; r < ROWS; r++) {
@@ -224,7 +221,6 @@ class Tetris {
       this.ctx.stroke();
     }
 
-    // Locked pieces
     for (let r = 0; r < ROWS; r++) {
       for (let c = 0; c < COLS; c++) {
         if (this.board[r][c]) {
@@ -233,7 +229,6 @@ class Tetris {
       }
     }
 
-    // Ghost piece
     if (this.piece) {
       let ghostY = this.piece.y;
       while (!this.collides(this.piece, 0, ghostY - this.piece.y + 1)) ghostY++;
@@ -249,7 +244,6 @@ class Tetris {
         this.ctx.globalAlpha = 1;
       }
 
-      // Active piece
       for (let r = 0; r < this.piece.matrix.length; r++) {
         for (let c = 0; c < this.piece.matrix[r].length; c++) {
           if (this.piece.matrix[r][c]) {
@@ -298,8 +292,10 @@ class Tetris {
     this.lastDrop = performance.now();
     this.animId = requestAnimationFrame(ts => this.gameLoop(ts));
 
-    // Track game start
-    if (typeof gtag !== 'undefined') gtag('event', 'game_start', { event_category: 'tetris' });
+    // Analytics
+    if (window.CL) CL.gameStart();
+
+    // localStorage counter
     const starts = parseInt(localStorage.getItem('cl_game_starts') || '0') + 1;
     localStorage.setItem('cl_game_starts', starts);
   }
@@ -311,6 +307,7 @@ class Tetris {
       this.lastDrop = performance.now();
       this.animId = requestAnimationFrame(ts => this.gameLoop(ts));
     }
+    if (window.CL) CL.track('tetris_pause', { paused: this.paused });
     const pauseBtn = document.getElementById('cl-pause-btn');
     if (pauseBtn) pauseBtn.textContent = this.paused ? 'RESUME' : 'PAUSE';
   }
@@ -320,11 +317,14 @@ class Tetris {
     this.running = false;
     cancelAnimationFrame(this.animId);
 
-    // Track game end
+    // localStorage
     const played = parseInt(localStorage.getItem('cl_games_played') || '0') + 1;
     localStorage.setItem('cl_games_played', played);
     const hi = parseInt(localStorage.getItem('cl_high_score') || '0');
     if (this.score > hi) localStorage.setItem('cl_high_score', this.score);
+
+    // Analytics
+    if (window.CL) CL.gameEnd(this.score, this.level, this.lines);
 
     // Show game over overlay
     const overlay = document.getElementById('cl-game-over');
@@ -337,6 +337,7 @@ class Tetris {
     cancelAnimationFrame(this.animId);
     const overlay = document.getElementById('cl-game-over');
     if (overlay) overlay.classList.add('hidden');
+    if (window.CL) CL.buttonClick('Play Again', null);
     this.reset();
     this.start();
   }
@@ -391,7 +392,7 @@ class Tetris {
   }
 }
 
-// Initialize on DOM ready
+// ─── Initialize on DOM ready ─────────────────────────────────────────────────
 window.clTetris = null;
 document.addEventListener('DOMContentLoaded', () => {
   const canvas = document.getElementById('cl-tetris-canvas');
@@ -407,6 +408,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (startBtn) {
     startBtn.addEventListener('click', () => {
       if (startOverlay) startOverlay.classList.add('hidden');
+      if (window.CL) CL.buttonClick('Start Game', null);
       clTetris.start();
     });
   }
@@ -415,14 +417,5 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   if (pauseBtn) {
     pauseBtn.addEventListener('click', () => clTetris.pause());
-  }
-
-  // Also allow START THE GAME button on Loop Entrance to scroll to game
-  const startGameBtn = document.getElementById('start-game-btn');
-  if (startGameBtn) {
-    startGameBtn.addEventListener('click', () => {
-      const gameSection = document.getElementById('game-section');
-      if (gameSection) gameSection.scrollIntoView({ behavior: 'smooth' });
-    });
   }
 });
