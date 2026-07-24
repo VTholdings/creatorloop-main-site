@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+  <title>CreatorLoop™ | The Future of Creator Infrastructure</title>
+  <meta name="description" content="Play. Discover. Build. Enter the CreatorLoop™ ecosystem — your gateway to real opportunities, creator infrastructure, and the Blueprint." />
+  <!-- Favicons -->
+  <link rel="icon" type="image/x-icon" href="/assets/images/favicon.ico" />
+  <link rel="apple-touch-icon" href="/assets/images/favicon.png" />
+  <!-- Open Graph -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="CreatorLoop™ | The Future of Creator Infrastructure" />
+  <meta property="og:description" content="Play. Discover. Build. Enter the CreatorLoop™ ecosystem." />
+  <meta property="og:image" content="/assets/images/cl-logo.png" />
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="CreatorLoop™" />
+  <meta name="twitter:description" content="The Future of Creator Infrastructure" />
+  <!-- Analytics Placeholders -->
+  <!-- GA4: Replace G-XXXXXXXXXX -->
+  <!-- <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
+  <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-XXXXXXXXXX');</script> -->
+  <!-- Meta Pixel: Replace PIXEL_ID -->
+  <!-- <script>!function(f,b,e,v,n,t,s){...}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init','PIXEL_ID');</script> -->
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Barlow+Condensed:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
+  <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Barlow+Condensed:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" /></noscript>
+  <!-- Styles -->
+  <link rel="stylesheet" href="/css/styles.css" />
+  <link rel="stylesheet" href="/css/loop-entrance.css" />
+</head>
+<body>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       NAVIGATION
+  ═══════════════════════════════════════════════════════════ -->
+  <nav class="cl-nav" aria-label="Main navigation">
+    <div class="cl-nav-inner">
+      <a href="/" class="cl-nav-logo" aria-label="CreatorLoop Home">
+        <img src="/assets/images/cl-logo.png" alt="CreatorLoop CL mark" width="36" height="36" />
+        <div class="cl-nav-wordmark">
+          <span class="brand-name">Creator<span class="cl-gold">Loop</span>™</span>
+          <span class="brand-tagline">The Future of Creator Infrastructure</span>
+        </div>
+      </a>
+      <ul class="cl-nav-links" role="list">
+        <li><a href="/pages/missions.html">Mission Board</a></li>
+        <li><a href="/pages/blueprint.html">Blueprint</a></li>
+        <li><a href="/" class="active">Home</a></li>
+      </ul>
+      <button id="cl-nav-toggle" class="cl-nav-mobile-toggle" aria-label="Toggle menu" aria-expanded="false">
+        <svg width="22" height="16" viewBox="0 0 22 16" fill="none">
+          <rect y="0" width="22" height="2" rx="1" fill="currentColor"/>
+          <rect y="7" width="22" height="2" rx="1" fill="currentColor"/>
+          <rect y="14" width="22" height="2" rx="1" fill="currentColor"/>
+        </svg>
+      </button>
+    </div>
+    <!-- Mobile menu -->
+    <div id="cl-mobile-menu" class="cl-mobile-menu hidden">
+      <a href="/pages/missions.html">Mission Board</a>
+      <a href="/pages/blueprint.html">Blueprint</a>
+      <a href="/">Home</a>
+    </div>
+  </nav>
+
+  <main class="cl-page">
+
+    <!-- ═══════════════════════════════════════════════════════════
+         HERO — ARCADE SECTION
+    ═══════════════════════════════════════════════════════════ -->
+    <section class="le-hero" aria-label="Loop Entrance Hero">
+      <div class="le-hero-bg" aria-hidden="true"></div>
+
+      <div class="cl-container le-hero-content">
+
+        <!-- Left Panel -->
+        <div class="le-left-panel cl-panel-gold cl-fade-in">
+          <p class="cl-eyebrow mb-2">Play. Discover. Build.</p>
+          <h2 class="le-left-headline">
+            Play the game.<br />
+            Discover<br />
+            opportunities.<br />
+            Unlock the<br />
+            Blueprint.
+          </h2>
+          <p class="le-left-body">
+            Take your first step toward building something that lasts.
+          </p>
+          <a href="#game-section" id="start-game-btn" class="btn-gold mt-6" style="width:100%;justify-content:center;">
+            START THE GAME →
+          </a>
+        </div>
+
+        <!-- Center — Arcade Cabinet -->
+        <div class="le-arcade-wrapper">
+          <div class="le-arcade-cabinet">
+            <div class="le-arcade-marquee">
+              <span>THE LOOP</span>
+            </div>
+            <div class="le-arcade-screen-frame">
+              <!-- Decorative arcade preview - scroll down for full game -->
+              <div class="le-arcade-preview" aria-hidden="true">
+                <div class="le-arcade-preview-inner">
+                  <div class="le-arcade-preview-grid"></div>
+                </div>
+              </div>
+              <div class="le-arcade-preview-overlay">
+                <div class="le-game-overlay-inner">
+                  <div class="le-press-start-icon">▶</div>
+                  <p class="le-press-start-text">SCROLL TO PLAY</p>
+                  <a href="#game-section" class="btn-gold mt-4" onclick="document.getElementById('game-section').scrollIntoView({behavior:'smooth'});return false;">START GAME</a>
+                </div>
+              </div>
+            </div>
+            <div class="le-arcade-controls-bar">
+              <div class="le-arcade-joystick" aria-hidden="true"></div>
+              <div class="le-arcade-buttons" aria-hidden="true">
+                <span class="le-arcade-btn"></span>
+                <span class="le-arcade-btn"></span>
+                <span class="le-arcade-btn"></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Center CTA -->
+          <div class="le-center-cta">
+            <button id="enter-loop-btn" class="btn-gold le-enter-loop-btn" aria-label="Enter the Loop — scroll to Blueprint">
+              ENTER THE LOOP →
+            </button>
+            <p class="le-enter-loop-sub">YOUR JOURNEY STARTS HERE</p>
+          </div>
+        </div>
+
+        <!-- Right Panel — Mission Board Preview -->
+        <div class="le-right-panel cl-panel-gold">
+          <div class="le-mission-header">
+            <div class="le-mission-icon" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/></svg>
+            </div>
+            <div>
+              <h3 class="le-mission-title">MISSION BOARD</h3>
+              <p class="le-mission-subtitle">Real Opportunities. Real Impact.</p>
+            </div>
+          </div>
+
+          <div class="le-mission-list">
+            <div class="le-mission-card">
+              <div class="le-mission-card-left">
+                <div class="le-mission-card-icon creative" aria-hidden="true">🎨</div>
+                <div>
+                  <p class="le-mission-card-title">UGC Content Creator</p>
+                  <p class="le-mission-card-desc">Create engaging content for lifestyle brand</p>
+                </div>
+              </div>
+              <div class="le-mission-card-right">
+                <span class="le-mission-pay">$250 – $500</span>
+                <span class="cl-badge cl-badge-creative">CREATIVE</span>
+              </div>
+            </div>
+
+            <div class="le-mission-card">
+              <div class="le-mission-card-left">
+                <div class="le-mission-card-icon editing" aria-hidden="true">🎬</div>
+                <div>
+                  <p class="le-mission-card-title">Video Editor</p>
+                  <p class="le-mission-card-desc">Edit short-form videos for social media</p>
+                </div>
+              </div>
+              <div class="le-mission-card-right">
+                <span class="le-mission-pay">$300 – $800</span>
+                <span class="cl-badge cl-badge-editing">EDITING</span>
+              </div>
+            </div>
+
+            <div class="le-mission-card">
+              <div class="le-mission-card-left">
+                <div class="le-mission-card-icon marketing" aria-hidden="true">📢</div>
+                <div>
+                  <p class="le-mission-card-title">Social Media Manager</p>
+                  <p class="le-mission-card-desc">Manage and grow brand social channels</p>
+                </div>
+              </div>
+              <div class="le-mission-card-right">
+                <span class="le-mission-pay">$400 – $900</span>
+                <span class="cl-badge cl-badge-marketing">MARKETING</span>
+              </div>
+            </div>
+
+            <div class="le-mission-card">
+              <div class="le-mission-card-left">
+                <div class="le-mission-card-icon support" aria-hidden="true">🔍</div>
+                <div>
+                  <p class="le-mission-card-title">Research Assistant</p>
+                  <p class="le-mission-card-desc">Help with market research and analysis</p>
+                </div>
+              </div>
+              <div class="le-mission-card-right">
+                <span class="le-mission-pay">$200 – $400</span>
+                <span class="cl-badge cl-badge-support">SUPPORT</span>
+              </div>
+            </div>
+
+            <div class="le-mission-card">
+              <div class="le-mission-card-left">
+                <div class="le-mission-card-icon marketing" aria-hidden="true">📈</div>
+                <div>
+                  <p class="le-mission-card-title">Marketing</p>
+                  <p class="le-mission-card-desc">Support campaigns and brand initiatives</p>
+                </div>
+              </div>
+              <div class="le-mission-card-right">
+                <span class="le-mission-pay">$300 – $700</span>
+                <span class="cl-badge cl-badge-marketing">MARKETING</span>
+              </div>
+            </div>
+          </div>
+
+          <a href="/pages/missions.html" class="btn-outline-gold mt-4" style="width:100%;justify-content:center;display:flex;">
+            VIEW ALL MISSIONS →
+          </a>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         GAME SECTION (full Tetris experience)
+    ═══════════════════════════════════════════════════════════ -->
+    <section id="game-section" class="le-game-section" aria-label="Play Tetris">
+      <div class="cl-container">
+        <div class="le-game-layout">
+          <!-- Left copy -->
+          <div class="le-game-copy">
+            <h2 class="cl-heading-xl">
+              START THE GAME.<br />
+              <span class="cl-gold">BUILD THE FUTURE.</span>
+            </h2>
+            <div class="cl-divider-gold mt-3 mb-4"></div>
+            <p class="le-game-body">Every structure begins with a single piece.</p>
+            <p class="le-game-body mt-2">
+              Play a quick round and discover how infrastructure, continuity, and opportunity come together inside CreatorLoop™.
+            </p>
+            <!-- Score panel for mobile -->
+            <div class="le-score-panel-mobile cl-panel mt-6">
+              <div class="le-score-row">
+                <span class="le-score-label">SCORE</span>
+                <span class="le-score-value cl-gold" id="cl-score-mobile">0</span>
+              </div>
+              <div class="le-score-row">
+                <span class="le-score-label">LEVEL</span>
+                <span class="le-score-value" id="cl-level-mobile">1</span>
+              </div>
+              <div class="le-score-row">
+                <span class="le-score-label">LINES</span>
+                <span class="le-score-value" id="cl-lines-mobile">0</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Center game board -->
+          <div class="le-game-board-wrapper">
+            <div class="le-game-board-frame">
+              <canvas id="cl-tetris-canvas" class="le-game-canvas" aria-label="Tetris game board"></canvas>
+              <div id="cl-start-overlay" class="le-game-overlay">
+                <div class="le-game-overlay-inner">
+                  <div class="le-press-start-icon">▶</div>
+                  <p class="le-press-start-text">PRESS START</p>
+                  <button id="cl-start-btn" class="btn-gold mt-4">START GAME</button>
+                </div>
+              </div>
+              <div id="cl-game-over" class="le-game-overlay hidden">
+                <div class="le-game-overlay-inner">
+                  <p class="le-overlay-title">GAME OVER</p>
+                  <p class="le-overlay-score">Score: <span id="cl-final-score">0</span></p>
+                  <button id="cl-restart-btn" class="btn-gold mt-4">PLAY AGAIN</button>
+                  <a href="/pages/blueprint.html" class="btn-outline-gold mt-3" style="display:flex;justify-content:center;">UNLOCK BLUEPRINT →</a>
+                </div>
+              </div>
+            </div>
+            <!-- Controls -->
+            <div class="le-controls-bar">
+              <div class="le-control-keys">
+                <kbd>←</kbd><kbd>→</kbd><kbd>↓</kbd><kbd>↑</kbd>
+                <span class="le-control-label">Move</span>
+              </div>
+              <div class="le-control-keys">
+                <kbd>SPACE</kbd>
+                <span class="le-control-label">Hard Drop</span>
+              </div>
+              <div class="le-control-keys">
+                <kbd>P</kbd>
+                <span class="le-control-label">Pause</span>
+              </div>
+              <button id="cl-pause-btn" class="btn-outline-gold" style="padding:0.4rem 1rem;font-size:0.75rem;">PAUSE</button>
+            </div>
+          </div>
+
+          <!-- Right score panel -->
+          <div class="le-score-panel">
+            <div class="cl-panel mb-4">
+              <p class="le-score-label">NEXT</p>
+              <canvas id="cl-next-canvas" class="le-next-canvas" aria-label="Next piece preview"></canvas>
+            </div>
+            <div class="cl-panel">
+              <div class="le-score-stat">
+                <p class="le-score-label">SCORE</p>
+                <p class="le-score-value cl-gold" id="cl-score">0</p>
+              </div>
+              <div class="le-score-stat mt-3">
+                <p class="le-score-label">LEVEL</p>
+                <p class="le-score-value" id="cl-level">1</p>
+              </div>
+              <div class="le-score-stat mt-3">
+                <p class="le-score-label">LINES</p>
+                <p class="le-score-value" id="cl-lines">0</p>
+              </div>
+              <div class="le-cl-watermark" aria-hidden="true">CL</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Post-game CTAs -->
+        <div class="le-game-ctas">
+          <div class="cl-panel-gold le-game-cta-card">
+            <div class="le-game-cta-icon" aria-hidden="true">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+            </div>
+            <h3 class="le-game-cta-title cl-gold">READY FOR<br />THE NEXT LEVEL?</h3>
+            <p class="le-game-cta-body">Infrastructure wins. Unlock the CreatorLoop™ Blueprint and begin building your future on purpose.</p>
+            <a href="/pages/blueprint.html" class="btn-gold mt-4" style="width:100%;justify-content:center;">
+              📋 UNLOCK BLUEPRINT →
+            </a>
+          </div>
+          <div class="cl-panel le-game-cta-card" style="border-color:#3a2060;">
+            <div class="le-game-cta-icon cl-purple" aria-hidden="true">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/></svg>
+            </div>
+            <h3 class="le-game-cta-title cl-purple">EXPLORE ACTIVE<br />OPPORTUNITIES.</h3>
+            <p class="le-game-cta-body">Explore active opportunities across the CreatorLoop™ ecosystem.</p>
+            <a href="/pages/missions.html" class="btn-purple mt-4" style="width:100%;justify-content:center;">
+              ⊕ VIEW MISSIONS →
+            </a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         METRICS STRIP
+    ═══════════════════════════════════════════════════════════ -->
+    <div class="cl-metrics" aria-label="CreatorLoop ecosystem metrics">
+      <div class="cl-container">
+        <div class="cl-metrics-grid">
+          <div class="cl-metric-item">
+            <div class="cl-metric-icon" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            </div>
+            <div>
+              <div class="cl-metric-value">1,247</div>
+              <div class="cl-metric-label">Blueprints Unlocked</div>
+            </div>
+          </div>
+          <div class="cl-metric-item">
+            <div class="cl-metric-icon" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></svg>
+            </div>
+            <div>
+              <div class="cl-metric-value">3,892</div>
+              <div class="cl-metric-label">Badges Earned</div>
+            </div>
+          </div>
+          <div class="cl-metric-item">
+            <div class="cl-metric-icon" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+            <div>
+              <div class="cl-metric-value">8,561</div>
+              <div class="cl-metric-label">Missions Completed</div>
+            </div>
+          </div>
+          <div class="cl-metric-item">
+            <div class="cl-metric-icon" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </div>
+            <div>
+              <div class="cl-metric-value">12,430</div>
+              <div class="cl-metric-label">Community Members</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         BLUEPRINT SECTION
+    ═══════════════════════════════════════════════════════════ -->
+    <section id="blueprint-section" class="le-blueprint-section" aria-label="Unlock the Blueprint">
+      <div class="cl-container">
+        <div class="le-blueprint-layout">
+          <!-- Book cover -->
+          <div class="le-blueprint-cover-col">
+            <img src="/assets/images/blueprint-cover.png" alt="CreatorLoop Blueprint — The Blueprint book cover" class="le-blueprint-cover" loading="lazy" />
+          </div>
+          <!-- Copy -->
+          <div class="le-blueprint-copy-col">
+            <p class="cl-eyebrow mb-2">Unlock the Blueprint</p>
+            <h2 class="le-blueprint-headline">
+              Get Your CreatorLoop™<br />
+              <span class="cl-purple">Blueprint</span>
+            </h2>
+            <p class="le-blueprint-body mt-3">
+              Enter your information to access the official CreatorLoop™ Blueprint and start building your future on solid infrastructure.
+            </p>
+            <ul class="le-blueprint-benefits mt-4">
+              <li>
+                <span class="le-benefit-icon" aria-hidden="true">🚀</span>
+                Step-by-step infrastructure guide
+              </li>
+              <li>
+                <span class="le-benefit-icon" aria-hidden="true">⚙️</span>
+                Install continuity systems
+              </li>
+              <li>
+                <span class="le-benefit-icon" aria-hidden="true">🏆</span>
+                Exclusive creator resources
+              </li>
+            </ul>
+          </div>
+          <!-- Form -->
+          <div class="le-blueprint-form-col">
+            <div id="blueprint-form-section">
+              <form id="blueprint-form" novalidate aria-label="Blueprint download form">
+                <div class="le-form-row">
+                  <div class="cl-form-group">
+                    <input type="text" id="bp-firstname" name="firstName" placeholder="First Name" required class="cl-input" autocomplete="given-name" />
+                  </div>
+                  <div class="cl-form-group">
+                    <input type="text" id="bp-lastname" name="lastName" placeholder="Last Name" required class="cl-input" autocomplete="family-name" />
+                  </div>
+                </div>
+                <div class="cl-form-group mt-3">
+                  <input type="email" id="bp-email" name="email" placeholder="Email Address" required class="cl-input" autocomplete="email" />
+                </div>
+                <div class="cl-form-group mt-3">
+                  <select id="bp-role" name="role" required class="cl-select">
+                    <option value="" disabled selected>What describes you best?</option>
+                    <option value="Creator">Creator</option>
+                    <option value="Video Editor">Video Editor</option>
+                    <option value="Social Media Manager">Social Media Manager</option>
+                    <option value="Research Assistant">Research Assistant</option>
+                    <option value="Marketing Specialist">Marketing Specialist</option>
+                    <option value="Entrepreneur">Entrepreneur</option>
+                    <option value="Student">Student</option>
+                    <option value="Business Owner">Business Owner</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+                <button type="submit" id="blueprint-submit" class="btn-gold mt-4 w-full" disabled aria-label="Download the Blueprint">
+                  ⬇ UNLOCK BLUEPRINT
+                </button>
+                <p class="le-blueprint-microcopy">Free. Instant Access. Always Will Be.</p>
+              </form>
+            </div>
+            <!-- Success state -->
+            <div id="blueprint-success" class="le-blueprint-success hidden" aria-live="polite">
+              <div class="le-success-check" aria-hidden="true">✓</div>
+              <h3 class="le-success-title">Blueprint Unlocked</h3>
+              <p class="le-success-body">Your download is ready.<br />Welcome to CreatorLoop™.</p>
+              <a href="/assets/creatorloop-blueprint.pdf" download="CreatorLoop-Blueprint-v3.pdf" class="btn-gold mt-4 w-full" style="justify-content:center;display:flex;">
+                ⬇ DOWNLOAD NOW
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       FOOTER
+  ═══════════════════════════════════════════════════════════ -->
+  <footer class="cl-footer" aria-label="Site footer">
+    <div class="cl-footer-inner">
+      <div class="cl-footer-brand">
+        <img src="/assets/images/cl-logo.png" alt="CreatorLoop CL mark" width="32" height="32" />
+        <div class="cl-footer-brand-text">
+          <div class="name">Creator<span class="cl-gold">Loop</span>™</div>
+          <div class="tagline">The Future of Creator Infrastructure</div>
+        </div>
+      </div>
+      <p class="cl-footer-copy">© 2025 CreatorLoop™. All Rights Reserved.</p>
+      <div class="cl-footer-social" aria-label="Social media links">
+        <a href="https://www.instagram.com/creatorloop" target="_blank" rel="noopener noreferrer" aria-label="Instagram">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="0.5" fill="currentColor"/></svg>
+        </a>
+        <a href="https://www.linkedin.com/company/creatorloop" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg>
+        </a>
+        <a href="https://www.tiktok.com/@creatorloop" target="_blank" rel="noopener noreferrer" aria-label="TikTok">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5"/></svg>
+        </a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Scripts -->
+  <script src="/js/tetris.js"></script>
+  <script src="/js/main.js"></script>
+</body>
+</html>

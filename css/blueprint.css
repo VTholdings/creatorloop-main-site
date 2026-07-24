@@ -1,0 +1,276 @@
+/* ============================================================
+   CreatorLoop™ Blueprint Page — Styles
+   ============================================================ */
+
+/* ─── Nav right ─────────────────────────────────────────────── */
+.bp-nav-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.2rem;
+}
+.bp-nav-tagline {
+  font-size: 0.65rem;
+  color: var(--cl-text-muted);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* ─── Hero ──────────────────────────────────────────────────── */
+.bp-hero {
+  position: relative;
+  padding: 4rem 0;
+  background: var(--cl-black);
+  overflow: hidden;
+  min-height: calc(100vh - 64px);
+  display: flex;
+  align-items: center;
+}
+.bp-hero-bg {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 50% 60% at 20% 50%, rgba(123, 63, 228, 0.15) 0%, transparent 60%),
+    radial-gradient(ellipse 40% 40% at 80% 30%, rgba(200, 168, 75, 0.05) 0%, transparent 50%);
+  pointer-events: none;
+}
+.bp-hero-content {
+  display: grid;
+  grid-template-columns: 280px 1fr 380px;
+  gap: 3rem;
+  align-items: center;
+  position: relative;
+  z-index: 1;
+  width: 100%;
+}
+
+/* ─── Cover ─────────────────────────────────────────────────── */
+.bp-cover-col { display: flex; justify-content: center; }
+.bp-cover-img {
+  max-width: 260px;
+  width: 100%;
+  filter: drop-shadow(0 20px 50px rgba(123, 63, 228, 0.35)) drop-shadow(0 0 20px rgba(200, 168, 75, 0.15));
+  animation: cl-fade-in 0.6s ease forwards;
+}
+
+/* ─── Copy ──────────────────────────────────────────────────── */
+.bp-headline {
+  font-family: var(--font-display);
+  font-size: clamp(1.75rem, 3.5vw, 2.75rem);
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--cl-white);
+}
+.bp-body {
+  font-size: 0.9rem;
+  color: var(--cl-text-muted);
+  line-height: 1.7;
+}
+.bp-benefits {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.bp-benefits li {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.9rem;
+  color: var(--cl-text);
+}
+.bp-benefit-icon {
+  color: var(--cl-purple-light);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+/* ─── Form ──────────────────────────────────────────────────── */
+.bp-form-col {
+  background: var(--cl-panel);
+  border: 1px solid var(--cl-border);
+  border-radius: var(--radius-md);
+  padding: 2rem;
+}
+.bp-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+.bp-microcopy {
+  font-size: 0.75rem;
+  color: var(--cl-text-muted);
+  text-align: center;
+  margin-top: 0.75rem;
+}
+
+/* ─── Success State ─────────────────────────────────────────── */
+.bp-success {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 1rem;
+  gap: 0.5rem;
+  animation: cl-fade-in 0.4s ease;
+}
+.bp-success-check {
+  width: 64px;
+  height: 64px;
+  border: 2px solid var(--cl-gold);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.75rem;
+  color: var(--cl-gold);
+}
+.bp-success-title {
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: var(--cl-gold);
+  letter-spacing: 0.05em;
+  margin-top: 0.5rem;
+}
+.bp-success-body {
+  font-size: 0.9rem;
+  color: var(--cl-text-muted);
+  line-height: 1.6;
+}
+.bp-typing-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  overflow: hidden;
+}
+.bp-typing-text {
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: var(--cl-gold);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.bp-cursor {
+  font-size: 1rem;
+  color: var(--cl-gold);
+  animation: cl-blink 0.8s step-end infinite;
+}
+
+/* ─── Journey ───────────────────────────────────────────────── */
+.bp-journey {
+  padding: 5rem 0;
+  background: var(--cl-dark-2);
+  border-top: 1px solid var(--cl-border);
+}
+.bp-journey-header { margin-bottom: 0; }
+.bp-journey-steps {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0;
+  position: relative;
+}
+.bp-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  position: relative;
+  padding: 0 1rem;
+}
+.bp-step-icon {
+  width: 64px;
+  height: 64px;
+  border: 2px solid var(--step-color, var(--cl-gold));
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--step-color, var(--cl-gold));
+  background: rgba(0,0,0,0.5);
+  box-shadow: 0 0 20px color-mix(in srgb, var(--step-color, var(--cl-gold)) 30%, transparent);
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+}
+.bp-step-connector {
+  position: absolute;
+  top: 32px;
+  left: calc(50% + 32px);
+  right: calc(-50% + 32px);
+  height: 1px;
+  background: linear-gradient(90deg, var(--cl-border), transparent);
+  z-index: 0;
+}
+.bp-step:last-child .bp-step-connector { display: none; }
+.bp-step-number {
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  margin-top: 1rem;
+}
+.bp-step-title {
+  font-size: 0.8rem;
+  color: var(--cl-text-muted);
+  line-height: 1.5;
+  margin-top: 0.4rem;
+}
+
+/* ─── Mobile nav (shared) ───────────────────────────────────── */
+.cl-nav-mobile-toggle {
+  display: none;
+  color: var(--cl-text-muted);
+  padding: 0.25rem;
+}
+.cl-mobile-menu {
+  position: absolute;
+  top: 64px;
+  left: 0;
+  right: 0;
+  background: rgba(10, 10, 10, 0.98);
+  border-bottom: 1px solid var(--cl-border);
+  display: flex;
+  flex-direction: column;
+  padding: 1rem 1.5rem;
+  gap: 1rem;
+  z-index: 999;
+}
+.cl-mobile-menu a {
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--cl-text-muted);
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--cl-border);
+}
+.cl-mobile-menu a:last-child { border-bottom: none; }
+
+/* ─── Responsive ────────────────────────────────────────────── */
+@media (max-width: 1000px) {
+  .bp-hero-content {
+    grid-template-columns: 1fr;
+    text-align: center;
+  }
+  .bp-cover-col { order: 1; }
+  .bp-copy-col { order: 2; }
+  .bp-form-col { order: 3; }
+  .bp-benefits { align-items: center; }
+  .bp-journey-steps {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+  .bp-step-connector { display: none; }
+  .cl-nav-mobile-toggle { display: flex; }
+  .bp-nav-right { display: none; }
+}
+@media (max-width: 600px) {
+  .bp-form-row { grid-template-columns: 1fr; }
+  .bp-cover-img { max-width: 200px; }
+}

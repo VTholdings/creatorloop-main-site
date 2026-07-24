@@ -1,0 +1,339 @@
+/* ============================================================
+   CreatorLoop™ Mission Control — Page Styles
+   ============================================================ */
+
+/* ─── Hero ──────────────────────────────────────────────────── */
+.mc-hero {
+  position: relative;
+  padding: 3rem 0;
+  background: var(--cl-black);
+  overflow: hidden;
+}
+.mc-hero-bg {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 0%, rgba(123, 63, 228, 0.1) 0%, transparent 60%),
+    radial-gradient(ellipse 40% 40% at 10% 50%, rgba(200, 168, 75, 0.06) 0%, transparent 50%);
+  pointer-events: none;
+}
+.mc-hero-content {
+  display: grid;
+  grid-template-columns: 180px 1fr 220px;
+  gap: 2rem;
+  align-items: start;
+  position: relative;
+  z-index: 1;
+}
+.mc-hero-left {
+  padding-top: 1rem;
+}
+.mc-hero-callout {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--cl-white);
+  line-height: 1.3;
+}
+.mc-main-title {
+  font-family: var(--font-display);
+  font-size: clamp(3rem, 7vw, 5.5rem);
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--cl-white);
+  line-height: 1;
+}
+.mc-subtitle {
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  margin-top: 0.5rem;
+}
+.mc-body {
+  font-size: 0.9rem;
+  color: var(--cl-text-muted);
+  line-height: 1.7;
+}
+
+/* ─── Stats Row ─────────────────────────────────────────────── */
+.mc-stats-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+.mc-stat {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.mc-stat-icon {
+  color: var(--cl-gold);
+  opacity: 0.8;
+}
+.mc-stat-value {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--cl-gold);
+  display: block;
+  line-height: 1;
+}
+.mc-stat-label {
+  font-size: 0.65rem;
+  color: var(--cl-text-muted);
+  letter-spacing: 0.05em;
+  display: block;
+}
+
+/* ─── Ecosystem Status ──────────────────────────────────────── */
+.mc-hero-right { align-self: center; }
+.mc-ecosystem-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--cl-border);
+}
+.mc-ecosystem-title {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--cl-text-muted);
+}
+.mc-live-dot {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #6DC86D;
+  letter-spacing: 0.1em;
+}
+.mc-ecosystem-stats { display: flex; flex-direction: column; gap: 0.75rem; }
+.mc-eco-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.mc-eco-label {
+  font-size: 0.7rem;
+  color: var(--cl-text-muted);
+  letter-spacing: 0.05em;
+}
+.mc-eco-value {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--cl-white);
+}
+
+/* ─── Missions Section ──────────────────────────────────────── */
+.mc-missions-section {
+  padding: 3rem 0 5rem;
+  background: var(--cl-dark-2);
+  border-top: 1px solid var(--cl-border);
+}
+.mc-missions-layout {
+  display: grid;
+  grid-template-columns: 1fr 240px;
+  gap: 2rem;
+  align-items: start;
+}
+.mc-section-label {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--cl-gold);
+}
+.mc-section-line {
+  flex: 1;
+  height: 1px;
+  background: var(--cl-border);
+}
+
+/* ─── Mission Cards ─────────────────────────────────────────── */
+.mc-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 1rem;
+}
+.mc-card {
+  background: var(--cl-panel);
+  border: 1px solid var(--cl-border);
+  border-radius: var(--radius-md);
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+.mc-card:hover {
+  border-color: var(--cl-gold-dark);
+  box-shadow: 0 4px 20px rgba(200, 168, 75, 0.08);
+}
+.mc-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+.mc-card-icon {
+  font-size: 1.5rem;
+}
+.mc-card-title {
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--cl-white);
+  line-height: 1.3;
+  margin-bottom: 0.5rem;
+}
+.mc-card-desc {
+  font-size: 0.8rem;
+  color: var(--cl-text-muted);
+  line-height: 1.5;
+  flex: 1;
+}
+.mc-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.75rem;
+}
+.mc-tag {
+  font-size: 0.65rem;
+  color: var(--cl-text-muted);
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--cl-border);
+  border-radius: 3px;
+  padding: 0.15rem 0.4rem;
+}
+
+/* ─── Specialized Grid ──────────────────────────────────────── */
+.mc-specialized-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+.mc-card-wide { flex-direction: row; flex-wrap: wrap; gap: 0.5rem; }
+.mc-card-wide .mc-card-header { width: 100%; }
+.mc-card-wide .mc-card-title { width: 100%; }
+.mc-card-wide .mc-card-desc { width: 100%; }
+
+/* ─── Sidebar ───────────────────────────────────────────────── */
+.mc-sidebar { position: sticky; top: 80px; }
+.mc-sidebar-card { display: flex; flex-direction: column; }
+.mc-sidebar-item { display: flex; align-items: flex-start; gap: 0.75rem; }
+.mc-sidebar-icon {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--cl-gold);
+}
+.mc-sidebar-title {
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cl-gold);
+  margin-bottom: 0.25rem;
+}
+.mc-sidebar-body {
+  font-size: 0.78rem;
+  color: var(--cl-text-muted);
+  line-height: 1.5;
+}
+
+/* ─── Bottom CTA ────────────────────────────────────────────── */
+.mc-bottom-cta {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 2rem;
+  align-items: center;
+  margin-top: 3rem;
+  padding: 2.5rem;
+  background: var(--cl-panel);
+  border: 1px solid var(--cl-border);
+  border-radius: var(--radius-md);
+}
+.mc-bottom-cta-center { text-align: center; }
+.mc-bottom-cta-right {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+.mc-cta-feature {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.75rem;
+  color: var(--cl-text-muted);
+  text-align: center;
+}
+.mc-cta-feature-icon { font-size: 1.25rem; }
+
+/* ─── Mobile nav (shared) ───────────────────────────────────── */
+.cl-nav-mobile-toggle {
+  display: none;
+  color: var(--cl-text-muted);
+  padding: 0.25rem;
+}
+.cl-mobile-menu {
+  position: absolute;
+  top: 64px;
+  left: 0;
+  right: 0;
+  background: rgba(10, 10, 10, 0.98);
+  border-bottom: 1px solid var(--cl-border);
+  display: flex;
+  flex-direction: column;
+  padding: 1rem 1.5rem;
+  gap: 1rem;
+  z-index: 999;
+}
+.cl-mobile-menu a {
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--cl-text-muted);
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--cl-border);
+}
+.cl-mobile-menu a:last-child { border-bottom: none; }
+
+/* ─── Responsive ────────────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .mc-cards-grid { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 900px) {
+  .mc-hero-content { grid-template-columns: 1fr; }
+  .mc-hero-left { display: none; }
+  .mc-hero-right { order: 3; }
+  .mc-missions-layout { grid-template-columns: 1fr; }
+  .mc-sidebar { position: static; }
+  .mc-cards-grid { grid-template-columns: repeat(2, 1fr); }
+  .mc-bottom-cta { grid-template-columns: 1fr; text-align: center; }
+  .mc-bottom-cta-right { justify-items: center; }
+  .cl-nav-mobile-toggle { display: flex; }
+}
+@media (max-width: 600px) {
+  .mc-cards-grid { grid-template-columns: 1fr; }
+  .mc-specialized-grid { grid-template-columns: 1fr; }
+  .mc-stats-row { gap: 1rem; }
+}

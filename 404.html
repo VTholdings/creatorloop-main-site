@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>404 — Loop Not Found | CreatorLoop™</title>
+  <meta name="description" content="This page doesn't exist — but your future does. Return to the Loop." />
+  <link rel="icon" type="image/x-icon" href="/assets/images/favicon.ico" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Barlow+Condensed:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/styles.css" />
+  <style>
+    .page-404 {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 2rem;
+      background: var(--cl-black);
+      position: relative;
+      overflow: hidden;
+    }
+    .page-404-bg {
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 60% 50% at 50% 50%, rgba(123, 63, 228, 0.1) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .page-404-content { position: relative; z-index: 1; max-width: 600px; }
+    .page-404-code {
+      font-family: var(--font-display);
+      font-size: clamp(6rem, 20vw, 12rem);
+      font-weight: 900;
+      line-height: 1;
+      letter-spacing: 0.05em;
+      background: linear-gradient(135deg, var(--cl-gold) 0%, var(--cl-purple-light) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .page-404-title {
+      font-family: var(--font-display);
+      font-size: clamp(1.25rem, 3vw, 2rem);
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--cl-white);
+      margin-top: 0.5rem;
+    }
+    .page-404-body {
+      font-size: 0.95rem;
+      color: var(--cl-text-muted);
+      line-height: 1.7;
+      margin-top: 1rem;
+      margin-bottom: 2.5rem;
+    }
+    .page-404-actions {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    .page-404-logo {
+      margin-bottom: 2rem;
+    }
+    .page-404-logo img {
+      width: 56px;
+      height: 56px;
+      object-fit: contain;
+      margin: 0 auto;
+      opacity: 0.7;
+    }
+    .page-404-glitch {
+      font-family: var(--font-display);
+      font-size: 0.75rem;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      color: var(--cl-text-dim);
+      margin-top: 3rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="page-404">
+    <div class="page-404-bg" aria-hidden="true"></div>
+    <div class="page-404-content">
+      <div class="page-404-logo">
+        <img src="/assets/images/cl-logo.png" alt="CreatorLoop" />
+      </div>
+      <div class="page-404-code" aria-label="Error 404">404</div>
+      <h1 class="page-404-title">Loop Not Found</h1>
+      <p class="page-404-body">
+        This page doesn't exist — but your future does.<br />
+        Return to the Loop and keep building.
+      </p>
+      <div class="page-404-actions">
+        <a href="/" class="btn-gold">← RETURN TO THE LOOP</a>
+        <a href="/pages/blueprint.html" class="btn-outline-gold">UNLOCK BLUEPRINT</a>
+      </div>
+      <p class="page-404-glitch" aria-hidden="true">CREATORLOOP™ · ERROR · 404 · LOOP NOT FOUND</p>
+    </div>
+  </div>
+</body>
+</html>

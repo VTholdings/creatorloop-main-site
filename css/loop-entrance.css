@@ -1,0 +1,615 @@
+/* ============================================================
+   CreatorLoop™ Loop Entrance — Page Styles
+   ============================================================ */
+
+/* ─── Hero Section ──────────────────────────────────────────── */
+.le-hero {
+  position: relative;
+  min-height: calc(100vh - 64px);
+  display: flex;
+  align-items: stretch;
+  overflow: hidden;
+  background: var(--cl-black);
+}
+.le-hero-bg {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 60% 50% at 50% 40%, rgba(123, 63, 228, 0.12) 0%, transparent 70%),
+    radial-gradient(ellipse 40% 30% at 20% 60%, rgba(200, 168, 75, 0.06) 0%, transparent 60%),
+    radial-gradient(ellipse 40% 30% at 80% 60%, rgba(0, 212, 255, 0.05) 0%, transparent 60%);
+  pointer-events: none;
+}
+.le-hero-content {
+  display: grid;
+  grid-template-columns: 280px 1fr 300px;
+  gap: 1.5rem;
+  align-items: start;
+  padding-top: 2rem;
+  padding-bottom: 2rem;
+  position: relative;
+  z-index: 1;
+}
+
+/* ─── Left Panel ────────────────────────────────────────────── */
+.le-left-panel {
+  display: flex;
+  flex-direction: column;
+  align-self: center;
+}
+.le-left-headline {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-weight: 800;
+  line-height: 1.3;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--cl-white);
+  margin-bottom: 0.75rem;
+}
+.le-left-body {
+  font-size: 0.875rem;
+  color: var(--cl-text-muted);
+  line-height: 1.6;
+}
+
+/* ─── Arcade Cabinet ────────────────────────────────────────── */
+.le-arcade-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+}
+.le-arcade-cabinet {
+  width: 100%;
+  max-width: 340px;
+  background: linear-gradient(180deg, #1a1208 0%, #0d0d0d 100%);
+  border: 2px solid var(--cl-gold-dark);
+  border-radius: 12px 12px 4px 4px;
+  box-shadow:
+    0 0 40px rgba(200, 168, 75, 0.2),
+    inset 0 0 20px rgba(0,0,0,0.5);
+  overflow: hidden;
+}
+.le-arcade-marquee {
+  background: linear-gradient(135deg, var(--cl-gold-dark) 0%, var(--cl-gold) 50%, var(--cl-gold-dark) 100%);
+  padding: 0.6rem 1rem;
+  text-align: center;
+}
+.le-arcade-marquee span {
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  font-weight: 900;
+  letter-spacing: 0.2em;
+  color: #000;
+  text-shadow: 0 1px 0 rgba(255,255,255,0.3);
+}
+.le-arcade-screen-frame {
+  position: relative;
+  background: #050505;
+  border: 3px solid #2a2010;
+  margin: 0.75rem;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.le-tetris-canvas {
+  display: block;
+  width: 100%;
+  image-rendering: pixelated;
+}
+.le-arcade-controls-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 0.75rem 1rem;
+  background: #0d0d0d;
+  border-top: 1px solid #2a2010;
+}
+.le-arcade-joystick {
+  width: 28px;
+  height: 28px;
+  background: radial-gradient(circle at 35% 35%, #555, #222);
+  border-radius: 50%;
+  border: 2px solid #444;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+}
+.le-arcade-buttons {
+  display: flex;
+  gap: 8px;
+}
+.le-arcade-btn {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, var(--cl-gold-light), var(--cl-gold-dark));
+  box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+}
+.le-arcade-btn:nth-child(2) {
+  background: radial-gradient(circle at 35% 35%, var(--cl-purple-light), var(--cl-purple));
+}
+.le-arcade-btn:nth-child(3) {
+  background: radial-gradient(circle at 35% 35%, #5DADE2, #2980B9);
+}
+
+/* ─── Game Overlay ──────────────────────────────────────────── */
+.le-game-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+.le-game-overlay-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1.5rem;
+  text-align: center;
+}
+.le-press-start-icon {
+  font-size: 2rem;
+  color: var(--cl-gold);
+  animation: cl-pulse-gold 1.5s ease-in-out infinite;
+}
+.le-press-start-text {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  color: var(--cl-gold);
+}
+.le-overlay-title {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 900;
+  letter-spacing: 0.15em;
+  color: var(--cl-white);
+}
+.le-overlay-score {
+  font-size: 0.9rem;
+  color: var(--cl-text-muted);
+}
+
+/* ─── Enter Loop CTA ────────────────────────────────────────── */
+.le-center-cta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+.le-enter-loop-btn {
+  font-size: 1rem;
+  padding: 1rem 2.5rem;
+  letter-spacing: 0.15em;
+  min-width: 260px;
+  animation: cl-pulse-gold 2s ease-in-out infinite;
+}
+.le-enter-loop-sub {
+  font-size: 0.7rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--cl-text-muted);
+}
+
+/* ─── Right Panel — Mission Board ───────────────────────────── */
+.le-right-panel {
+  display: flex;
+  flex-direction: column;
+  align-self: center;
+  max-height: 600px;
+  overflow-y: auto;
+}
+.le-right-panel::-webkit-scrollbar { width: 4px; }
+.le-right-panel::-webkit-scrollbar-track { background: transparent; }
+.le-right-panel::-webkit-scrollbar-thumb { background: var(--cl-border); border-radius: 2px; }
+.le-mission-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+.le-mission-icon {
+  width: 36px;
+  height: 36px;
+  border: 1.5px solid var(--cl-gold);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--cl-gold);
+  flex-shrink: 0;
+}
+.le-mission-title {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: var(--cl-gold);
+}
+.le-mission-subtitle {
+  font-size: 0.7rem;
+  color: var(--cl-text-muted);
+  margin-top: 2px;
+}
+.le-mission-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.le-mission-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--cl-border);
+  border-radius: var(--radius-sm);
+  transition: border-color var(--transition);
+}
+.le-mission-card:hover { border-color: var(--cl-gold-dark); }
+.le-mission-card-left {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex: 1;
+  min-width: 0;
+}
+.le-mission-card-icon {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+.le-mission-card-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--cl-white);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.le-mission-card-desc {
+  font-size: 0.68rem;
+  color: var(--cl-text-muted);
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.le-mission-card-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.3rem;
+  flex-shrink: 0;
+}
+.le-mission-pay {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--cl-gold);
+  white-space: nowrap;
+}
+
+/* ─── Game Section ──────────────────────────────────────────── */
+.le-game-section {
+  padding: 4rem 0;
+  background: var(--cl-dark-2);
+  border-top: 1px solid var(--cl-border);
+}
+.le-game-layout {
+  display: grid;
+  grid-template-columns: 1fr auto 160px;
+  gap: 2rem;
+  align-items: start;
+}
+.le-game-copy { padding-top: 1rem; }
+.le-game-body {
+  font-size: 0.95rem;
+  color: var(--cl-text-muted);
+  line-height: 1.7;
+}
+.le-game-board-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+.le-game-board-frame {
+  position: relative;
+  background: #0D0D0D;
+  border: 2px solid var(--cl-gold-dark);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 0 30px rgba(200, 168, 75, 0.15);
+  overflow: hidden;
+}
+.le-game-canvas {
+  display: block;
+  image-rendering: pixelated;
+}
+.le-controls-bar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.le-control-keys {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.le-control-label {
+  font-size: 0.7rem;
+  color: var(--cl-text-muted);
+  margin-left: 0.3rem;
+}
+kbd {
+  background: var(--cl-panel);
+  border: 1px solid var(--cl-border);
+  border-radius: 3px;
+  padding: 0.2rem 0.4rem;
+  font-size: 0.7rem;
+  color: var(--cl-text-muted);
+  font-family: var(--font-body);
+}
+.le-score-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.le-score-stat { line-height: 1; }
+.le-score-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--cl-text-muted);
+  margin-bottom: 0.25rem;
+}
+.le-score-value {
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: var(--cl-white);
+  line-height: 1;
+}
+.le-next-canvas {
+  display: block;
+  margin-top: 0.5rem;
+  image-rendering: pixelated;
+}
+.le-cl-watermark {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  font-weight: 900;
+  color: rgba(200, 168, 75, 0.08);
+  text-align: center;
+  margin-top: 1rem;
+  letter-spacing: 0.1em;
+}
+.le-score-panel-mobile { display: none; }
+
+/* ─── Game CTAs ─────────────────────────────────────────────── */
+.le-game-ctas {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  margin-top: 3rem;
+}
+.le-game-cta-card {
+  display: flex;
+  flex-direction: column;
+  padding: 2rem;
+}
+.le-game-cta-icon {
+  color: var(--cl-gold);
+  margin-bottom: 1rem;
+}
+.le-game-cta-title {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  line-height: 1.2;
+}
+.le-game-cta-body {
+  font-size: 0.875rem;
+  color: var(--cl-text-muted);
+  line-height: 1.6;
+  margin-top: 0.5rem;
+  flex: 1;
+}
+
+/* ─── Blueprint Section ─────────────────────────────────────── */
+.le-blueprint-section {
+  padding: 5rem 0;
+  background: var(--cl-black);
+  border-top: 1px solid var(--cl-border);
+}
+.le-blueprint-layout {
+  display: grid;
+  grid-template-columns: 260px 1fr 380px;
+  gap: 3rem;
+  align-items: center;
+}
+.le-blueprint-cover-col { display: flex; justify-content: center; }
+.le-blueprint-cover {
+  max-width: 240px;
+  filter: drop-shadow(0 20px 40px rgba(123, 63, 228, 0.3));
+}
+.le-blueprint-headline {
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 3vw, 2.25rem);
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--cl-white);
+}
+.le-blueprint-body {
+  font-size: 0.9rem;
+  color: var(--cl-text-muted);
+  line-height: 1.7;
+}
+.le-blueprint-benefits {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.le-blueprint-benefits li {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.875rem;
+  color: var(--cl-text);
+}
+.le-benefit-icon { font-size: 1rem; flex-shrink: 0; }
+.le-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+.le-blueprint-microcopy {
+  font-size: 0.75rem;
+  color: var(--cl-text-muted);
+  text-align: center;
+  margin-top: 0.75rem;
+}
+
+/* ─── Blueprint Success ─────────────────────────────────────── */
+.le-blueprint-success {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 2rem;
+  gap: 0.75rem;
+}
+.le-success-check {
+  width: 60px;
+  height: 60px;
+  border: 2px solid var(--cl-gold);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  color: var(--cl-gold);
+  animation: cl-fade-in 0.4s ease;
+}
+.le-success-title {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--cl-gold);
+  letter-spacing: 0.05em;
+}
+.le-success-body {
+  font-size: 0.875rem;
+  color: var(--cl-text-muted);
+  line-height: 1.6;
+}
+
+/* ─── Mobile Nav ────────────────────────────────────────────── */
+.cl-nav-mobile-toggle {
+  display: none;
+  color: var(--cl-text-muted);
+  padding: 0.25rem;
+}
+.cl-mobile-menu {
+  position: absolute;
+  top: 64px;
+  left: 0;
+  right: 0;
+  background: rgba(10, 10, 10, 0.98);
+  border-bottom: 1px solid var(--cl-border);
+  display: flex;
+  flex-direction: column;
+  padding: 1rem 1.5rem;
+  gap: 1rem;
+  z-index: 999;
+}
+.cl-mobile-menu a {
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--cl-text-muted);
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--cl-border);
+}
+.cl-mobile-menu a:last-child { border-bottom: none; }
+
+/* ─── Responsive ────────────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .le-hero-content {
+    grid-template-columns: 240px 1fr 260px;
+    gap: 1rem;
+  }
+}
+
+@media (max-width: 900px) {
+  .le-hero-content {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
+  }
+  .le-left-panel { order: 2; }
+  .le-arcade-wrapper { order: 1; }
+  .le-right-panel { order: 3; max-height: none; }
+  .le-game-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
+  }
+  .le-score-panel { display: none; }
+  .le-score-panel-mobile { display: block; }
+  .le-blueprint-layout {
+    grid-template-columns: 1fr;
+    text-align: center;
+  }
+  .le-blueprint-cover-col { order: 1; }
+  .le-blueprint-copy-col { order: 2; }
+  .le-blueprint-form-col { order: 3; }
+  .le-blueprint-benefits { align-items: center; }
+  .le-game-ctas { grid-template-columns: 1fr; }
+  .cl-nav-mobile-toggle { display: flex; }
+}
+
+@media (max-width: 600px) {
+  .le-form-row { grid-template-columns: 1fr; }
+  .le-arcade-cabinet { max-width: 280px; }
+  .le-enter-loop-btn { min-width: 200px; font-size: 0.85rem; }
+}
+
+/* ─── Arcade Preview (decorative hero element) ──────────────── */
+.le-arcade-preview {
+  width: 100%;
+  height: 200px;
+  background: #0D0D0D;
+  position: relative;
+  overflow: hidden;
+}
+.le-arcade-preview-inner {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.le-arcade-preview-grid {
+  width: 100%;
+  height: 100%;
+  background-image:
+    linear-gradient(rgba(200, 168, 75, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(200, 168, 75, 0.05) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+.le-arcade-preview-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}

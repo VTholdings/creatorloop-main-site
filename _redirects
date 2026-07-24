@@ -1,0 +1,16 @@
+# CreatorLoop™ Cloudflare Pages Redirects
+
+# Route /blueprint to the blueprint page
+/blueprint      /pages/blueprint.html   200
+/blueprint/     /pages/blueprint.html   200
+
+# Route /missions and /mission-board to missions page
+/missions       /pages/missions.html    200
+/missions/      /pages/missions.html    200
+/mission-board  /pages/missions.html    200
+
+# Route /home to root
+/home           /index.html             200
+
+# 404 fallback
+/*              /404.html               404
