@@ -145,25 +145,44 @@
                 />
               </div>
               <div class="cl-form-group mt-3">
-                <select
-                  id="bp-role"
-                  name="role"
-                  required
-                  class="cl-select"
-                  aria-required="true"
-                >
-                  <option value="" disabled selected>What describes you best?</option>
-                  <option value="Creator">Creator</option>
-                  <option value="Video Editor">Video Editor</option>
-                  <option value="Social Media Manager">Social Media Manager</option>
-                  <option value="Research Assistant">Research Assistant</option>
-                  <option value="Marketing Specialist">Marketing Specialist</option>
-                  <option value="Entrepreneur">Entrepreneur</option>
-                  <option value="Student">Student</option>
-                  <option value="Business Owner">Business Owner</option>
-                  <option value="Other">Other</option>
-                </select>
+                <input
+                  type="text"
+                  id="bp-company"
+                  name="company"
+                  placeholder="Company / Brand (optional)"
+                  class="cl-input"
+                  autocomplete="organization"
+                />
               </div>
+              <div class="bp-form-row mt-3">
+                <div class="cl-form-group">
+                  <select
+                    id="bp-role"
+                    name="role"
+                    required
+                    class="cl-select"
+                    aria-required="true"
+                  >
+                    <option value="" disabled selected>Creator Type *</option>
+                    <option value="Creator">Creator</option>
+                    <option value="Video Editor">Video Editor</option>
+                    <option value="Social Media Manager">Social Media Manager</option>
+                    <option value="Research Assistant">Research Assistant</option>
+                    <option value="Marketing Specialist">Marketing Specialist</option>
+                    <option value="Entrepreneur">Entrepreneur</option>
+                    <option value="Student">Student</option>
+                    <option value="Business Owner">Business Owner</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+              </div>
+              <!-- Hidden tracking fields — populated by JS -->
+              <input type="hidden" id="bp-utm-source" name="utmSource" />
+              <input type="hidden" id="bp-utm-medium" name="utmMedium" />
+              <input type="hidden" id="bp-utm-campaign" name="utmCampaign" />
+              <input type="hidden" id="bp-ga-client-id" name="gaClientId" />
+              <input type="hidden" id="bp-download-source" name="downloadSource" value="Blueprint Page" />
+              <input type="hidden" id="bp-blueprint-version" name="blueprintVersion" value="v3" />
               <button
                 type="submit"
                 id="blueprint-submit"
