@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
   <title>404 — Loop Not Found | CreatorLoop™</title>
   <meta name="description" content="This page doesn't exist — but your future does. Return to the Loop." />
   <link rel="icon" type="image/x-icon" href="/assets/images/favicon.ico" />
@@ -64,6 +64,14 @@
       justify-content: center;
       gap: 1rem;
       flex-wrap: wrap;
+    }
+    @media (max-width: 480px) {
+      .page-404 { padding: 1.5rem 1rem; }
+      .page-404-body { font-size: 0.88rem; margin-bottom: 1.75rem; }
+      .page-404-actions { flex-direction: column; width: 100%; }
+      .page-404-actions .btn-gold,
+      .page-404-actions .btn-outline-gold { width: 100%; justify-content: center; }
+      .page-404-glitch { font-size: 0.65rem; letter-spacing: 0.15em; }
     }
     .page-404-logo {
       margin-bottom: 2rem;

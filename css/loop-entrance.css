@@ -613,3 +613,58 @@ kbd {
   align-items: center;
   justify-content: center;
 }
+
+/* ─── Mobile Enhancements — RC1 Mobile Pass ─────────────────── */
+
+@media (max-width: 600px) {
+  /* Hero section */
+  .le-hero { padding: 1.5rem 0 2rem; }
+  .le-hero-title { font-size: clamp(2rem, 10vw, 3.5rem); }
+  .le-hero-sub { font-size: 0.8rem; letter-spacing: 0.1em; }
+  .le-enter-loop-btn { width: 100%; justify-content: center; font-size: 0.85rem; }
+
+  /* Arcade cabinet — scale down on small screens */
+  .le-arcade-cabinet { max-width: 260px; margin: 0 auto; }
+  .le-cabinet-screen { padding: 0.5rem; }
+
+  /* Game section */
+  .le-game-section { padding: 2rem 0; }
+  .le-game-title { font-size: clamp(1.5rem, 8vw, 2.5rem); }
+  .le-game-canvas-wrapper { max-width: 280px; margin: 0 auto; }
+
+  /* Mobile score strip */
+  .le-score-panel-mobile {
+    display: flex;
+    justify-content: space-around;
+    padding: 0.75rem 1rem;
+    background: var(--cl-dark-2);
+    border: 1px solid var(--cl-border);
+    border-radius: var(--radius-sm);
+    margin-bottom: 0.75rem;
+  }
+  .le-score-panel { display: none; }
+
+  /* Blueprint section */
+  .le-blueprint-section { padding: 2rem 0; }
+  .le-blueprint-headline { font-size: clamp(1.8rem, 8vw, 3rem); }
+  .le-blueprint-body { font-size: 0.9rem; }
+  .le-blueprint-cover-col img { max-width: 160px; margin: 0 auto; }
+
+  /* Form rows — single column */
+  .le-form-row { grid-template-columns: 1fr; gap: 0.75rem; }
+  .le-form-submit { width: 100%; justify-content: center; }
+
+  /* Mission preview cards */
+  .le-missions-grid { grid-template-columns: 1fr; gap: 1rem; }
+  .le-mission-card { padding: 1.25rem; }
+
+  /* Game CTA buttons */
+  .le-game-ctas { grid-template-columns: 1fr; gap: 0.75rem; }
+  .le-game-ctas .btn-gold,
+  .le-game-ctas .btn-outline-gold { width: 100%; justify-content: center; }
+}
+
+@media (max-width: 380px) {
+  .le-arcade-cabinet { max-width: 240px; }
+  .le-game-canvas-wrapper { max-width: 240px; }
+}

@@ -337,3 +337,44 @@
   .mc-specialized-grid { grid-template-columns: 1fr; }
   .mc-stats-row { gap: 1rem; }
 }
+
+/* ─── Mobile Enhancements — RC1 Mobile Pass ─────────────────── */
+
+@media (max-width: 600px) {
+  /* Hero */
+  .mc-hero { padding: 2rem 0; }
+  .mc-main-title { font-size: clamp(2.5rem, 12vw, 4rem); }
+  .mc-body { font-size: 0.88rem; }
+
+  /* Stats */
+  .mc-stats-row { gap: 0.75rem; }
+  .mc-stat-value { font-size: 1rem; }
+  .mc-stat-label { font-size: 0.62rem; }
+
+  /* Missions section */
+  .mc-missions-section { padding: 2rem 0 3rem; }
+  .mc-card { padding: 1rem; }
+  .mc-card-title { font-size: 0.82rem; }
+  .mc-card-desc { font-size: 0.78rem; }
+  .mc-card-icon { font-size: 1.25rem; }
+
+  /* Bottom CTA */
+  .mc-bottom-cta { padding: 1.5rem 1rem; margin-top: 2rem; }
+  .mc-bottom-cta-right { grid-template-columns: 1fr; gap: 0.75rem; }
+  .mc-bottom-cta-right .btn-gold,
+  .mc-bottom-cta-right .btn-outline-gold { width: 100%; justify-content: center; }
+
+  /* Sidebar */
+  .mc-sidebar { margin-top: 1.5rem; }
+  .mc-sidebar-body { font-size: 0.75rem; }
+
+  /* Ecosystem status panel */
+  .mc-hero-right { padding: 1rem; }
+  .mc-eco-label { font-size: 0.68rem; }
+  .mc-eco-value { font-size: 0.9rem; }
+}
+
+@media (max-width: 380px) {
+  .mc-main-title { font-size: 2.2rem; }
+  .mc-card { padding: 0.875rem; }
+}

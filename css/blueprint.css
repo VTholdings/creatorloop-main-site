@@ -274,3 +274,36 @@
   .bp-form-row { grid-template-columns: 1fr; }
   .bp-cover-img { max-width: 200px; }
 }
+
+/* ─── Mobile Enhancements — RC1 Mobile Pass ─────────────────── */
+
+@media (max-width: 600px) {
+  /* Hero */
+  .bp-hero { padding: 2rem 0 2.5rem; min-height: auto; }
+  .bp-hero-content { gap: 1.5rem; }
+  .bp-headline { font-size: clamp(1.8rem, 9vw, 2.75rem); }
+  .bp-body { font-size: 0.88rem; }
+
+  /* Book cover */
+  .bp-cover-img { max-width: 160px; }
+
+  /* Form panel */
+  .bp-form-col { padding: 1.25rem; }
+  #blueprint-submit { font-size: 0.88rem; padding: 1rem; }
+  .bp-microcopy { font-size: 0.68rem; }
+
+  /* Success state */
+  .bp-success { padding: 1.5rem 0.5rem; }
+  .bp-success-title { font-size: 1.5rem; }
+  .bp-typing-text { font-size: 0.75rem; letter-spacing: 0.1em; }
+
+  /* Journey */
+  .bp-journey { padding: 2rem 0; }
+  .bp-step-icon { width: 52px; height: 52px; }
+  .bp-step-title { font-size: 0.8rem; }
+}
+
+@media (max-width: 380px) {
+  .bp-cover-img { max-width: 130px; }
+  .bp-form-col { padding: 1rem; }
+}
