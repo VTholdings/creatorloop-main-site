@@ -242,8 +242,9 @@ function bindCreatorForm(creator = {}) {
   $("#creator-form").addEventListener("submit",async (event) => {
     event.preventDefault();
     const form = event.currentTarget;
-    const button = form.querySelector('[type="submit"]');
-    button.disabled = true;
+    const submit = form.querySelector('[type="submit"]');
+    if (submit.disabled) return;
+    submit.disabled=true;
     const body = Object.fromEntries(new FormData(form));
     try {
       if (creator.id) {
@@ -255,7 +256,7 @@ function bindCreatorForm(creator = {}) {
       notice("Saved, attributed, and queued for Control System synchronization.");
       await reload("work");
     } catch (error) {
-      button.disabled = false;
+      submit.disabled = false;
       notice(error.message,true);
     }
   });
