@@ -2,8 +2,5 @@ name = "creatorloop-main-site"
 compatibility_date = "2026-09-27"
 pages_build_output_dir = "."
 
-[[d1_databases]]
-binding = "OPERATIONS_DB"
-database_name = "creatorloop-operations-nonproduction"
-database_id = "REPLACE_IN_CLOUDFLARE_PAGES_BINDING"
-migrations_dir = "migrations"
+# OPERATIONS_DB is bound to creatorloop-operations-nonproduction in the
+# dedicated Cloudflare Pages project so no database UUID is stored in source.
