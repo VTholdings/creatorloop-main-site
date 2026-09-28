@@ -63,6 +63,16 @@ test("V2 sync bridge is signed, replay-safe, and uses the existing D1 binding", 
   assert.match(config,/database_id = "c4993a97-5835-4c6c-af06-7020fa8d4f2a"/);
 });
 
+test("Apps Script crosses Cloudflare Access with a scoped service token and still signs every request", async () => {
+  const script = await readFile("assets/operations-control-system-sync.gs","utf8");
+  assert.match(script,/CREATORLOOP_ACCESS_CLIENT_ID/);
+  assert.match(script,/CREATORLOOP_ACCESS_CLIENT_SECRET/);
+  assert.match(script,/"CF-Access-Client-Id"/);
+  assert.match(script,/"CF-Access-Client-Secret"/);
+  assert.match(script,/"X-CreatorLoop-Signature"/);
+  assert.match(script,/followRedirects:\s*false/);
+});
+
 test("V2 operator UI exposes campaign identity, search, existing records, and field classes", async () => {
   const [html,client] = await Promise.all([
     readFile("console/index.html","utf8"),
