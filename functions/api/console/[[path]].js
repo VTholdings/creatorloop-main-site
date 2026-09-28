@@ -195,12 +195,13 @@ async function updateCreator(context, user, id) {
   if (duplicate) return json({ error: `This creator already has campaign record ${duplicate.id}` }, 409);
   const now = new Date().toISOString();
   const payload = creatorPayload(id, body, user.id, now);
-  const update = context.env.OPERATIONS_DB.prepare(`UPDATE creator_enrollments SET creator_name=?,primary_platform=?,handle=?,contact=?,creator_status=?,compensation_model=?,rights_status=?,product_focus=?,notes=?,evidence_link=?,workflow_status='IN_PROGRESS',assigned_operator_id=?,last_updated=?,version=version+1,sync_status='PENDING_EXPORT' WHERE id=? AND version=?`)
-    .bind(body.creatorName.trim(),body.primaryPlatform,body.handle.trim(),body.contact.trim(),body.creatorStatus,body.compensationModel,body.rightsStatus,body.productFocus.trim(),body.notes?.trim()||null,body.evidenceLink?.trim()||null,user.id,now,id,body.version);
+  const mutationId = uid("MUT");
+  const update = context.env.OPERATIONS_DB.prepare(`UPDATE creator_enrollments SET creator_name=?,primary_platform=?,handle=?,contact=?,creator_status=?,compensation_model=?,rights_status=?,product_focus=?,notes=?,evidence_link=?,workflow_status='IN_PROGRESS',assigned_operator_id=?,last_updated=?,version=version+1,sync_status='PENDING_EXPORT',last_mutation_id=? WHERE id=? AND version=?`)
+    .bind(body.creatorName.trim(),body.primaryPlatform,body.handle.trim(),body.contact.trim(),body.creatorStatus,body.compensationModel,body.rightsStatus,body.productFocus.trim(),body.notes?.trim()||null,body.evidenceLink?.trim()||null,user.id,now,mutationId,id,body.version);
   const result = await context.env.OPERATIONS_DB.batch([
     update,
-    conditionalCreatorAudit(context.env.OPERATIONS_DB,user,current.campaign_id,id,"CREATOR_ENROLLMENT_UPDATED",current.workflow_status,"IN_PROGRESS",null,body.version+1),
-    conditionalCreatorOutbox(context.env.OPERATIONS_DB,user,"CREATOR",id,"UPSERT",JSON.stringify(payload),body.version+1)
+    conditionalCreatorAudit(context.env.OPERATIONS_DB,user,current.campaign_id,id,"CREATOR_ENROLLMENT_UPDATED",current.workflow_status,"IN_PROGRESS",null,mutationId),
+    conditionalCreatorOutbox(context.env.OPERATIONS_DB,user,"CREATOR",id,"UPSERT",JSON.stringify(payload),mutationId)
   ]);
   if (!result[0].meta.changes) return json({ error: "Record changed. Refresh and try again." }, 409);
   return json({ id, workflowStatus: "IN_PROGRESS", syncStatus: "PENDING_EXPORT" });
@@ -214,13 +215,14 @@ async function updateCreatorWorkflow(context, user, current, body) {
     const missingRights = await optionalRows(context.env.OPERATIONS_DB, "SELECT id FROM creator_assignments WHERE creator_id=? AND paid_usage_rights='Yes' AND (signed_rights_evidence_link IS NULL OR TRIM(signed_rights_evidence_link)='')", [current.id]);
     if (missingRights.length) return json({ error: "Signed rights evidence is required before QA", assignments: missingRights.map((row) => row.id) }, 422);
   }
-  const update = context.env.OPERATIONS_DB.prepare("UPDATE creator_enrollments SET workflow_status=?,assigned_operator_id=?,last_updated=CURRENT_TIMESTAMP,version=version+1,sync_status='PENDING_EXPORT' WHERE id=? AND version=?")
-    .bind(body.action,user.id,current.id,body.version);
+  const mutationId = uid("MUT");
+  const update = context.env.OPERATIONS_DB.prepare("UPDATE creator_enrollments SET workflow_status=?,assigned_operator_id=?,last_updated=CURRENT_TIMESTAMP,version=version+1,sync_status='PENDING_EXPORT',last_mutation_id=? WHERE id=? AND version=?")
+    .bind(body.action,user.id,mutationId,current.id,body.version);
   const payload = JSON.stringify({ id: current.id, campaignId: current.campaign_id, workflowStatus: body.action });
   const result = await context.env.OPERATIONS_DB.batch([
     update,
-    conditionalCreatorAudit(context.env.OPERATIONS_DB,user,current.campaign_id,current.id,"WORKFLOW_STATUS_CHANGED",current.workflow_status,body.action,null,body.version+1),
-    conditionalCreatorOutbox(context.env.OPERATIONS_DB,user,"CREATOR",current.id,"WORKFLOW",payload,body.version+1)
+    conditionalCreatorAudit(context.env.OPERATIONS_DB,user,current.campaign_id,current.id,"WORKFLOW_STATUS_CHANGED",current.workflow_status,body.action,null,mutationId),
+    conditionalCreatorOutbox(context.env.OPERATIONS_DB,user,"CREATOR",current.id,"WORKFLOW",payload,mutationId)
   ]);
   if (!result[0].meta.changes) return json({ error: "Record changed. Refresh and try again." }, 409);
   return json({ id: current.id, workflowStatus: body.action, syncStatus: "PENDING_EXPORT" });
@@ -262,12 +264,13 @@ async function updateAssignment(context, user, id) {
   if (Object.keys(errors).length) return json({ error: "Check the highlighted assignment fields", fields: errors }, 422);
   const now = new Date().toISOString();
   const payload = assignmentPayload(id, body, user.id, now);
-  const update = context.env.OPERATIONS_DB.prepare(`UPDATE creator_assignments SET status=?,start_date=?,content_due=?,fixed_content_fee=?,commission_rate=?,paid_usage_rights=?,attribution_window_days=?,evidence_status=?,notes=?,signed_rights_evidence_link=?,assigned_operator_id=?,last_updated=?,version=version+1,sync_status='PENDING_EXPORT' WHERE id=? AND version=?`)
-    .bind(body.status,body.startDate||null,body.contentDue||null,Number(body.fixedContentFee||0),Number(body.commissionRate||0),body.paidUsageRights,Number(body.attributionWindowDays||30),body.evidenceStatus,body.notes?.trim()||null,body.signedRightsEvidenceLink?.trim()||null,user.id,now,id,body.version);
+  const mutationId = uid("MUT");
+  const update = context.env.OPERATIONS_DB.prepare(`UPDATE creator_assignments SET status=?,start_date=?,content_due=?,fixed_content_fee=?,commission_rate=?,paid_usage_rights=?,attribution_window_days=?,evidence_status=?,notes=?,signed_rights_evidence_link=?,assigned_operator_id=?,last_updated=?,version=version+1,sync_status='PENDING_EXPORT',last_mutation_id=? WHERE id=? AND version=?`)
+    .bind(body.status,body.startDate||null,body.contentDue||null,Number(body.fixedContentFee||0),Number(body.commissionRate||0),body.paidUsageRights,Number(body.attributionWindowDays||30),body.evidenceStatus,body.notes?.trim()||null,body.signedRightsEvidenceLink?.trim()||null,user.id,now,mutationId,id,body.version);
   const result = await context.env.OPERATIONS_DB.batch([
     update,
-    conditionalAssignmentAudit(context.env.OPERATIONS_DB,user,current.campaign_id,id,"CREATOR_ASSIGNMENT_UPDATED",current.status,body.status,body.version+1),
-    conditionalAssignmentOutbox(context.env.OPERATIONS_DB,user,"ASSIGNMENT",id,"UPSERT",JSON.stringify(payload),body.version+1)
+    conditionalAssignmentAudit(context.env.OPERATIONS_DB,user,current.campaign_id,id,"CREATOR_ASSIGNMENT_UPDATED",current.status,body.status,mutationId),
+    conditionalAssignmentOutbox(context.env.OPERATIONS_DB,user,"ASSIGNMENT",id,"UPSERT",JSON.stringify(payload),mutationId)
   ]);
   if (!result[0].meta.changes) return json({ error: "Assignment changed. Refresh and try again." }, 409);
   return json({ id, syncStatus: "PENDING_EXPORT" });
@@ -285,15 +288,16 @@ async function reviewCreator(context, user, id) {
   const checklist = qaChecklist(current);
   if (body.result === "PASS" && Object.values(checklist).some((value) => !value)) return json({ error: "All QA checks must pass", checklist }, 422);
   const finalStatus = body.result === "PASS" ? "PASSED" : body.result;
-  const update = context.env.OPERATIONS_DB.prepare("UPDATE creator_enrollments SET workflow_status=?,last_updated=CURRENT_TIMESTAMP,version=version+1,sync_status='PENDING_EXPORT' WHERE id=? AND version=?").bind(finalStatus,id,body.version);
-  const review = context.env.OPERATIONS_DB.prepare("INSERT INTO qa_reviews (id,enrollment_id,reviewer_id,result,checklist_json,notes) SELECT ?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM creator_enrollments WHERE id=? AND version=?)")
-    .bind(uid("QA"),id,user.id,body.result,JSON.stringify(checklist),body.notes?.trim()||null,id,body.version+1);
+  const mutationId = uid("MUT");
+  const update = context.env.OPERATIONS_DB.prepare("UPDATE creator_enrollments SET workflow_status=?,last_updated=CURRENT_TIMESTAMP,version=version+1,sync_status='PENDING_EXPORT',last_mutation_id=? WHERE id=? AND version=?").bind(finalStatus,mutationId,id,body.version);
+  const review = context.env.OPERATIONS_DB.prepare("INSERT INTO qa_reviews (id,enrollment_id,reviewer_id,result,checklist_json,notes) SELECT ?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM creator_enrollments WHERE id=? AND last_mutation_id=?)")
+    .bind(uid("QA"),id,user.id,body.result,JSON.stringify(checklist),body.notes?.trim()||null,id,mutationId);
   const payload = JSON.stringify({ id, campaignId: current.campaign_id, workflowStatus: finalStatus, qaResult: body.result, qaNotes: body.notes?.trim()||null });
   const result = await context.env.OPERATIONS_DB.batch([
     update,
     review,
-    conditionalCreatorAudit(context.env.OPERATIONS_DB,user,current.campaign_id,id,"QA_REVIEW_COMPLETED",current.workflow_status,body.result,body.result,body.version+1),
-    conditionalCreatorOutbox(context.env.OPERATIONS_DB,user,"CREATOR",id,"QA_RESULT",payload,body.version+1)
+    conditionalCreatorAudit(context.env.OPERATIONS_DB,user,current.campaign_id,id,"QA_REVIEW_COMPLETED",current.workflow_status,body.result,body.result,mutationId),
+    conditionalCreatorOutbox(context.env.OPERATIONS_DB,user,"CREATOR",id,"QA_RESULT",payload,mutationId)
   ]);
   if (!result[0].meta.changes) return json({ error: "Record changed. Refresh and try again." }, 409);
   return json({ id, result: body.result, syncStatus: "PENDING_EXPORT" });
@@ -362,19 +366,19 @@ const outboxInsert = (db,user,entityType,entityId,action,payload) => {
   return db.prepare("INSERT INTO control_system_outbox (id,idempotency_key,operator_id,entity_type,entity_id,action,payload_json) VALUES (?,?,?,?,?,?,?)")
     .bind(id,id,user.id,entityType,entityId,action,JSON.stringify(payload));
 };
-const conditionalCreatorAudit = (db,user,campaignId,id,action,previousValue,newValue,qaEvent,version) =>
-  db.prepare("INSERT INTO audit_events (id,operator_id,campaign_id,action,object_type,object_id,previous_value,new_value,qa_event) SELECT ?,?,?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM creator_enrollments WHERE id=? AND version=?)")
-    .bind(uid("AUD"),user.id,campaignId,action,"CreatorEnrollment",id,String(previousValue),String(newValue),qaEvent,id,version);
-const conditionalCreatorOutbox = (db,user,entityType,id,action,payload,version) => {
+const conditionalCreatorAudit = (db,user,campaignId,id,action,previousValue,newValue,qaEvent,mutationId) =>
+  db.prepare("INSERT INTO audit_events (id,operator_id,campaign_id,action,object_type,object_id,previous_value,new_value,qa_event) SELECT ?,?,?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM creator_enrollments WHERE id=? AND last_mutation_id=?)")
+    .bind(uid("AUD"),user.id,campaignId,action,"CreatorEnrollment",id,String(previousValue),String(newValue),qaEvent,id,mutationId);
+const conditionalCreatorOutbox = (db,user,entityType,id,action,payload,mutationId) => {
   const syncId = uid("SYNC");
-  return db.prepare("INSERT INTO control_system_outbox (id,idempotency_key,operator_id,entity_type,entity_id,action,payload_json) SELECT ?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM creator_enrollments WHERE id=? AND version=?)")
-    .bind(syncId,syncId,user.id,entityType,id,action,payload,id,version);
+  return db.prepare("INSERT INTO control_system_outbox (id,idempotency_key,operator_id,entity_type,entity_id,action,payload_json) SELECT ?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM creator_enrollments WHERE id=? AND last_mutation_id=?)")
+    .bind(syncId,syncId,user.id,entityType,id,action,payload,id,mutationId);
 };
-const conditionalAssignmentAudit = (db,user,campaignId,id,action,previousValue,newValue,version) =>
-  db.prepare("INSERT INTO audit_events (id,operator_id,campaign_id,action,object_type,object_id,previous_value,new_value) SELECT ?,?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM creator_assignments WHERE id=? AND version=?)")
-    .bind(uid("AUD"),user.id,campaignId,action,"CreatorAssignment",id,String(previousValue),String(newValue),id,version);
-const conditionalAssignmentOutbox = (db,user,entityType,id,action,payload,version) => {
+const conditionalAssignmentAudit = (db,user,campaignId,id,action,previousValue,newValue,mutationId) =>
+  db.prepare("INSERT INTO audit_events (id,operator_id,campaign_id,action,object_type,object_id,previous_value,new_value) SELECT ?,?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM creator_assignments WHERE id=? AND last_mutation_id=?)")
+    .bind(uid("AUD"),user.id,campaignId,action,"CreatorAssignment",id,String(previousValue),String(newValue),id,mutationId);
+const conditionalAssignmentOutbox = (db,user,entityType,id,action,payload,mutationId) => {
   const syncId = uid("SYNC");
-  return db.prepare("INSERT INTO control_system_outbox (id,idempotency_key,operator_id,entity_type,entity_id,action,payload_json) SELECT ?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM creator_assignments WHERE id=? AND version=?)")
-    .bind(syncId,syncId,user.id,entityType,id,action,payload,id,version);
+  return db.prepare("INSERT INTO control_system_outbox (id,idempotency_key,operator_id,entity_type,entity_id,action,payload_json) SELECT ?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM creator_assignments WHERE id=? AND last_mutation_id=?)")
+    .bind(syncId,syncId,user.id,entityType,id,action,payload,id,mutationId);
 };
