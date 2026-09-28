@@ -34,6 +34,14 @@ async function fixture() {
   return { database, env: { OPERATIONS_DB: new D1Database(database) } };
 }
 
+async function v1Fixture() {
+  const database = new DatabaseSync(":memory:");
+  database.exec(await readFile("migrations/0001_bm01.sql", "utf8"));
+  database.prepare("INSERT INTO operators (id,login_email,display_name,role,account_status) VALUES (?,?,?,?,?)")
+    .run("OP-OPER", "operator@example.com", "Test Operator", "OPERATOR", "ACTIVE");
+  return { database, env: { OPERATIONS_DB: new D1Database(database) } };
+}
+
 async function request(env, email, method, path, body) {
   const response = await onRequest({
     env,
@@ -151,6 +159,28 @@ test("V2 campaign and creator search opens existing records", async () => {
   const byCreator = await request(env, "operator@example.com", "GET", "creators?q=MayaPaws");
   assert.equal(byCreator.body.creators[0].id, "CR-100");
   assert.equal(byCreator.body.creators[0].campaign_id, "CMP-100");
+  database.close();
+});
+
+test("pre-migration console remains browsable while V2 mutations stay locked", async () => {
+  const { database, env } = await v1Fixture();
+
+  const campaigns = await request(env, "operator@example.com", "GET", "campaigns?q=CMP-100");
+  assert.equal(campaigns.response.status, 200);
+  assert.equal(campaigns.body.campaigns[0].id, "CMP-100");
+
+  const creators = await request(env, "operator@example.com", "GET", "creators?campaignId=CMP-100&q=MayaPaws");
+  assert.equal(creators.response.status, 200);
+  assert.equal(creators.body.creators[0].id, "CR-100");
+  assert.equal(creators.body.creators[0].campaign_slug, null);
+
+  const creator = await request(env, "operator@example.com", "GET", "creators/CR-100");
+  assert.equal(creator.response.status, 200);
+  assert.equal(creator.body.creator.campaign_name, "PNB_META_ACQ_3ITEMS_202609");
+
+  const blocked = await request(env, "operator@example.com", "POST", "creators", enrollment);
+  assert.equal(blocked.response.status, 503);
+  assert.match(blocked.body.error, /migration is pending/);
   database.close();
 });
 
