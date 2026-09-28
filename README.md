@@ -4,6 +4,8 @@
 
 Official CreatorLoop™ ecosystem website including Loop Entrance™ (with embedded Tetris), Mission Control™, Blueprint™, and future community infrastructure.
 
+The protected `/console/` path contains the BM-01 CreatorLoop Operations Console. It validates Cloudflare Access JWTs for individual operator identity and uses a Cloudflare D1 binding named `OPERATIONS_DB` for persistent campaign, workflow, QA, and audit data. Apply `migrations/0001_bm01.sql` before enabling access. Set `CLOUDFLARE_ACCESS_TEAM_DOMAIN`, `CLOUDFLARE_ACCESS_AUD`, and `BOOTSTRAP_ADMIN_EMAIL` as protected Pages environment variables; never commit an operator email or credential.
+
 ---
 
 ## Project Structure

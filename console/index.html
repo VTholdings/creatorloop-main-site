@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow"><title>CreatorLoop™ Operations</title>
+  <link rel="icon" href="/assets/images/favicon.png"><link rel="stylesheet" href="/console/console.css">
+</head>
+<body>
+  <div id="app" class="app-shell" hidden>
+    <aside class="sidebar">
+      <a class="brand" href="/console/"><img src="/assets/images/cl-logo.png" alt="CreatorLoop"><span>OPERATIONS</span></a>
+      <nav aria-label="Operator navigation">
+        <button class="nav-button active" data-view="home">Home</button>
+        <button class="nav-button" data-view="work">Creator work</button>
+        <button class="nav-button" data-view="audit">Audit trail</button>
+      </nav>
+      <div class="operator-card"><span id="operator-name">Operator</span><small id="operator-role"></small><small id="operator-id"></small></div>
+    </aside>
+    <main>
+      <header class="topbar"><button id="menu" aria-label="Open navigation">☰</button><div><span class="eyebrow">ACTIVE CAMPAIGN</span><strong id="campaign-name">Loading…</strong></div><span class="environment">NONPRODUCTION</span></header>
+      <section id="notice" class="notice" role="status" hidden></section>
+      <section id="home-view" class="view"></section>
+      <section id="work-view" class="view" hidden></section>
+      <section id="audit-view" class="view" hidden></section>
+    </main>
+  </div>
+  <div id="loading" class="loading"><div class="loop-mark">∞</div><p>Opening CreatorLoop Operations…</p></div>
+  <script type="module" src="/console/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+{
+  "name": "creatorloop-main-site",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "check": "node --check 'functions/api/console/[[path]].js' && node --check functions/access-auth.js && node --check functions/_middleware.js && node --check console/app.js"
+  }
+}
