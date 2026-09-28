@@ -81,3 +81,9 @@ test("pre-migration records are visibly and mechanically view-only", async () =>
   assert.match(client,/querySelectorAll\("input,select,textarea,button"\)/);
   assert.match(client,/control\.disabled = true/);
 });
+
+test("console assets are revisioned so Cloudflare deploys cannot retain stale controls", async () => {
+  const html = await readFile("console/index.html","utf8");
+  assert.match(html,/console\.css\?v=\d{8}\.\d+/);
+  assert.match(html,/app\.js\?v=\d{8}\.\d+/);
+});
