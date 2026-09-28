@@ -82,3 +82,30 @@ GA4 and Meta Pixel placeholders are in every page `<head>`. Uncomment and replac
 ---
 
 *CreatorLoop™ V1 — Built with precision. Deployed for scale.*
+
+
+## Operations Console V2
+
+The protected Operations Console is the operator-facing layer over the Acquisition & Launch Control System. Operators search and work by campaign/creator identity, manage creator enrollments and assignments, attach evidence, and submit QA without opening the system-of-record spreadsheet.
+
+V2 preserves these boundaries:
+
+- Cloudflare Access supplies the authenticated individual identity.
+- D1 binding `OPERATIONS_DB` remains `creatorloop-operations-nonproduction`.
+- Standard operators cannot access the audit API or Audit Trail navigation.
+- IDs, timestamps, rollups, approval decisions, and source-controlled fields remain automatic or locked.
+- Console mutations write an immutable audit event and a durable `control_system_outbox` record in the same D1 batch.
+- The sync integration fails closed unless its request has a valid, fresh HMAC signature.
+- Import event IDs are unique, source timestamps prevent stale overwrites, and pending local changes are not overwritten by source imports.
+- No inbox is included; operator communication remains outside the Console.
+
+Apply `migrations/0002_operations_console_v2.sql` to the existing nonproduction D1 database before enabling V2 mutations.
+
+### Control System synchronization
+
+The bridge has two parts:
+
+1. `/api/integrations/control-system` on Cloudflare Pages accepts signed snapshots, exposes pending Console changes, and acknowledges applied outbox events.
+2. `assets/operations-control-system-sync.gs` is installed as a bound Apps Script in the approved Control System workbook.
+
+Store `CONTROL_SYSTEM_SYNC_SECRET` only as an encrypted Cloudflare Pages secret and as the Apps Script property `CREATORLOOP_SYNC_SECRET`. Set the Apps Script property `CREATORLOOP_SYNC_ENDPOINT` to the protected integration URL. Never commit or paste the shared secret into source, issues, logs, or chat.

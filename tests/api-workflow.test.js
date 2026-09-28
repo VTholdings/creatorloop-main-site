@@ -24,10 +24,13 @@ class D1Database {
 async function fixture() {
   const database = new DatabaseSync(":memory:");
   database.exec(await readFile("migrations/0001_bm01.sql", "utf8"));
+  database.exec(await readFile("migrations/0002_operations_console_v2.sql", "utf8"));
   database.prepare("INSERT INTO operators (id,login_email,display_name,role,account_status) VALUES (?,?,?,?,?)")
     .run("OP-OPER", "operator@example.com", "Test Operator", "OPERATOR", "ACTIVE");
   database.prepare("INSERT INTO operators (id,login_email,display_name,role,account_status) VALUES (?,?,?,?,?)")
     .run("OP-QA", "qa@example.com", "QA Reviewer", "QA_REVIEWER", "ACTIVE");
+  database.prepare("INSERT INTO operators (id,login_email,display_name,role,account_status) VALUES (?,?,?,?,?)")
+    .run("OP-ADMIN", "admin@example.com", "Project Owner", "ADMINISTRATOR", "ACTIVE");
   return { database, env: { OPERATIONS_DB: new D1Database(database) } };
 }
 
@@ -35,7 +38,7 @@ async function request(env, email, method, path, body) {
   const response = await onRequest({
     env,
     data: { loginEmail: email },
-    params: { path: path.split("/").filter(Boolean) },
+    params: { path: path.split("?")[0].split("/").filter(Boolean) },
     request: new Request(`https://ops.creatorloop.net/api/console/${path}`, {
       method,
       headers: method === "GET" ? {} : { "Content-Type": "application/json", Origin: "https://ops.creatorloop.net" },
@@ -46,6 +49,7 @@ async function request(env, email, method, path, body) {
 }
 
 const enrollment = {
+  campaignId: "CMP-100",
   creatorName: "Certification Creator",
   primaryPlatform: "TikTok",
   handle: "@certcreator",
@@ -103,12 +107,15 @@ test("operator workflow persists, preserves QA history, attributes audit, and bl
   const locked = await request(env, "operator@example.com", "PATCH", "creators/CR-101", { ...enrollment, version: record.body.creator.version });
   assert.equal(locked.response.status, 409);
 
-  const audit = await request(env, "qa@example.com", "GET", "audit");
+  const operatorAudit = await request(env, "operator@example.com", "GET", "audit");
+  assert.equal(operatorAudit.response.status, 403);
+  const audit = await request(env, "admin@example.com", "GET", "audit");
   const creatorEvents = audit.body.events.filter((event) => event.object_id === "CR-101");
   assert.deepEqual(new Set(creatorEvents.map((event) => event.operator_id)), new Set(["OP-OPER", "OP-QA"]));
   assert.equal(creatorEvents.filter((event) => event.action === "QA_REVIEW_COMPLETED").length, 2);
   assert.equal(database.prepare("SELECT COUNT(*) count FROM creator_enrollments WHERE id='CR-101'").get().count, 1);
   assert.equal(database.prepare("SELECT workflow_status FROM creator_enrollments WHERE id='CR-100'").get().workflow_status, "PASSED");
+  assert.ok(database.prepare("SELECT COUNT(*) count FROM control_system_outbox WHERE entity_id='CR-101'").get().count >= 5);
 
   const dashboard = await request(env, "operator@example.com", "GET", "dashboard");
   assert.equal(dashboard.body.counts.PASSED, 2);
@@ -128,5 +135,51 @@ test("stale version and cross-origin mutations fail closed", async () => {
     request: new Request("https://ops.creatorloop.net/api/console/creators", { method: "POST", headers: { Origin: "https://attacker.example" }, body: JSON.stringify(enrollment) }),
   });
   assert.equal(response.status, 403);
+  database.close();
+});
+
+
+test("V2 campaign and creator search opens existing records", async () => {
+  const { database, env } = await fixture();
+  const byCampaign = await request(env, "operator@example.com", "GET", "campaigns?q=CMP-100");
+  assert.equal(byCampaign.response.status, 200);
+  assert.equal(byCampaign.body.campaigns[0].id, "CMP-100");
+
+  const byName = await request(env, "operator@example.com", "GET", "campaigns?q=PNB_META");
+  assert.equal(byName.body.campaigns[0].name, "PNB_META_ACQ_3ITEMS_202609");
+
+  const byCreator = await request(env, "operator@example.com", "GET", "creators?q=MayaPaws");
+  assert.equal(byCreator.body.creators[0].id, "CR-100");
+  assert.equal(byCreator.body.creators[0].campaign_id, "CMP-100");
+  database.close();
+});
+
+test("assignment changes are attributed, replay-safe, and do not alter locked identities", async () => {
+  const { database, env } = await fixture();
+  const body = {
+    creatorId: "CR-100", campaignId: "CMP-100", status: "In Progress",
+    startDate: "2026-09-28", contentDue: "2026-10-02",
+    fixedContentFee: "75", commissionRate: "0.10", paidUsageRights: "Pending",
+    attributionWindowDays: "30", evidenceStatus: "Planned", notes: "Synthetic V2 test"
+  };
+  const created = await request(env, "operator@example.com", "POST", "assignments", body);
+  assert.equal(created.response.status, 201);
+  assert.equal(created.body.id, "ASG-100");
+
+  const duplicate = await request(env, "operator@example.com", "POST", "assignments", body);
+  assert.equal(duplicate.response.status, 409);
+
+  const updated = await request(env, "operator@example.com", "PATCH", "assignments/ASG-100", {
+    ...body, status: "Active", evidenceStatus: "Verified",
+    paidUsageRights: "Yes", signedRightsEvidenceLink: "https://example.com/signed-rights",
+    version: 1
+  });
+  assert.equal(updated.response.status, 200);
+
+  const stale = await request(env, "operator@example.com", "PATCH", "assignments/ASG-100", { ...body, version: 1 });
+  assert.equal(stale.response.status, 409);
+  assert.equal(database.prepare("SELECT creator_id FROM creator_assignments WHERE id='ASG-100'").get().creator_id, "CR-100");
+  assert.equal(database.prepare("SELECT COUNT(*) count FROM audit_events WHERE object_id='ASG-100'").get().count, 2);
+  assert.equal(database.prepare("SELECT COUNT(*) count FROM control_system_outbox WHERE entity_id='ASG-100'").get().count, 2);
   database.close();
 });

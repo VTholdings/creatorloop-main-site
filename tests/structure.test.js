@@ -35,3 +35,41 @@ test("duplicate submissions are blocked in UI and API",async()=>{
   assert.match(api,/already has campaign record/);
   assert.match(api,/LOWER\(TRIM\(handle\)\)/);
 });
+
+
+test("V2 keeps inbox out and audit out of standard operator navigation", async () => {
+  const [html,client,api] = await Promise.all([
+    readFile("console/index.html","utf8"),
+    readFile("console/app.js","utf8"),
+    readFile("functions/api/console/[[path]].js","utf8")
+  ]);
+  assert.doesNotMatch(html + client,/inbox/i);
+  assert.match(html,/admin-only/);
+  assert.match(api,/AUDIT_ROLES\.has\(user\.role\)/);
+  assert.match(api,/Administrator authority required/);
+});
+
+test("V2 sync bridge is signed, replay-safe, and uses the existing D1 binding", async () => {
+  const [sync,migration,config] = await Promise.all([
+    readFile("functions/api/integrations/control-system.js","utf8"),
+    readFile("migrations/0002_operations_console_v2.sql","utf8"),
+    readFile("wrangler.toml","utf8")
+  ]);
+  assert.match(sync,/CONTROL_SYSTEM_SYNC_SECRET/);
+  assert.match(sync,/X-CreatorLoop-Signature/);
+  assert.match(sync,/control_system_imports/);
+  assert.match(migration,/control_system_outbox/);
+  assert.match(config,/database_name = "creatorloop-operations-nonproduction"/);
+  assert.match(config,/database_id = "c4993a97-5835-4c6c-af06-7020fa8d4f2a"/);
+});
+
+test("V2 operator UI exposes campaign identity, search, existing records, and field classes", async () => {
+  const [html,client] = await Promise.all([
+    readFile("console/index.html","utf8"),
+    readFile("console/app.js","utf8")
+  ]);
+  assert.match(html,/Find campaign or creator/);
+  assert.match(client,/Campaign ID/);
+  assert.match(client,/data-record/);
+  for (const classification of ["AUTO","SELECT","INPUT","LOCKED","APPROVAL"]) assert.match(client,new RegExp(classification));
+});
