@@ -5,6 +5,8 @@
  * Control System spreadsheet. Configure Script Properties (never source code):
  *   CREATORLOOP_SYNC_ENDPOINT = https://ops.creatorloop.net/api/integrations/control-system
  *   CREATORLOOP_SYNC_SECRET   = the same high-entropy secret stored in Cloudflare
+ *   CREATORLOOP_ACCESS_CLIENT_ID     = Cloudflare Access service-token client ID
+ *   CREATORLOOP_ACCESS_CLIENT_SECRET = Cloudflare Access service-token client secret
  *
  * Run syncCreatorLoopOperations from a time-driven trigger. The script sends only
  * mapped operational fields, never workbook credentials or unrelated tabs.
@@ -25,18 +27,22 @@ function syncCreatorLoopOperations() {
     const properties = PropertiesService.getScriptProperties();
     const endpoint = properties.getProperty("CREATORLOOP_SYNC_ENDPOINT");
     const secret = properties.getProperty("CREATORLOOP_SYNC_SECRET");
-    if (!endpoint || !secret) throw new Error("CreatorLoop sync properties are not configured");
+    const accessClientId = properties.getProperty("CREATORLOOP_ACCESS_CLIENT_ID");
+    const accessClientSecret = properties.getProperty("CREATORLOOP_ACCESS_CLIENT_SECRET");
+    if (!endpoint || !secret || !accessClientId || !accessClientSecret) {
+      throw new Error("CreatorLoop sync and Cloudflare Access properties are not configured");
+    }
 
     const snapshot = buildCreatorLoopSnapshot_();
-    signedFetch_(endpoint, secret, "post", snapshot);
-    const pending = signedFetch_(endpoint, secret, "get", null);
+    signedFetch_(endpoint, secret, accessClientId, accessClientSecret, "post", snapshot);
+    const pending = signedFetch_(endpoint, secret, accessClientId, accessClientSecret, "get", null);
     const acknowledged = [];
     (pending.changes || []).forEach((change) => {
       applyConsoleChange_(change);
       acknowledged.push(change.id);
     });
     if (acknowledged.length) {
-      signedFetch_(endpoint, secret, "post", { mode: "ack", ids: acknowledged });
+      signedFetch_(endpoint, secret, accessClientId, accessClientSecret, "post", { mode: "ack", ids: acknowledged });
     }
   } finally {
     lock.releaseLock();
@@ -199,7 +205,7 @@ function creativeRows_() {
     }));
 }
 
-function signedFetch_(endpoint,secret,method,payload) {
+function signedFetch_(endpoint,secret,accessClientId,accessClientSecret,method,payload) {
   const body = payload === null ? "" : JSON.stringify(payload);
   const timestamp = String(Math.floor(Date.now() / 1000));
   const bytes = Utilities.computeHmacSha256Signature(timestamp + "." + body,secret);
@@ -210,7 +216,10 @@ function signedFetch_(endpoint,secret,method,payload) {
   const options = {
     method: method,
     muteHttpExceptions: true,
+    followRedirects: false,
     headers: {
+      "CF-Access-Client-Id": accessClientId,
+      "CF-Access-Client-Secret": accessClientSecret,
       "X-CreatorLoop-Timestamp": timestamp,
       "X-CreatorLoop-Signature": signature
     }
