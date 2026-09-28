@@ -1,7 +1,22 @@
-import { nextCreatorId, normalizeCreatorIdentity, qaChecklist, QA_ROLES, transitionAllowed, validateEnrollment } from "../console-core.js";
+import {
+  AUDIT_ROLES, nextCreatorId, nextEntityId, normalizeCreatorIdentity,
+  qaChecklist, QA_ROLES, transitionAllowed, validateAssignment, validateEnrollment
+} from "../console-core.js";
 
-const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
+const json = (body, status = 200) => new Response(JSON.stringify(body), {
+  status,
+  headers: { "Content-Type": "application/json", "Cache-Control": "no-store" }
+});
 const uid = (prefix) => `${prefix}-${crypto.randomUUID()}`;
+const safeUser = (user) => ({
+  id: user.id,
+  displayName: user.display_name,
+  role: user.role,
+  accountStatus: user.account_status,
+  loginIdentity: user.login_email,
+  lastActivityAt: user.last_activity_at,
+  canViewAudit: AUDIT_ROLES.has(user.role)
+});
 
 async function actor(context) {
   const email = context.data.loginEmail;
@@ -18,27 +33,47 @@ async function actor(context) {
   return user;
 }
 
-function pathParts(context) { return (context.params.path ?? []).filter(Boolean); }
-function assertSameOrigin(request) {
-  const origin = request.headers.get("Origin");
-  return !origin || origin === new URL(request.url).origin;
+const pathParts = (context) => (context.params.path ?? []).filter(Boolean);
+const sameOrigin = (request) => !request.headers.get("Origin") || request.headers.get("Origin") === new URL(request.url).origin;
+const params = (request) => new URL(request.url).searchParams;
+const like = (value) => `%${String(value ?? "").trim().toLowerCase()}%`;
+
+async function schemaReady(env) {
+  try {
+    return Boolean(await env.OPERATIONS_DB.prepare("SELECT version FROM schema_migrations WHERE version=?")
+      .bind("0002_operations_console_v2").first());
+  } catch {
+    return false;
+  }
+}
+async function requireV2(env) {
+  return (await schemaReady(env)) ? null : json({ error: "Operations Console V2 database migration is pending" }, 503);
+}
+async function optionalRows(db, sql, values = []) {
+  try { return (await db.prepare(sql).bind(...values).all()).results; }
+  catch { return []; }
 }
 
 export async function onRequest(context) {
   if (!context.env.OPERATIONS_DB) return json({ error: "Operations database is not configured" }, 503);
-  if (context.request.method !== "GET" && !assertSameOrigin(context.request)) return json({ error: "Origin rejected" }, 403);
+  if (context.request.method !== "GET" && !sameOrigin(context.request)) return json({ error: "Origin rejected" }, 403);
   const user = await actor(context);
   if (!user) return json({ error: "Authorized operator account required" }, 403);
   const parts = pathParts(context);
   try {
     if (context.request.method === "GET" && parts[0] === "me") return json({ user: safeUser(user) });
     if (context.request.method === "GET" && parts[0] === "dashboard") return dashboard(context, user);
+    if (context.request.method === "GET" && parts[0] === "campaigns" && !parts[1]) return listCampaigns(context);
+    if (context.request.method === "GET" && parts[0] === "campaigns" && parts[1]) return getCampaign(context, parts[1]);
     if (context.request.method === "GET" && parts[0] === "creators" && !parts[1]) return listCreators(context);
     if (context.request.method === "POST" && parts[0] === "creators" && !parts[1]) return createCreator(context, user);
     if (context.request.method === "GET" && parts[0] === "creators" && parts[1]) return getCreator(context, parts[1]);
     if (context.request.method === "PATCH" && parts[0] === "creators" && parts[1]) return updateCreator(context, user, parts[1]);
+    if (context.request.method === "POST" && parts[0] === "assignments" && !parts[1]) return createAssignment(context, user);
+    if (context.request.method === "PATCH" && parts[0] === "assignments" && parts[1]) return updateAssignment(context, user, parts[1]);
     if (context.request.method === "POST" && parts[0] === "qa" && parts[1]) return reviewCreator(context, user, parts[1]);
-    if (context.request.method === "GET" && parts[0] === "audit") return audit(context);
+    if (context.request.method === "GET" && parts[0] === "audit") return audit(context, user);
+    if (context.request.method === "GET" && parts[0] === "system") return systemStatus(context, user);
     return json({ error: "Not found" }, 404);
   } catch (error) {
     console.error("Console request failed", { path: parts.join("/"), kind: error?.constructor?.name });
@@ -46,104 +81,300 @@ export async function onRequest(context) {
   }
 }
 
-const safeUser = (user) => ({ id: user.id, displayName: user.display_name, role: user.role, accountStatus: user.account_status, loginIdentity: user.login_email, lastActivityAt: user.last_activity_at });
-
-async function dashboard({ env }, user) {
-  const campaign = await env.OPERATIONS_DB.prepare("SELECT * FROM campaigns WHERE id='CMP-100'").first();
+async function dashboard({ env, request }, user) {
+  const campaignId = params(request).get("campaignId") || "CMP-100";
+  const campaign = await env.OPERATIONS_DB.prepare("SELECT * FROM campaigns WHERE id=?").bind(campaignId).first();
+  if (!campaign) return json({ error: "Campaign not found" }, 404);
   const counts = await env.OPERATIONS_DB.prepare("SELECT workflow_status status, COUNT(*) count FROM creator_enrollments WHERE campaign_id=? GROUP BY workflow_status").bind(campaign.id).all();
-  return json({ user: safeUser(user), campaign, counts: Object.fromEntries(counts.results.map((row) => [row.status, row.count])), nextAction: QA_ROLES.has(user.role) ? "Review work awaiting QA" : "Start or correct a creator enrollment" });
+  const ready = await schemaReady(env);
+  return json({
+    user: safeUser(user),
+    campaign,
+    counts: Object.fromEntries(counts.results.map((row) => [row.status, row.count])),
+    nextAction: QA_ROLES.has(user.role) ? "Review work awaiting QA" : "Start or correct a creator enrollment",
+    system: {
+      schemaReady: ready,
+      controlSystem: "Acquisition & Launch Control System",
+      systemOfRecord: "Google Sheets",
+      syncConfigured: Boolean(env.CONTROL_SYSTEM_SYNC_SECRET)
+    }
+  });
 }
 
-async function listCreators({ env }) {
-  const rows = await env.OPERATIONS_DB.prepare("SELECT * FROM creator_enrollments WHERE campaign_id='CMP-100' ORDER BY CAST(SUBSTR(id,4) AS INTEGER)").all();
+async function listCampaigns({ env, request }) {
+  const q = params(request).get("q")?.trim();
+  const rows = q
+    ? await env.OPERATIONS_DB.prepare("SELECT * FROM campaigns WHERE LOWER(id) LIKE ? OR LOWER(name) LIKE ? OR LOWER(COALESCE(slug,'')) LIKE ? ORDER BY id")
+      .bind(like(q), like(q), like(q)).all()
+    : await env.OPERATIONS_DB.prepare("SELECT * FROM campaigns ORDER BY id").all();
+  return json({ campaigns: rows.results });
+}
+
+async function getCampaign({ env }, id) {
+  const campaign = await env.OPERATIONS_DB.prepare("SELECT * FROM campaigns WHERE id=?").bind(id).first();
+  if (!campaign) return json({ error: "Campaign not found" }, 404);
+  const creators = await env.OPERATIONS_DB.prepare("SELECT * FROM creator_enrollments WHERE campaign_id=? ORDER BY id").bind(id).all();
+  const assignments = await optionalRows(env.OPERATIONS_DB, "SELECT a.*, c.creator_name, c.handle FROM creator_assignments a JOIN creator_enrollments c ON c.id=a.creator_id WHERE a.campaign_id=? ORDER BY a.id", [id]);
+  const creatives = await optionalRows(env.OPERATIONS_DB, "SELECT * FROM creatives WHERE campaign_id=? ORDER BY id", [id]);
+  return json({ campaign, creators: creators.results, assignments, creatives });
+}
+
+async function listCreators({ env, request }) {
+  const search = params(request);
+  const q = search.get("q")?.trim();
+  const campaignId = search.get("campaignId")?.trim();
+  const platform = search.get("platform")?.trim();
+  const status = search.get("status")?.trim();
+  const clauses = [];
+  const values = [];
+  if (campaignId) { clauses.push("e.campaign_id=?"); values.push(campaignId); }
+  if (platform) { clauses.push("e.primary_platform=?"); values.push(platform); }
+  if (status) { clauses.push("(e.creator_status=? OR e.workflow_status=?)"); values.push(status, status); }
+  if (q) {
+    clauses.push("(LOWER(e.id) LIKE ? OR LOWER(e.creator_name) LIKE ? OR LOWER(e.handle) LIKE ? OR LOWER(e.primary_platform) LIKE ? OR LOWER(e.creator_status) LIKE ? OR LOWER(e.workflow_status) LIKE ? OR LOWER(e.campaign_id) LIKE ? OR LOWER(c.name) LIKE ? OR LOWER(COALESCE(c.slug,'')) LIKE ?)");
+    for (let i = 0; i < 9; i += 1) values.push(like(q));
+  }
+  const where = clauses.length ? "WHERE " + clauses.join(" AND ") : "";
+  const rows = await env.OPERATIONS_DB.prepare(`SELECT e.*,c.name campaign_name,c.slug campaign_slug
+    FROM creator_enrollments e JOIN campaigns c ON c.id=e.campaign_id
+    ${where} ORDER BY e.campaign_id,CAST(SUBSTR(e.id,4) AS INTEGER)`).bind(...values).all();
   return json({ creators: rows.results });
 }
 
 async function getCreator({ env }, id) {
-  const creator = await env.OPERATIONS_DB.prepare("SELECT * FROM creator_enrollments WHERE id=?").bind(id).first();
+  const creator = await env.OPERATIONS_DB.prepare(`SELECT e.*,c.name campaign_name,c.slug campaign_slug,c.platform campaign_platform,c.product_scope campaign_product_scope
+    FROM creator_enrollments e JOIN campaigns c ON c.id=e.campaign_id WHERE e.id=?`).bind(id).first();
   if (!creator) return json({ error: "Creator record not found" }, 404);
-  const reviews = await env.OPERATIONS_DB.prepare("SELECT q.*, o.display_name reviewer_name, o.role reviewer_role FROM qa_reviews q JOIN operators o ON o.id=q.reviewer_id WHERE q.enrollment_id=? ORDER BY q.created_at DESC").bind(id).all();
-  return json({ creator, checklist: qaChecklist(creator), reviews: reviews.results });
+  const reviews = await env.OPERATIONS_DB.prepare("SELECT q.*,o.display_name reviewer_name,o.role reviewer_role FROM qa_reviews q JOIN operators o ON o.id=q.reviewer_id WHERE q.enrollment_id=? ORDER BY q.created_at DESC").bind(id).all();
+  const assignments = await optionalRows(env.OPERATIONS_DB, `SELECT a.*,c.name campaign_name,c.platform campaign_platform,c.product_scope campaign_product_scope
+    FROM creator_assignments a JOIN campaigns c ON c.id=a.campaign_id WHERE a.creator_id=? ORDER BY a.id`, [id]);
+  const creatives = await optionalRows(env.OPERATIONS_DB, "SELECT * FROM creatives WHERE creator_id=? ORDER BY id", [id]);
+  return json({ creator, checklist: qaChecklist(creator), reviews: reviews.results, assignments, creatives });
 }
 
 async function createCreator(context, user) {
+  const blocked = await requireV2(context.env); if (blocked) return blocked;
   const body = await context.request.json();
   const errors = validateEnrollment(body);
   if (Object.keys(errors).length) return json({ error: "Check the highlighted fields", fields: errors }, 422);
+  if (!await context.env.OPERATIONS_DB.prepare("SELECT id FROM campaigns WHERE id=?").bind(body.campaignId).first()) {
+    return json({ error: "Choose an existing campaign" }, 422);
+  }
   const duplicate = await context.env.OPERATIONS_DB.prepare(`SELECT id FROM creator_enrollments
     WHERE campaign_id=? AND (LOWER(TRIM(handle))=? OR LOWER(TRIM(contact))=?) LIMIT 1`)
-    .bind("CMP-100", normalizeCreatorIdentity(body.handle), normalizeCreatorIdentity(body.contact)).first();
+    .bind(body.campaignId, normalizeCreatorIdentity(body.handle), normalizeCreatorIdentity(body.contact)).first();
   if (duplicate) return json({ error: `This creator already has campaign record ${duplicate.id}` }, 409);
   const ids = await context.env.OPERATIONS_DB.prepare("SELECT id FROM creator_enrollments").all();
   const id = nextCreatorId(ids.results.map((row) => row.id));
   const now = new Date().toISOString();
-  const enrollment = context.env.OPERATIONS_DB.prepare(`INSERT INTO creator_enrollments
-    (id,campaign_id,creator_name,primary_platform,handle,contact,creator_status,compensation_model,rights_status,product_focus,notes,evidence_link,workflow_status,assigned_operator_id,enrollment_date,last_updated)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(id,"CMP-100",body.creatorName.trim(),body.primaryPlatform,body.handle.trim(),body.contact.trim(),body.creatorStatus,body.compensationModel,body.rightsStatus,body.productFocus.trim(),body.notes?.trim()||null,body.evidenceLink?.trim()||null,"IN_PROGRESS",user.id,now,now);
-  const event = context.env.OPERATIONS_DB.prepare("INSERT INTO audit_events (id,operator_id,campaign_id,action,object_type,object_id,new_value) VALUES (?,?,?,?,?,?,?)")
-    .bind(uid("AUD"),user.id,"CMP-100","CREATOR_ENROLLMENT_CREATED","CreatorEnrollment",id,JSON.stringify({ workflowStatus:"IN_PROGRESS" }));
-  await context.env.OPERATIONS_DB.batch([enrollment,event]);
-  return json({ id, workflowStatus: "IN_PROGRESS" }, 201);
+  const payload = creatorPayload(id, body, user.id, now);
+  const insert = context.env.OPERATIONS_DB.prepare(`INSERT INTO creator_enrollments
+    (id,campaign_id,creator_name,primary_platform,handle,contact,creator_status,compensation_model,rights_status,product_focus,notes,evidence_link,workflow_status,assigned_operator_id,enrollment_date,last_updated,sync_status)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(id,body.campaignId,body.creatorName.trim(),body.primaryPlatform,body.handle.trim(),body.contact.trim(),body.creatorStatus,body.compensationModel,body.rightsStatus,body.productFocus.trim(),body.notes?.trim()||null,body.evidenceLink?.trim()||null,"IN_PROGRESS",user.id,now,now,"PENDING_EXPORT");
+  await context.env.OPERATIONS_DB.batch([
+    insert,
+    auditInsert(context.env.OPERATIONS_DB,user,body.campaignId,id,"CREATOR_ENROLLMENT_CREATED",null,"IN_PROGRESS"),
+    outboxInsert(context.env.OPERATIONS_DB,user,"CREATOR",id,"UPSERT",payload)
+  ]);
+  return json({ id, workflowStatus: "IN_PROGRESS", syncStatus: "PENDING_EXPORT" }, 201);
 }
 
 async function updateCreator(context, user, id) {
+  const blocked = await requireV2(context.env); if (blocked) return blocked;
   const current = await context.env.OPERATIONS_DB.prepare("SELECT * FROM creator_enrollments WHERE id=?").bind(id).first();
   if (!current) return json({ error: "Creator record not found" }, 404);
   const body = await context.request.json();
-  if (body.action) {
-    if (!transitionAllowed(current.workflow_status, body.action, user.role)) return json({ error: "This status change is not authorized" }, 409);
-    if (body.action === "AWAITING_QA") {
-      const checks = qaChecklist(current);
-      if (Object.values(checks).some((value) => !value)) return json({ error: "Complete the required evidence before QA", checklist: checks }, 422);
-    }
-    const updated = context.env.OPERATIONS_DB.prepare("UPDATE creator_enrollments SET workflow_status=?,assigned_operator_id=?,last_updated=CURRENT_TIMESTAMP,version=version+1 WHERE id=? AND version=?")
-      .bind(body.action,user.id,id,body.version);
-    const event = auditStatement(context.env.OPERATIONS_DB,user,id,"WORKFLOW_STATUS_CHANGED",current.workflow_status,body.action,null,body.version+1);
-    const result = await context.env.OPERATIONS_DB.batch([updated,event]);
-    if (!result[0].meta.changes) return json({ error: "Record changed. Refresh and try again." }, 409);
-    return json({ id, workflowStatus: body.action });
-  }
+  if (body.action) return updateCreatorWorkflow(context, user, current, body);
+  body.campaignId = current.campaign_id;
   const errors = validateEnrollment(body);
   if (Object.keys(errors).length) return json({ error: "Check the highlighted fields", fields: errors }, 422);
-  if (!['IN_PROGRESS','CORRECTION_REQUIRED','HOLD'].includes(current.workflow_status)) return json({ error: "This record is locked during or after QA" }, 409);
+  if (!["IN_PROGRESS","CORRECTION_REQUIRED","HOLD"].includes(current.workflow_status)) return json({ error: "This record is locked during or after QA" }, 409);
   const duplicate = await context.env.OPERATIONS_DB.prepare(`SELECT id FROM creator_enrollments
     WHERE campaign_id=? AND id<>? AND (LOWER(TRIM(handle))=? OR LOWER(TRIM(contact))=?) LIMIT 1`)
-    .bind(current.campaign_id, id, normalizeCreatorIdentity(body.handle), normalizeCreatorIdentity(body.contact)).first();
+    .bind(current.campaign_id,id,normalizeCreatorIdentity(body.handle),normalizeCreatorIdentity(body.contact)).first();
   if (duplicate) return json({ error: `This creator already has campaign record ${duplicate.id}` }, 409);
-  const statement = context.env.OPERATIONS_DB.prepare(`UPDATE creator_enrollments SET creator_name=?,primary_platform=?,handle=?,contact=?,creator_status=?,compensation_model=?,rights_status=?,product_focus=?,notes=?,evidence_link=?,workflow_status='IN_PROGRESS',assigned_operator_id=?,last_updated=CURRENT_TIMESTAMP,version=version+1 WHERE id=? AND version=?`)
-    .bind(body.creatorName.trim(),body.primaryPlatform,body.handle.trim(),body.contact.trim(),body.creatorStatus,body.compensationModel,body.rightsStatus,body.productFocus.trim(),body.notes?.trim()||null,body.evidenceLink?.trim()||null,user.id,id,body.version);
-  const event = auditStatement(context.env.OPERATIONS_DB,user,id,"CREATOR_ENROLLMENT_UPDATED",current.workflow_status,"IN_PROGRESS",null,body.version+1);
-  const result = await context.env.OPERATIONS_DB.batch([statement,event]);
+  const now = new Date().toISOString();
+  const payload = creatorPayload(id, body, user.id, now);
+  const update = context.env.OPERATIONS_DB.prepare(`UPDATE creator_enrollments SET creator_name=?,primary_platform=?,handle=?,contact=?,creator_status=?,compensation_model=?,rights_status=?,product_focus=?,notes=?,evidence_link=?,workflow_status='IN_PROGRESS',assigned_operator_id=?,last_updated=?,version=version+1,sync_status='PENDING_EXPORT' WHERE id=? AND version=?`)
+    .bind(body.creatorName.trim(),body.primaryPlatform,body.handle.trim(),body.contact.trim(),body.creatorStatus,body.compensationModel,body.rightsStatus,body.productFocus.trim(),body.notes?.trim()||null,body.evidenceLink?.trim()||null,user.id,now,id,body.version);
+  const result = await context.env.OPERATIONS_DB.batch([
+    update,
+    conditionalCreatorAudit(context.env.OPERATIONS_DB,user,current.campaign_id,id,"CREATOR_ENROLLMENT_UPDATED",current.workflow_status,"IN_PROGRESS",null,body.version+1),
+    conditionalCreatorOutbox(context.env.OPERATIONS_DB,user,"CREATOR",id,"UPSERT",JSON.stringify(payload),body.version+1)
+  ]);
   if (!result[0].meta.changes) return json({ error: "Record changed. Refresh and try again." }, 409);
-  return json({ id, workflowStatus: "IN_PROGRESS" });
+  return json({ id, workflowStatus: "IN_PROGRESS", syncStatus: "PENDING_EXPORT" });
+}
+
+async function updateCreatorWorkflow(context, user, current, body) {
+  if (!transitionAllowed(current.workflow_status, body.action, user.role)) return json({ error: "This status change is not authorized" }, 409);
+  if (body.action === "AWAITING_QA") {
+    const checks = qaChecklist(current);
+    if (Object.values(checks).some((value) => !value)) return json({ error: "Complete the required evidence before QA", checklist: checks }, 422);
+    const missingRights = await optionalRows(context.env.OPERATIONS_DB, "SELECT id FROM creator_assignments WHERE creator_id=? AND paid_usage_rights='Yes' AND (signed_rights_evidence_link IS NULL OR TRIM(signed_rights_evidence_link)='')", [current.id]);
+    if (missingRights.length) return json({ error: "Signed rights evidence is required before QA", assignments: missingRights.map((row) => row.id) }, 422);
+  }
+  const update = context.env.OPERATIONS_DB.prepare("UPDATE creator_enrollments SET workflow_status=?,assigned_operator_id=?,last_updated=CURRENT_TIMESTAMP,version=version+1,sync_status='PENDING_EXPORT' WHERE id=? AND version=?")
+    .bind(body.action,user.id,current.id,body.version);
+  const payload = JSON.stringify({ id: current.id, campaignId: current.campaign_id, workflowStatus: body.action });
+  const result = await context.env.OPERATIONS_DB.batch([
+    update,
+    conditionalCreatorAudit(context.env.OPERATIONS_DB,user,current.campaign_id,current.id,"WORKFLOW_STATUS_CHANGED",current.workflow_status,body.action,null,body.version+1),
+    conditionalCreatorOutbox(context.env.OPERATIONS_DB,user,"CREATOR",current.id,"WORKFLOW",payload,body.version+1)
+  ]);
+  if (!result[0].meta.changes) return json({ error: "Record changed. Refresh and try again." }, 409);
+  return json({ id: current.id, workflowStatus: body.action, syncStatus: "PENDING_EXPORT" });
+}
+
+async function createAssignment(context, user) {
+  const blocked = await requireV2(context.env); if (blocked) return blocked;
+  const body = await context.request.json();
+  const errors = validateAssignment(body);
+  if (Object.keys(errors).length) return json({ error: "Check the highlighted assignment fields", fields: errors }, 422);
+  const creator = await context.env.OPERATIONS_DB.prepare("SELECT id FROM creator_enrollments WHERE id=?").bind(body.creatorId).first();
+  const campaign = await context.env.OPERATIONS_DB.prepare("SELECT id FROM campaigns WHERE id=?").bind(body.campaignId).first();
+  if (!creator || !campaign) return json({ error: "Choose an existing creator and campaign" }, 422);
+  const duplicate = await context.env.OPERATIONS_DB.prepare("SELECT id FROM creator_assignments WHERE creator_id=? AND campaign_id=? AND status NOT IN ('Complete','Archived')").bind(body.creatorId,body.campaignId).first();
+  if (duplicate) return json({ error: `Active assignment ${duplicate.id} already exists` }, 409);
+  const ids = await context.env.OPERATIONS_DB.prepare("SELECT id FROM creator_assignments").all();
+  const id = nextEntityId("ASG", ids.results.map((row) => row.id));
+  const now = new Date().toISOString();
+  const payload = assignmentPayload(id, body, user.id, now);
+  const insert = context.env.OPERATIONS_DB.prepare(`INSERT INTO creator_assignments
+    (id,environment,creator_id,campaign_id,status,start_date,content_due,fixed_content_fee,commission_rate,paid_usage_rights,attribution_window_days,evidence_status,notes,signed_rights_evidence_link,assigned_operator_id,last_updated,sync_status)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(id,"NONPRODUCTION",body.creatorId,body.campaignId,body.status,body.startDate||null,body.contentDue||null,Number(body.fixedContentFee||0),Number(body.commissionRate||0),body.paidUsageRights,Number(body.attributionWindowDays||30),body.evidenceStatus,body.notes?.trim()||null,body.signedRightsEvidenceLink?.trim()||null,user.id,now,"PENDING_EXPORT");
+  await context.env.OPERATIONS_DB.batch([
+    insert,
+    auditInsert(context.env.OPERATIONS_DB,user,body.campaignId,id,"CREATOR_ASSIGNMENT_CREATED",null,body.status,"CreatorAssignment"),
+    outboxInsert(context.env.OPERATIONS_DB,user,"ASSIGNMENT",id,"UPSERT",payload)
+  ]);
+  return json({ id, syncStatus: "PENDING_EXPORT" }, 201);
+}
+
+async function updateAssignment(context, user, id) {
+  const blocked = await requireV2(context.env); if (blocked) return blocked;
+  const current = await context.env.OPERATIONS_DB.prepare("SELECT * FROM creator_assignments WHERE id=?").bind(id).first();
+  if (!current) return json({ error: "Assignment not found" }, 404);
+  const body = await context.request.json();
+  body.creatorId = current.creator_id;
+  body.campaignId = current.campaign_id;
+  const errors = validateAssignment(body);
+  if (Object.keys(errors).length) return json({ error: "Check the highlighted assignment fields", fields: errors }, 422);
+  const now = new Date().toISOString();
+  const payload = assignmentPayload(id, body, user.id, now);
+  const update = context.env.OPERATIONS_DB.prepare(`UPDATE creator_assignments SET status=?,start_date=?,content_due=?,fixed_content_fee=?,commission_rate=?,paid_usage_rights=?,attribution_window_days=?,evidence_status=?,notes=?,signed_rights_evidence_link=?,assigned_operator_id=?,last_updated=?,version=version+1,sync_status='PENDING_EXPORT' WHERE id=? AND version=?`)
+    .bind(body.status,body.startDate||null,body.contentDue||null,Number(body.fixedContentFee||0),Number(body.commissionRate||0),body.paidUsageRights,Number(body.attributionWindowDays||30),body.evidenceStatus,body.notes?.trim()||null,body.signedRightsEvidenceLink?.trim()||null,user.id,now,id,body.version);
+  const result = await context.env.OPERATIONS_DB.batch([
+    update,
+    conditionalAssignmentAudit(context.env.OPERATIONS_DB,user,current.campaign_id,id,"CREATOR_ASSIGNMENT_UPDATED",current.status,body.status,body.version+1),
+    conditionalAssignmentOutbox(context.env.OPERATIONS_DB,user,"ASSIGNMENT",id,"UPSERT",JSON.stringify(payload),body.version+1)
+  ]);
+  if (!result[0].meta.changes) return json({ error: "Assignment changed. Refresh and try again." }, 409);
+  return json({ id, syncStatus: "PENDING_EXPORT" });
 }
 
 async function reviewCreator(context, user, id) {
+  const blocked = await requireV2(context.env); if (blocked) return blocked;
   if (!QA_ROLES.has(user.role)) return json({ error: "QA Reviewer authority required" }, 403);
   const current = await context.env.OPERATIONS_DB.prepare("SELECT * FROM creator_enrollments WHERE id=?").bind(id).first();
   if (!current) return json({ error: "Creator record not found" }, 404);
   const body = await context.request.json();
   if (!transitionAllowed(current.workflow_status, body.result, user.role)) return json({ error: "Record is not awaiting QA" }, 409);
-  if (!['PASS','HOLD','CORRECTION_REQUIRED'].includes(body.result)) return json({ error: "Choose PASS, HOLD, or CORRECTION REQUIRED" }, 422);
-  if (body.result !== 'PASS' && !String(body.notes??'').trim()) return json({ error: "Explain what must happen next" }, 422);
+  if (!["PASS","HOLD","CORRECTION_REQUIRED"].includes(body.result)) return json({ error: "Choose PASS, HOLD, or CORRECTION REQUIRED" }, 422);
+  if (body.result !== "PASS" && !String(body.notes ?? "").trim()) return json({ error: "Explain what must happen next" }, 422);
   const checklist = qaChecklist(current);
-  if (body.result === 'PASS' && Object.values(checklist).some((value) => !value)) return json({ error: "All QA checks must pass", checklist }, 422);
+  if (body.result === "PASS" && Object.values(checklist).some((value) => !value)) return json({ error: "All QA checks must pass", checklist }, 422);
+  const finalStatus = body.result === "PASS" ? "PASSED" : body.result;
+  const update = context.env.OPERATIONS_DB.prepare("UPDATE creator_enrollments SET workflow_status=?,last_updated=CURRENT_TIMESTAMP,version=version+1,sync_status='PENDING_EXPORT' WHERE id=? AND version=?").bind(finalStatus,id,body.version);
   const review = context.env.OPERATIONS_DB.prepare("INSERT INTO qa_reviews (id,enrollment_id,reviewer_id,result,checklist_json,notes) SELECT ?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM creator_enrollments WHERE id=? AND version=?)")
     .bind(uid("QA"),id,user.id,body.result,JSON.stringify(checklist),body.notes?.trim()||null,id,body.version+1);
-  const update = context.env.OPERATIONS_DB.prepare("UPDATE creator_enrollments SET workflow_status=?,last_updated=CURRENT_TIMESTAMP,version=version+1 WHERE id=? AND version=?")
-    .bind(body.result === "PASS" ? "PASSED" : body.result,id,body.version);
-  const event = auditStatement(context.env.OPERATIONS_DB,user,id,"QA_REVIEW_COMPLETED",current.workflow_status,body.result,body.result,body.version+1);
-  const result = await context.env.OPERATIONS_DB.batch([update,review,event]);
+  const payload = JSON.stringify({ id, campaignId: current.campaign_id, workflowStatus: finalStatus, qaResult: body.result, qaNotes: body.notes?.trim()||null });
+  const result = await context.env.OPERATIONS_DB.batch([
+    update,
+    review,
+    conditionalCreatorAudit(context.env.OPERATIONS_DB,user,current.campaign_id,id,"QA_REVIEW_COMPLETED",current.workflow_status,body.result,body.result,body.version+1),
+    conditionalCreatorOutbox(context.env.OPERATIONS_DB,user,"CREATOR",id,"QA_RESULT",payload,body.version+1)
+  ]);
   if (!result[0].meta.changes) return json({ error: "Record changed. Refresh and try again." }, 409);
-  return json({ id, result: body.result });
+  return json({ id, result: body.result, syncStatus: "PENDING_EXPORT" });
 }
 
-async function audit({ env }) {
-  const events = await env.OPERATIONS_DB.prepare("SELECT a.*,o.display_name operator_name,o.role operator_role FROM audit_events a JOIN operators o ON o.id=a.operator_id WHERE a.campaign_id='CMP-100' ORDER BY a.created_at DESC LIMIT 100").all();
+async function audit({ env, request }, user) {
+  if (!AUDIT_ROLES.has(user.role)) return json({ error: "Administrator authority required" }, 403);
+  const campaignId = params(request).get("campaignId") || "CMP-100";
+  const events = await env.OPERATIONS_DB.prepare("SELECT a.*,o.display_name operator_name,o.role operator_role FROM audit_events a JOIN operators o ON o.id=a.operator_id WHERE a.campaign_id=? ORDER BY a.created_at DESC LIMIT 200").bind(campaignId).all();
   return json({ events: events.results });
 }
 
-function auditStatement(db,user,id,action,previousValue,newValue,qaEvent,committedVersion) {
-  return db.prepare("INSERT INTO audit_events (id,operator_id,campaign_id,action,object_type,object_id,previous_value,new_value,qa_event) SELECT ?,?,?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM creator_enrollments WHERE id=? AND version=?)")
-    .bind(uid("AUD"),user.id,"CMP-100",action,"CreatorEnrollment",id,String(previousValue),String(newValue),qaEvent,id,committedVersion);
+async function systemStatus({ env }, user) {
+  if (!AUDIT_ROLES.has(user.role)) return json({ error: "Administrator authority required" }, 403);
+  const ready = await schemaReady(env);
+  const counts = ready
+    ? await env.OPERATIONS_DB.prepare("SELECT status,COUNT(*) count FROM control_system_outbox GROUP BY status").all()
+    : { results: [] };
+  return json({
+    schemaReady: ready,
+    syncConfigured: Boolean(env.CONTROL_SYSTEM_SYNC_SECRET),
+    sourceSystem: "Acquisition & Launch Control System",
+    outbound: Object.fromEntries(counts.results.map((row) => [row.status,row.count]))
+  });
 }
+
+const creatorPayload = (id, body, operatorId, updatedAt) => ({
+  id,
+  campaignId: body.campaignId,
+  creatorName: body.creatorName.trim(),
+  primaryPlatform: body.primaryPlatform,
+  handle: body.handle.trim(),
+  contact: body.contact.trim(),
+  creatorStatus: body.creatorStatus,
+  compensationModel: body.compensationModel,
+  rightsStatus: body.rightsStatus,
+  productFocus: body.productFocus.trim(),
+  notes: body.notes?.trim() || null,
+  evidenceLink: body.evidenceLink?.trim() || null,
+  operatorId,
+  updatedAt
+});
+const assignmentPayload = (id, body, operatorId, updatedAt) => ({
+  id,
+  environment: "NONPRODUCTION",
+  creatorId: body.creatorId,
+  campaignId: body.campaignId,
+  status: body.status,
+  startDate: body.startDate || null,
+  contentDue: body.contentDue || null,
+  fixedContentFee: Number(body.fixedContentFee || 0),
+  commissionRate: Number(body.commissionRate || 0),
+  paidUsageRights: body.paidUsageRights,
+  attributionWindowDays: Number(body.attributionWindowDays || 30),
+  evidenceStatus: body.evidenceStatus,
+  notes: body.notes?.trim() || null,
+  signedRightsEvidenceLink: body.signedRightsEvidenceLink?.trim() || null,
+  operatorId,
+  updatedAt
+});
+const auditInsert = (db,user,campaignId,id,action,previousValue,newValue,objectType="CreatorEnrollment") =>
+  db.prepare("INSERT INTO audit_events (id,operator_id,campaign_id,action,object_type,object_id,previous_value,new_value) VALUES (?,?,?,?,?,?,?,?)")
+    .bind(uid("AUD"),user.id,campaignId,action,objectType,id,previousValue,newValue);
+const outboxInsert = (db,user,entityType,entityId,action,payload) => {
+  const id = uid("SYNC");
+  return db.prepare("INSERT INTO control_system_outbox (id,idempotency_key,operator_id,entity_type,entity_id,action,payload_json) VALUES (?,?,?,?,?,?,?)")
+    .bind(id,id,user.id,entityType,entityId,action,JSON.stringify(payload));
+};
+const conditionalCreatorAudit = (db,user,campaignId,id,action,previousValue,newValue,qaEvent,version) =>
+  db.prepare("INSERT INTO audit_events (id,operator_id,campaign_id,action,object_type,object_id,previous_value,new_value,qa_event) SELECT ?,?,?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM creator_enrollments WHERE id=? AND version=?)")
+    .bind(uid("AUD"),user.id,campaignId,action,"CreatorEnrollment",id,String(previousValue),String(newValue),qaEvent,id,version);
+const conditionalCreatorOutbox = (db,user,entityType,id,action,payload,version) => {
+  const syncId = uid("SYNC");
+  return db.prepare("INSERT INTO control_system_outbox (id,idempotency_key,operator_id,entity_type,entity_id,action,payload_json) SELECT ?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM creator_enrollments WHERE id=? AND version=?)")
+    .bind(syncId,syncId,user.id,entityType,id,action,payload,id,version);
+};
+const conditionalAssignmentAudit = (db,user,campaignId,id,action,previousValue,newValue,version) =>
+  db.prepare("INSERT INTO audit_events (id,operator_id,campaign_id,action,object_type,object_id,previous_value,new_value) SELECT ?,?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM creator_assignments WHERE id=? AND version=?)")
+    .bind(uid("AUD"),user.id,campaignId,action,"CreatorAssignment",id,String(previousValue),String(newValue),id,version);
+const conditionalAssignmentOutbox = (db,user,entityType,id,action,payload,version) => {
+  const syncId = uid("SYNC");
+  return db.prepare("INSERT INTO control_system_outbox (id,idempotency_key,operator_id,entity_type,entity_id,action,payload_json) SELECT ?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM creator_assignments WHERE id=? AND version=?)")
+    .bind(syncId,syncId,user.id,entityType,id,action,payload,id,version);
+};
