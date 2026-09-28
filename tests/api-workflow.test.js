@@ -38,7 +38,7 @@ async function request(env, email, method, path, body) {
   const response = await onRequest({
     env,
     data: { loginEmail: email },
-    params: { path: path.split("/").filter(Boolean) },
+    params: { path: path.split("?")[0].split("/").filter(Boolean) },
     request: new Request(`https://ops.creatorloop.net/api/console/${path}`, {
       method,
       headers: method === "GET" ? {} : { "Content-Type": "application/json", Origin: "https://ops.creatorloop.net" },
