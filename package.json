@@ -4,6 +4,6 @@
   "type": "module",
   "scripts": {
     "test": "node --test tests/*.test.js",
-    "check": "node --check 'functions/api/console/[[path]].js' && node --check functions/access-auth.js && node --check functions/_middleware.js && node --check console/app.js"
+    "check": "node --check 'functions/api/console/[[path]].js' && node --check functions/api/console-core.js && node --check functions/api/integrations/control-system.js && node --check functions/access-auth.js && node --check functions/_middleware.js && node --check console/app.js"
   }
 }
