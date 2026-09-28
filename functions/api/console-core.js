@@ -40,3 +40,7 @@ export function nextCreatorId(ids) {
   const maximum = ids.reduce((max, id) => Math.max(max, Number(/^CR-(\d+)$/.exec(id)?.[1] ?? 99)), 99);
   return `CR-${maximum + 1}`;
 }
+
+export function normalizeCreatorIdentity(value) {
+  return String(value ?? "").trim().toLowerCase();
+}

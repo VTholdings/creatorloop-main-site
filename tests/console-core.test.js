@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { nextCreatorId, qaChecklist, transitionAllowed, validateEnrollment } from "../functions/api/console-core.js";
+import { nextCreatorId, normalizeCreatorIdentity, qaChecklist, transitionAllowed, validateEnrollment } from "../functions/api/console-core.js";
 
 const valid = {
   creatorName:"Creator One", primaryPlatform:"TikTok", handle:"@creator", contact:"creator@example.com",
@@ -9,6 +9,11 @@ const valid = {
 
 test("AUTO permanent IDs advance and are never recycled",()=>{
   assert.equal(nextCreatorId(["CR-100","CR-103","not-an-id"]),"CR-104");
+});
+
+test("creator identity comparison is stable for duplicate control",()=>{
+  assert.equal(normalizeCreatorIdentity("  @Creator.ONE "), "@creator.one");
+  assert.equal(normalizeCreatorIdentity(" Creator@Example.COM "), "creator@example.com");
 });
 
 test("controlled fields reject unapproved values",()=>{
