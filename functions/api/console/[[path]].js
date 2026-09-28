@@ -103,10 +103,14 @@ async function dashboard({ env, request }, user) {
 
 async function listCampaigns({ env, request }) {
   const q = params(request).get("q")?.trim();
-  const rows = q
-    ? await env.OPERATIONS_DB.prepare("SELECT * FROM campaigns WHERE LOWER(id) LIKE ? OR LOWER(name) LIKE ? OR LOWER(COALESCE(slug,'')) LIKE ? ORDER BY id")
-      .bind(like(q), like(q), like(q)).all()
-    : await env.OPERATIONS_DB.prepare("SELECT * FROM campaigns ORDER BY id").all();
+  const ready = await schemaReady(env);
+  const rows = !q
+    ? await env.OPERATIONS_DB.prepare("SELECT * FROM campaigns ORDER BY id").all()
+    : ready
+      ? await env.OPERATIONS_DB.prepare("SELECT * FROM campaigns WHERE LOWER(id) LIKE ? OR LOWER(name) LIKE ? OR LOWER(COALESCE(slug,'')) LIKE ? ORDER BY id")
+        .bind(like(q), like(q), like(q)).all()
+      : await env.OPERATIONS_DB.prepare("SELECT * FROM campaigns WHERE LOWER(id) LIKE ? OR LOWER(name) LIKE ? ORDER BY id")
+        .bind(like(q), like(q)).all();
   return json({ campaigns: rows.results });
 }
 
@@ -121,6 +125,7 @@ async function getCampaign({ env }, id) {
 
 async function listCreators({ env, request }) {
   const search = params(request);
+  const ready = await schemaReady(env);
   const q = search.get("q")?.trim();
   const campaignId = search.get("campaignId")?.trim();
   const platform = search.get("platform")?.trim();
@@ -131,18 +136,25 @@ async function listCreators({ env, request }) {
   if (platform) { clauses.push("e.primary_platform=?"); values.push(platform); }
   if (status) { clauses.push("(e.creator_status=? OR e.workflow_status=?)"); values.push(status, status); }
   if (q) {
-    clauses.push("(LOWER(e.id) LIKE ? OR LOWER(e.creator_name) LIKE ? OR LOWER(e.handle) LIKE ? OR LOWER(e.primary_platform) LIKE ? OR LOWER(e.creator_status) LIKE ? OR LOWER(e.workflow_status) LIKE ? OR LOWER(e.campaign_id) LIKE ? OR LOWER(c.name) LIKE ? OR LOWER(COALESCE(c.slug,'')) LIKE ?)");
-    for (let i = 0; i < 9; i += 1) values.push(like(q));
+    const fields = ["e.id","e.creator_name","e.handle","e.primary_platform","e.creator_status","e.workflow_status","e.campaign_id","c.name"];
+    if (ready) fields.push("COALESCE(c.slug,'')");
+    clauses.push("(" + fields.map((field) => `LOWER(${field}) LIKE ?`).join(" OR ") + ")");
+    for (let i = 0; i < fields.length; i += 1) values.push(like(q));
   }
   const where = clauses.length ? "WHERE " + clauses.join(" AND ") : "";
-  const rows = await env.OPERATIONS_DB.prepare(`SELECT e.*,c.name campaign_name,c.slug campaign_slug
+  const campaignFields = ready ? "c.name campaign_name,c.slug campaign_slug" : "c.name campaign_name,NULL campaign_slug";
+  const rows = await env.OPERATIONS_DB.prepare(`SELECT e.*,${campaignFields}
     FROM creator_enrollments e JOIN campaigns c ON c.id=e.campaign_id
     ${where} ORDER BY e.campaign_id,CAST(SUBSTR(e.id,4) AS INTEGER)`).bind(...values).all();
   return json({ creators: rows.results });
 }
 
 async function getCreator({ env }, id) {
-  const creator = await env.OPERATIONS_DB.prepare(`SELECT e.*,c.name campaign_name,c.slug campaign_slug,c.platform campaign_platform,c.product_scope campaign_product_scope
+  const ready = await schemaReady(env);
+  const campaignFields = ready
+    ? "c.name campaign_name,c.slug campaign_slug,c.platform campaign_platform,c.product_scope campaign_product_scope"
+    : "c.name campaign_name,NULL campaign_slug,NULL campaign_platform,NULL campaign_product_scope";
+  const creator = await env.OPERATIONS_DB.prepare(`SELECT e.*,${campaignFields}
     FROM creator_enrollments e JOIN campaigns c ON c.id=e.campaign_id WHERE e.id=?`).bind(id).first();
   if (!creator) return json({ error: "Creator record not found" }, 404);
   const reviews = await env.OPERATIONS_DB.prepare("SELECT q.*,o.display_name reviewer_name,o.role reviewer_role FROM qa_reviews q JOIN operators o ON o.id=q.reviewer_id WHERE q.enrollment_id=? ORDER BY q.created_at DESC").bind(id).all();
