@@ -1,4 +1,4 @@
-import { nextCreatorId, qaChecklist, QA_ROLES, transitionAllowed, validateEnrollment } from "../console-core.js";
+import { nextCreatorId, normalizeCreatorIdentity, qaChecklist, QA_ROLES, transitionAllowed, validateEnrollment } from "../console-core.js";
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
 const uid = (prefix) => `${prefix}-${crypto.randomUUID()}`;
@@ -70,6 +70,10 @@ async function createCreator(context, user) {
   const body = await context.request.json();
   const errors = validateEnrollment(body);
   if (Object.keys(errors).length) return json({ error: "Check the highlighted fields", fields: errors }, 422);
+  const duplicate = await context.env.OPERATIONS_DB.prepare(`SELECT id FROM creator_enrollments
+    WHERE campaign_id=? AND (LOWER(TRIM(handle))=? OR LOWER(TRIM(contact))=?) LIMIT 1`)
+    .bind("CMP-100", normalizeCreatorIdentity(body.handle), normalizeCreatorIdentity(body.contact)).first();
+  if (duplicate) return json({ error: `This creator already has campaign record ${duplicate.id}` }, 409);
   const ids = await context.env.OPERATIONS_DB.prepare("SELECT id FROM creator_enrollments").all();
   const id = nextCreatorId(ids.results.map((row) => row.id));
   const now = new Date().toISOString();
@@ -102,6 +106,10 @@ async function updateCreator(context, user, id) {
   const errors = validateEnrollment(body);
   if (Object.keys(errors).length) return json({ error: "Check the highlighted fields", fields: errors }, 422);
   if (!['IN_PROGRESS','CORRECTION_REQUIRED','HOLD'].includes(current.workflow_status)) return json({ error: "This record is locked during or after QA" }, 409);
+  const duplicate = await context.env.OPERATIONS_DB.prepare(`SELECT id FROM creator_enrollments
+    WHERE campaign_id=? AND id<>? AND (LOWER(TRIM(handle))=? OR LOWER(TRIM(contact))=?) LIMIT 1`)
+    .bind(current.campaign_id, id, normalizeCreatorIdentity(body.handle), normalizeCreatorIdentity(body.contact)).first();
+  if (duplicate) return json({ error: `This creator already has campaign record ${duplicate.id}` }, 409);
   const statement = context.env.OPERATIONS_DB.prepare(`UPDATE creator_enrollments SET creator_name=?,primary_platform=?,handle=?,contact=?,creator_status=?,compensation_model=?,rights_status=?,product_focus=?,notes=?,evidence_link=?,workflow_status='IN_PROGRESS',assigned_operator_id=?,last_updated=CURRENT_TIMESTAMP,version=version+1 WHERE id=? AND version=?`)
     .bind(body.creatorName.trim(),body.primaryPlatform,body.handle.trim(),body.contact.trim(),body.creatorStatus,body.compensationModel,body.rightsStatus,body.productFocus.trim(),body.notes?.trim()||null,body.evidenceLink?.trim()||null,user.id,id,body.version);
   const event = auditStatement(context.env.OPERATIONS_DB,user,id,"CREATOR_ENROLLMENT_UPDATED",current.workflow_status,"IN_PROGRESS",null,body.version+1);
