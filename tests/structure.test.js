@@ -73,3 +73,11 @@ test("V2 operator UI exposes campaign identity, search, existing records, and fi
   assert.match(client,/data-record/);
   for (const classification of ["AUTO","SELECT","INPUT","LOCKED","APPROVAL"]) assert.match(client,new RegExp(classification));
 });
+
+test("pre-migration records are visibly and mechanically view-only", async () => {
+  const client = await readFile("console/app.js","utf8");
+  assert.match(client,/lockEditorIfMigrationPending/);
+  assert.match(client,/Migration pending · This record is view-only/);
+  assert.match(client,/querySelectorAll\("input,select,textarea,button"\)/);
+  assert.match(client,/control\.disabled = true/);
+});
