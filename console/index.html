@@ -8,18 +8,28 @@
 <body>
   <div id="app" class="app-shell" hidden>
     <aside class="sidebar">
-      <a class="brand" href="/console/"><img src="/assets/images/cl-logo.png" alt="CreatorLoop"><span>OPERATIONS</span></a>
+      <a class="brand" href="/console/"><img src="/assets/images/cl-logo.png" alt="CreatorLoop"><span>OPERATIONS V2</span></a>
       <nav aria-label="Operator navigation">
-        <button class="nav-button active" data-view="home">Home</button>
+        <button class="nav-button active" data-view="home">Operator Home</button>
+        <button class="nav-button" data-view="campaigns">Campaigns</button>
         <button class="nav-button" data-view="work">Creator work</button>
-        <button class="nav-button" data-view="audit">Audit trail</button>
+        <button class="nav-button admin-only" data-view="audit" hidden>Audit trail</button>
       </nav>
       <div class="operator-card"><span id="operator-name">Operator</span><small id="operator-role"></small><small id="operator-id"></small></div>
     </aside>
     <main>
-      <header class="topbar"><button id="menu" aria-label="Open navigation">☰</button><div><span class="eyebrow">ACTIVE CAMPAIGN</span><strong id="campaign-name">Loading…</strong></div><span class="environment">NONPRODUCTION</span></header>
+      <header class="topbar">
+        <button id="menu" aria-label="Open navigation">☰</button>
+        <div><span class="eyebrow">ACTIVE CAMPAIGN</span><strong id="campaign-name">Loading…</strong></div>
+        <span class="environment">NONPRODUCTION</span>
+      </header>
+      <section class="global-search">
+        <label for="global-search">Find campaign or creator</label>
+        <div><input id="global-search" type="search" placeholder="Campaign ID, campaign name/slug, creator ID, name, handle, platform, or status"><button class="action" id="run-search">Search</button></div>
+      </section>
       <section id="notice" class="notice" role="status" hidden></section>
       <section id="home-view" class="view"></section>
+      <section id="campaigns-view" class="view" hidden></section>
       <section id="work-view" class="view" hidden></section>
       <section id="audit-view" class="view" hidden></section>
     </main>
