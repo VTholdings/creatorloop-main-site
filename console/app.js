@@ -233,9 +233,18 @@ async function openRecord(id) {
   state.current = record;
   renderWork();
   $("#editor").innerHTML = creatorForm(record.creator);
+  lockEditorIfMigrationPending();
   bindCreatorForm(record.creator);
   bindAssignments();
   show("work");
+}
+
+function lockEditorIfMigrationPending() {
+  if (state.dashboard.system.schemaReady) return;
+  const editor = $("#editor");
+  if (!editor) return;
+  editor.insertAdjacentHTML("afterbegin", '<div class="notice error persistent">Migration pending · This record is view-only.</div>');
+  editor.querySelectorAll("input,select,textarea,button").forEach((control) => { control.disabled = true; });
 }
 
 function bindCreatorForm(creator = {}) {
@@ -362,6 +371,7 @@ document.addEventListener("click",async (event) => {
     }
     if (event.target.id === "new-creator") {
       $("#editor").innerHTML = creatorForm();
+      lockEditorIfMigrationPending();
       bindCreatorForm();
     }
     if (event.target.id === "creator-search-button") await creatorSearch();
