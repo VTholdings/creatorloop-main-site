@@ -22,6 +22,7 @@ ALTER TABLE creator_enrollments ADD COLUMN sync_status TEXT NOT NULL DEFAULT 'LO
   CHECK (sync_status IN ('SYNCED','PENDING_EXPORT','CONFLICT','LOCAL_ONLY'));
 ALTER TABLE creator_enrollments ADD COLUMN source_updated_at TEXT;
 ALTER TABLE creator_enrollments ADD COLUMN source_version TEXT;
+ALTER TABLE creator_enrollments ADD COLUMN last_mutation_id TEXT;
 
 UPDATE campaigns SET slug='3ITEMS' WHERE id='CMP-100' AND slug IS NULL;
 
@@ -45,6 +46,7 @@ CREATE TABLE IF NOT EXISTS creator_assignments (
   version INTEGER NOT NULL DEFAULT 1,
   source_updated_at TEXT,
   source_version TEXT,
+  last_mutation_id TEXT,
   sync_status TEXT NOT NULL DEFAULT 'LOCAL_ONLY' CHECK (sync_status IN ('SYNCED','PENDING_EXPORT','CONFLICT','LOCAL_ONLY'))
 );
 
