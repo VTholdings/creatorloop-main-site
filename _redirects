@@ -12,5 +12,4 @@
 # Route /home to root
 /home           /index.html             200
 
-# 404 fallback
-/*              /404.html               404
+# Cloudflare Pages serves the root 404.html automatically for unmatched routes.
