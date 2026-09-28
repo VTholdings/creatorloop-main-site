@@ -108,4 +108,6 @@ The bridge has two parts:
 1. `/api/integrations/control-system` on Cloudflare Pages accepts signed snapshots, exposes pending Console changes, and acknowledges applied outbox events.
 2. `assets/operations-control-system-sync.gs` is installed as a bound Apps Script in the approved Control System workbook.
 
-Store `CONTROL_SYSTEM_SYNC_SECRET` only as an encrypted Cloudflare Pages secret and as the Apps Script property `CREATORLOOP_SYNC_SECRET`. Set the Apps Script property `CREATORLOOP_SYNC_ENDPOINT` to the protected integration URL. Never commit or paste the shared secret into source, issues, logs, or chat.
+Store `CONTROL_SYSTEM_SYNC_SECRET` only as an encrypted Cloudflare Pages secret and as the Apps Script property `CREATORLOOP_SYNC_SECRET`. Set the Apps Script property `CREATORLOOP_SYNC_ENDPOINT` to the protected integration URL.
+
+Because Cloudflare Access protects the Operations hostname, create a scoped Access service token and permit it only on the Control System integration path. Store its client ID and secret as the Apps Script properties `CREATORLOOP_ACCESS_CLIENT_ID` and `CREATORLOOP_ACCESS_CLIENT_SECRET`. The Apps Script sends those Access headers in addition to the application-level HMAC signature; both security layers must pass. Redirect following is disabled so credentials cannot be forwarded to an interactive login origin. Never commit or paste any shared secret or service-token credential into source, issues, logs, or chat.
