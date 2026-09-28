@@ -4,3 +4,7 @@ pages_build_output_dir = "."
 
 # OPERATIONS_DB is bound to creatorloop-operations-nonproduction in the
 # dedicated Cloudflare Pages project so no database UUID is stored in source.
+[vars]
+CLOUDFLARE_ACCESS_TEAM_DOMAIN = "shiny-wildflower-143c.cloudflareaccess.com"
+CLOUDFLARE_ACCESS_AUD = "c54a2a0bc9a1ae7ccde868a309822a6fadf74f6c04e7b34b48a32bab839757d9"
+BOOTSTRAP_ADMIN_EMAIL = "support@creatorloop.net"
