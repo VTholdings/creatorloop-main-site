@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { nextCreatorId, normalizeCreatorIdentity, qaChecklist, transitionAllowed, validateEnrollment } from "../functions/api/console-core.js";
+import { canViewAudit, nextCreatorId, nextEntityId, normalizeCreatorIdentity, qaChecklist, transitionAllowed, validateAssignment, validateEnrollment } from "../functions/api/console-core.js";
 
 const valid = {
-  creatorName:"Creator One", primaryPlatform:"TikTok", handle:"@creator", contact:"creator@example.com",
+  campaignId:"CMP-100", creatorName:"Creator One", primaryPlatform:"TikTok", handle:"@creator", contact:"creator@example.com",
   creatorStatus:"Active", compensationModel:"Performance", rightsStatus:"Organic Only", productFocus:"CMP-100",
 };
 
@@ -40,4 +40,24 @@ test("QA checklist preserves ID, evidence, and controlled-source rules",()=>{
   assert.ok(Object.values(qaChecklist(record)).every(Boolean));
   assert.equal(qaChecklist({...record,id:"104"}).permanentId,false);
   assert.equal(qaChecklist({...record,evidence_link:""}).rightsEvidence,false);
+});
+
+
+test("V2 assignment controls preserve economics and evidence gates", () => {
+  const validAssignment = {
+    creatorId:"CR-100", campaignId:"CMP-100", status:"Active",
+    fixedContentFee:"50", commissionRate:"0.1", paidUsageRights:"Yes",
+    attributionWindowDays:"30", evidenceStatus:"Verified",
+    signedRightsEvidenceLink:"https://example.com/signed"
+  };
+  assert.deepEqual(validateAssignment(validAssignment),{});
+  assert.match(validateAssignment({...validAssignment,commissionRate:"1.5"}).commissionRate,/0 to 1/);
+  assert.match(validateAssignment({...validAssignment,signedRightsEvidenceLink:""}).signedRightsEvidenceLink,/requires signed evidence/);
+  assert.equal(nextEntityId("ASG",["ASG-100","ASG-102"]),"ASG-103");
+});
+
+test("audit visibility is reserved for the administrator / project owner role", () => {
+  assert.equal(canViewAudit("OPERATOR"),false);
+  assert.equal(canViewAudit("QA_REVIEWER"),false);
+  assert.equal(canViewAudit("ADMINISTRATOR"),true);
 });
