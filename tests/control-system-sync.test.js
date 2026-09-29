@@ -49,6 +49,30 @@ test("control-system bridge fails closed without a valid signature",async () => 
   database.close();
 });
 
+test("control-system bridge fails closed when the production signing secret is not bound",async () => {
+  const { database,binding } = await databaseFixture();
+  const timestamp = String(Math.floor(Date.now()/1000));
+  const payload = { mode:"import",eventId:"SYNC-NO-SECRET",sourceVersion:"TEST",campaigns:[],creators:[],assignments:[],creatives:[] };
+  const body = JSON.stringify(payload);
+  const originalError = console.error;
+  let diagnostic;
+  console.error = (message,detail) => { diagnostic = { message,detail }; };
+  try {
+    const result = await call(binding,undefined,payload,{
+      "X-CreatorLoop-Timestamp":timestamp,
+      "X-CreatorLoop-Signature":await signature("configured-only-in-client",timestamp,body)
+    });
+    assert.equal(result.response.status,401);
+    assert.deepEqual(diagnostic,{
+      message:"Control-system authentication unavailable",
+      detail:{ reason:"CONTROL_SYSTEM_SYNC_SECRET is not bound" }
+    });
+  } finally {
+    console.error = originalError;
+    database.close();
+  }
+});
+
 test("signed imports are idempotent and older source records cannot overwrite newer state",async () => {
   const { database,binding } = await databaseFixture();
   const secret = "test-sync-secret";
