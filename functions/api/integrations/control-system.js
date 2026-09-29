@@ -6,7 +6,10 @@ const encoder = new TextEncoder();
 const hex = (bytes) => [...new Uint8Array(bytes)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 
 async function verify(request, secret, rawBody = "") {
-  if (!secret) return false;
+  if (!secret) {
+    console.error("Control-system authentication unavailable", { reason: "CONTROL_SYSTEM_SYNC_SECRET is not bound" });
+    return false;
+  }
   const timestamp = request.headers.get("X-CreatorLoop-Timestamp") || "";
   const signature = (request.headers.get("X-CreatorLoop-Signature") || "").toLowerCase();
   if (!/^\d+$/.test(timestamp) || !/^[a-f0-9]{64}$/.test(signature)) return false;
