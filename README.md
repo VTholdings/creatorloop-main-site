@@ -73,7 +73,9 @@ GA4 and Meta Pixel placeholders are in every page `<head>`. Uncomment and replac
 | Token | Value | Usage |
 |-------|-------|-------|
 | `--cl-gold` | `#C8A84B` | Primary brand gold |
-| `--cl-purple` | `#7B3FE4` | Secondary accent |
+
+
+Cloudflare Pages binds encrypted environment values to a deployment. After adding or rotating `CONTROL_SYSTEM_SYNC_SECRET`, create a fresh Production deployment before testing the bridge. The Console home card reports `Configured` only when the running deployment can see the secret.| `--cl-purple` | `#7B3FE4` | Secondary accent |
 | `--cl-cyan` | `#00D4FF` | Tertiary accent |
 | `--cl-black` | `#0a0a0a` | Page background |
 | `--font-display` | Barlow Condensed | Headings |
