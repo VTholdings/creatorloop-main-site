@@ -10,13 +10,14 @@ const api = async (path, options = {}) => {
 
 const state = { dashboard: null, campaigns: [], creators: [], current: null, currentCampaign: null };
 const $ = (selector) => document.querySelector(selector);
-const esc = (value = "") => String(value).replace(/[&<>'"]/g, (character) => ({
+const esc = (value = "") => String(value ?? "").replace(/[&<>'"]/g, (character) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;"
 }[character]));
 const optionList = (values,current) => values.map((value) =>
   '<option ' + (value === current ? "selected" : "") + '>' + esc(value) + '</option>'
 ).join("");
 const campaignLabel = (campaign) => campaign.id + " · " + campaign.name;
+const dateInput = (value) => /^\d{4}-\d{2}-\d{2}(?:T|$)/.test(value || "") ? value.slice(0,10) : "";
 const campaignOptions = (current) => state.campaigns.map((campaign) =>
   '<option value="' + esc(campaign.id) + '" ' + (campaign.id === current ? "selected" : "") + '>' + esc(campaignLabel(campaign)) + '</option>'
 ).join("");
@@ -194,7 +195,7 @@ function assignmentForm(assignment = {}) {
     '<label>Paid usage rights <select name="paidUsageRights">' + optionList(["Yes","No","Pending"],assignment.paid_usage_rights) + '</select></label>' +
     '<label>Evidence status <select name="evidenceStatus">' + optionList(["Planned","Pending","Verified","Blocked","Expired"],assignment.evidence_status) + '</select></label>' +
     '<label>Signed rights evidence <input name="signedRightsEvidenceLink" type="url" value="' + esc(assignment.signed_rights_evidence_link) + '"></label>' +
-    '<label>Start date <input name="startDate" type="date" value="' + esc(assignment.start_date) + '"></label><label>Content due <input name="contentDue" type="date" value="' + esc(assignment.content_due) + '"></label>' +
+    '<label>Start date <input name="startDate" type="date" value="' + dateInput(assignment.start_date) + '"></label><label>Content due <input name="contentDue" type="date" value="' + dateInput(assignment.content_due) + '"></label>' +
     '<label>Fixed content fee ($) <input name="fixedContentFee" type="number" min="0" step="0.01" value="' + esc(assignment.fixed_content_fee ?? 0) + '"></label>' +
     '<label>Commission rate <input name="commissionRate" type="number" min="0" max="1" step="0.01" value="' + esc(assignment.commission_rate ?? 0) + '"></label>' +
     '<label>Attribution window <input name="attributionWindowDays" type="number" min="1" max="365" value="' + esc(assignment.attribution_window_days ?? 30) + '"></label>' +
