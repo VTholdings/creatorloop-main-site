@@ -2,7 +2,37 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { DatabaseSync } from "node:sqlite";
+import { createHmac } from "node:crypto";
+import { runInNewContext } from "node:vm";
 import { onRequest } from "../functions/api/integrations/control-system.js";
+
+test("Apps Script signs Unicode payloads with explicit UTF-8 and identical transmitted bytes",async () => {
+  const source = await readFile("assets/operations-control-system-sync.gs","utf8");
+  const secret = "synthetic-secret";
+  const payload = { mode:"diagnostic",name:"CreatorLoop™ — café 🐈" };
+  let sent;
+  const context = {
+    Utilities:{
+      Charset:{ UTF_8:"UTF-8" },
+      computeHmacSha256Signature(value,key,charset) {
+        assert.equal(charset,"UTF-8","Default Apps Script encoding must not be used");
+        return [...createHmac("sha256",key).update(value,"utf8").digest()].map(b => b > 127 ? b - 256 : b);
+      }
+    },
+    UrlFetchApp:{ fetch(endpoint,options) { sent = options; return {getResponseCode:() => 200,getContentText:() => "{}"}; } }
+  };
+  runInNewContext(source,context);
+  context.signedFetch_("https://example.test",secret,"id","access-secret","post",payload);
+  assert.equal(sent.payload,JSON.stringify(payload));
+  const { database,binding } = await databaseFixture();
+  try {
+    const result = await onRequest({request:new Request("https://example.test",{
+      method:"POST",headers:sent.headers,body:sent.payload
+    }),env:{OPERATIONS_DB:binding,CONTROL_SYSTEM_SYNC_SECRET:secret}});
+    assert.equal(result.status,422,"Signed unsupported mode authenticates without writing records");
+    assert.equal(database.prepare("SELECT COUNT(*) AS total FROM control_system_imports").get().total,0);
+  } finally { database.close(); }
+});
 
 class D1Statement {
   constructor(database, sql, values = []) { this.database = database; this.sql = sql; this.values = values; }
