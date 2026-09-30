@@ -72,10 +72,7 @@ GA4 and Meta Pixel placeholders are in every page `<head>`. Uncomment and replac
 
 | Token | Value | Usage |
 |-------|-------|-------|
-| `--cl-gold` | `#C8A84B` | Primary brand gold |
-
-
-Cloudflare Pages binds encrypted environment values to a deployment. After adding or rotating `CONTROL_SYSTEM_SYNC_SECRET`, create a fresh Production deployment before testing the bridge. The Console home card reports `Configured` only when the running deployment can see the secret.| `--cl-purple` | `#7B3FE4` | Secondary accent |
+| `--cl-gold` | `#C8A84B` | Primary brand gold || `--cl-purple` | `#7B3FE4` | Secondary accent |
 | `--cl-cyan` | `#00D4FF` | Tertiary accent |
 | `--cl-black` | `#0a0a0a` | Page background |
 | `--font-display` | Barlow Condensed | Headings |
@@ -111,5 +108,7 @@ The bridge has two parts:
 2. `assets/operations-control-system-sync.gs` is installed as a bound Apps Script in the approved Control System workbook.
 
 Store `CONTROL_SYSTEM_SYNC_SECRET` only as an encrypted Cloudflare Pages secret and as the Apps Script property `CREATORLOOP_SYNC_SECRET`. Set the Apps Script property `CREATORLOOP_SYNC_ENDPOINT` to the protected integration URL.
+
+Cloudflare Pages binds encrypted environment values to a deployment. After adding or rotating `CONTROL_SYSTEM_SYNC_SECRET`, create a fresh Production deployment before testing the bridge. The Console home card reports `Configured` only when the running deployment can see the secret.
 
 Because Cloudflare Access protects the Operations hostname, create a scoped Access service token and permit it only on the Control System integration path. Store its client ID and secret as the Apps Script properties `CREATORLOOP_ACCESS_CLIENT_ID` and `CREATORLOOP_ACCESS_CLIENT_SECRET`. The Apps Script sends those Access headers in addition to the application-level HMAC signature; both security layers must pass. Redirect following is disabled so credentials cannot be forwarded to an interactive login origin. Never commit or paste any shared secret or service-token credential into source, issues, logs, or chat.
