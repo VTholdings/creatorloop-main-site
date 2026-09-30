@@ -208,7 +208,8 @@ function creativeRows_() {
 function signedFetch_(endpoint,secret,accessClientId,accessClientSecret,method,payload) {
   const body = payload === null ? "" : JSON.stringify(payload);
   const timestamp = String(Math.floor(Date.now() / 1000));
-  const bytes = Utilities.computeHmacSha256Signature(timestamp + "." + body,secret);
+  // Sign the same UTF-8 bytes sent by UrlFetchApp and verified by Pages.
+  const bytes = Utilities.computeHmacSha256Signature(timestamp + "." + body,secret,Utilities.Charset.UTF_8);
   const signature = bytes.map((byte) => {
     const value = byte < 0 ? byte + 256 : byte;
     return ("0" + value.toString(16)).slice(-2);
