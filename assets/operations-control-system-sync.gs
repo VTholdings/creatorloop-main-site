@@ -146,7 +146,8 @@ function creatorRows_(primaryCampaign) {
       id: row["Creator ID"],
       campaignId: primaryCampaign[row["Creator ID"]],
       creatorName: row["Creator Name"],
-      primaryPlatform: platform_(row["Primary Platform"]),
+      primaryPlatform: platform_(row["Primary Platform"]), // Existing internal category only.
+      sourcePrimaryPlatform: row["Primary Platform"], // Exact 🗺️CREATORS / Primary Platform.
       handle: row["Handle"],
       contact: row["Email / Contact"],
       creatorStatus: row["Status"],
@@ -156,7 +157,7 @@ function creatorRows_(primaryCampaign) {
       enrollmentDate: iso_(row["Enrollment Date"]) || new Date().toISOString(),
       notes: row["Notes"] || null,
       evidenceLink: row["Evidence Link"] || null,
-      sourceRecord: "PNB Acquisition & Launch Control System / CREATORS / " + row["Creator ID"],
+      sourceRecord: "PNB Acquisition & Launch Control System / 🗺️CREATORS / " + row["Creator ID"],
       sourceUpdatedAt: iso_(row["Last Updated"]) || new Date().toISOString()
     }));
 }
@@ -299,6 +300,14 @@ function upsertMappedRow_(sheetName,idHeader,id,values) {
     const value = values[header];
     if (cell.getFormula()) {
       if (String(cell.getDisplayValue()) === String(value ?? "")) return;
+      // Compare the source date's calendar day, preserving its formula and timezone.
+      if (["Start Date","Content Due"].includes(header) && /^\d{4}-\d{2}-\d{2}(?:T|$)/.test(String(value || ""))) {
+        const sourceDate = cell.getValue();
+        if (sourceDate instanceof Date && !isNaN(sourceDate.getTime())) {
+          const sourceDay = Utilities.formatDate(sourceDate,table.sheet.getParent().getSpreadsheetTimeZone(),"yyyy-MM-dd");
+          if (sourceDay === String(value).slice(0,10)) return;
+        }
+      }
       throw new Error("Refusing to overwrite formula: " + header);
     }
     const rule = cell.getDataValidation() || (newRow ? table.sheet.getRange(CL_SYNC.HEADER_ROW + 1,table.headers.indexOf(header) + 1).getDataValidation() : null);

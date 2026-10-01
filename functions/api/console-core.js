@@ -8,11 +8,12 @@ export const RIGHTS = ["Not Reviewed","Organic Only","Paid Usage Approved","Expi
 export const ASSIGNMENT_RIGHTS = ["Yes","No","Pending"];
 export const EVIDENCE_STATUSES = ["Planned","Pending","Verified","Blocked","Expired"];
 
-export function validateEnrollment(body) {
+export function validateEnrollment(body, current = null) {
   const required = ["campaignId","creatorName","primaryPlatform","handle","contact","creatorStatus","compensationModel","rightsStatus","productFocus"];
   const errors = {};
   for (const key of required) if (!String(body[key] ?? "").trim()) errors[key] = "Required";
-  if (body.primaryPlatform && !PLATFORMS.includes(body.primaryPlatform)) errors.primaryPlatform = "Choose an approved platform";
+  const unchangedSourcePlatform = Boolean(current?.source_version) && body.primaryPlatform === current.source_primary_platform;
+  if (body.primaryPlatform && !PLATFORMS.includes(body.primaryPlatform) && !unchangedSourcePlatform) errors.primaryPlatform = "Choose an approved Primary Platform";
   if (body.creatorStatus && !CREATOR_STATUSES.includes(body.creatorStatus)) errors.creatorStatus = "Choose an approved status";
   if (body.compensationModel && !COMPENSATION.includes(body.compensationModel)) errors.compensationModel = "Choose an approved compensation model";
   if (body.rightsStatus && !RIGHTS.includes(body.rightsStatus)) errors.rightsStatus = "Choose an approved rights status";

@@ -6,6 +6,45 @@ import { createHmac } from "node:crypto";
 import { runInNewContext } from "node:vm";
 import { onRequest } from "../functions/api/integrations/control-system.js";
 
+test("creator snapshots preserve the exact source Primary Platform and Product Focus",async () => {
+  const source=await readFile('assets/operations-control-system-sync.gs','utf8');
+  const headers=['Creator ID','Creator Name','Primary Platform','Product Focus'];
+  const values=['CR-100','Synthetic','TikTok + Instagram','Established Product Focus'];
+  const context={SpreadsheetApp:{getActive:()=>({getSheetByName:name=>{
+    assert.equal(name,'🗺️CREATORS');
+    return {getLastColumn:()=>4,getLastRow:()=>4,getRange:row=>({getDisplayValues:()=>[row===3?headers:values]})};
+  }})}};
+  runInNewContext(source,context);
+  const [row]=context.creatorRows_({'CR-100':'CMP-100'});
+  assert.equal(row.primaryPlatform,'TikTok');
+  assert.equal(row.sourcePrimaryPlatform,'TikTok + Instagram');
+  assert.equal(row.productFocus,'Established Product Focus');
+  assert.match(row.sourceRecord,/🗺️CREATORS/);
+});
+
+test("unchanged source formula dates allow note edits while changed dates fail before writing",async () => {
+  const source=await readFile('assets/operations-control-system-sync.gs','utf8');
+  const headers=['Assignment ID','Start Date','Notes'];
+  const values=['ASG-100','9/20/2026','Original'];
+  const sourceDate=new Date('2026-09-20T10:00:00.000Z');
+  let notes='Original';
+  const sheet={getLastColumn:()=>3,getLastRow:()=>4,getParent:()=>({getSpreadsheetTimeZone:()=> 'Pacific/Honolulu'}),getRange(row,col,rows){
+    if(row===3)return {getDisplayValues:()=>[headers]};
+    if(rows!==undefined)return {getDisplayValues:()=>[values]};
+    return {getFormula:()=>col===2?'=DATE(2026,9,20)':'',getValue:()=>sourceDate,getDisplayValue:()=>col===2?'9/20/2026':notes,getDataValidation:()=>null,setValue:value=>{
+      assert.equal(col,3,'source formula must never be written');notes=value;
+    }};
+  }};
+  const context={Date,SpreadsheetApp:{getActive:()=>({getSheetByName:()=>sheet})},Utilities:{formatDate:(date,timezone,format)=>{
+    assert.equal(date,sourceDate);assert.equal(timezone,'Pacific/Honolulu');assert.equal(format,'yyyy-MM-dd');return '2026-09-20';
+  }}};
+  runInNewContext(source,context);
+  context.upsertMappedRow_('CREATOR ASSIGNMENTS','Assignment ID','ASG-100',{'Start Date':'2026-09-20','Notes':'Updated'});
+  assert.equal(notes,'Updated');
+  assert.throws(()=>context.upsertMappedRow_('CREATOR ASSIGNMENTS','Assignment ID','ASG-100',{'Notes':'Rejected edit','Start Date':'2026-09-21'}),/Refusing to overwrite formula: Start Date/);
+  assert.equal(notes,'Updated');
+});
+
 test("Apps Script signs Unicode payloads with explicit UTF-8 and identical transmitted bytes",async () => {
   const source = await readFile("assets/operations-control-system-sync.gs","utf8");
   const secret = "synthetic-secret";
@@ -34,6 +73,20 @@ test("Apps Script signs Unicode payloads with explicit UTF-8 and identical trans
   } finally { database.close(); }
 });
 
+test("signed source import preserves Primary Platform beside the legacy category",async () => {
+  const {database,binding}=await databaseFixture();
+  const secret='synthetic-secret',timestamp=String(Math.floor(Date.now()/1000));
+  const payload={mode:'import',eventId:'SOURCE-PRIMARY-PLATFORM',sourceVersion:'SHEET-TEST',creators:[{
+    id:'CR-100',campaignId:'CMP-100',creatorName:'Synthetic',primaryPlatform:'TikTok',sourcePrimaryPlatform:'TikTok + Instagram',
+    handle:'@synthetic',contact:'synthetic@example.com',creatorStatus:'Active',compensationModel:'Performance',rightsStatus:'Organic Only',productFocus:'Established Product Focus'
+  }]};
+  const result=await call(binding,secret,payload,{'X-CreatorLoop-Timestamp':timestamp,'X-CreatorLoop-Signature':await signature(secret,timestamp,JSON.stringify(payload))});
+  assert.equal(result.response.status,200);
+  const row=database.prepare("SELECT primary_platform,source_primary_platform,product_focus FROM creator_enrollments WHERE id='CR-100'").get();
+  assert.equal(row.primary_platform,'TikTok');assert.equal(row.source_primary_platform,'TikTok + Instagram');assert.equal(row.product_focus,'Established Product Focus');
+  database.close();
+});
+
 class D1Statement {
   constructor(database, sql, values = []) { this.database = database; this.sql = sql; this.values = values; }
   bind(...values) { return new D1Statement(this.database,this.sql,values); }
@@ -53,6 +106,7 @@ async function databaseFixture() {
   const database = new DatabaseSync(":memory:");
   database.exec(await readFile("migrations/0001_bm01.sql","utf8"));
   database.exec(await readFile("migrations/0002_operations_console_v2.sql","utf8"));
+  database.exec(await readFile("migrations/0003_source_primary_platform.sql","utf8"));
   return { database, binding: new D1Database(database) };
 }
 async function signature(secret,timestamp,body) {

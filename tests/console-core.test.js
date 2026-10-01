@@ -18,13 +18,21 @@ test("creator identity comparison is stable for duplicate control",()=>{
 
 test("controlled fields reject unapproved values",()=>{
   assert.deepEqual(validateEnrollment(valid),{});
-  assert.equal(validateEnrollment({...valid,primaryPlatform:"MySpace"}).primaryPlatform,"Choose an approved platform");
+  assert.equal(validateEnrollment({...valid,primaryPlatform:"MySpace"}).primaryPlatform,"Choose an approved Primary Platform");
 });
 
 test("paid usage approval requires actual evidence",()=>{
   const errors=validateEnrollment({...valid,rightsStatus:"Paid Usage Approved",evidenceLink:""});
   assert.match(errors.evidenceLink,/requires an evidence link/);
   assert.deepEqual(validateEnrollment({...valid,rightsStatus:"Paid Usage Approved",evidenceLink:"https://drive.google.com/evidence"}),{});
+});
+
+test("only an unchanged imported Primary Platform can preserve a source-specific value",()=>{
+  const body={...valid,primaryPlatform:"TikTok + Instagram"};
+  assert.deepEqual(validateEnrollment(body,{source_version:"SHEET-TEST",source_primary_platform:body.primaryPlatform}),{});
+  assert.ok(validateEnrollment(body).primaryPlatform);
+  assert.ok(validateEnrollment(body,{source_primary_platform:body.primaryPlatform}).primaryPlatform);
+  assert.ok(validateEnrollment({...body,primaryPlatform:"Invented"},{source_version:"SHEET-TEST",source_primary_platform:body.primaryPlatform}).primaryPlatform);
 });
 
 test("workflow and QA authority are enforced",()=>{

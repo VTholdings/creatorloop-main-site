@@ -25,6 +25,7 @@ async function fixture() {
   const database = new DatabaseSync(":memory:");
   database.exec(await readFile("migrations/0001_bm01.sql", "utf8"));
   database.exec(await readFile("migrations/0002_operations_console_v2.sql", "utf8"));
+  database.exec(await readFile("migrations/0003_source_primary_platform.sql", "utf8"));
   database.prepare("INSERT INTO operators (id,login_email,display_name,role,account_status) VALUES (?,?,?,?,?)")
     .run("OP-OPER", "operator@example.com", "Test Operator", "OPERATOR", "ACTIVE");
   database.prepare("INSERT INTO operators (id,login_email,display_name,role,account_status) VALUES (?,?,?,?,?)")
@@ -143,6 +144,19 @@ test("stale version and cross-origin mutations fail closed", async () => {
     request: new Request("https://ops.creatorloop.net/api/console/creators", { method: "POST", headers: { Origin: "https://attacker.example" }, body: JSON.stringify(enrollment) }),
   });
   assert.equal(response.status, 403);
+  database.close();
+});
+
+test("a note edit preserves an imported Primary Platform in database and export",async () => {
+  const {database,env}=await fixture();
+  await request(env,'operator@example.com','POST','creators',enrollment);
+  database.prepare("UPDATE creator_enrollments SET source_primary_platform=?,source_version=? WHERE id='CR-101'").run('TikTok + Instagram','SHEET-TEST');
+  const record=await request(env,'operator@example.com','GET','creators/CR-101');
+  const edited=await request(env,'operator@example.com','PATCH','creators/CR-101',{...enrollment,primaryPlatform:'TikTok + Instagram',notes:'Preserve source platform',version:record.body.creator.version});
+  assert.equal(edited.response.status,200);
+  assert.equal(database.prepare("SELECT source_primary_platform FROM creator_enrollments WHERE id='CR-101'").get().source_primary_platform,'TikTok + Instagram');
+  const payloads=database.prepare("SELECT payload_json FROM control_system_outbox WHERE entity_id='CR-101' AND action='UPSERT'").all().map(row=>JSON.parse(row.payload_json));
+  assert.ok(payloads.some(row=>row.primaryPlatform==='TikTok + Instagram' && row.notes==='Preserve source platform'));
   database.close();
 });
 

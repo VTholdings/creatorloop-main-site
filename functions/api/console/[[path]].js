@@ -41,7 +41,7 @@ const like = (value) => `%${String(value ?? "").trim().toLowerCase()}%`;
 async function schemaReady(env) {
   try {
     return Boolean(await env.OPERATIONS_DB.prepare("SELECT version FROM schema_migrations WHERE version=?")
-      .bind("0002_operations_console_v2").first());
+      .bind("0003_source_primary_platform").first());
   } catch {
     return false;
   }
@@ -198,8 +198,10 @@ async function updateCreator(context, user, id) {
   const body = await context.request.json();
   if (body.action) return updateCreatorWorkflow(context, user, current, body);
   body.campaignId = current.campaign_id;
-  const errors = validateEnrollment(body);
+  const errors = validateEnrollment(body, current);
   if (Object.keys(errors).length) return json({ error: "Check the highlighted fields", fields: errors }, 422);
+  // Preserve a signed source value without inserting it into the legacy category enum.
+  const platformCategory = body.primaryPlatform === current.source_primary_platform ? current.primary_platform : body.primaryPlatform;
   if (!["IN_PROGRESS","CORRECTION_REQUIRED","HOLD"].includes(current.workflow_status)) return json({ error: "This record is locked during or after QA" }, 409);
   const duplicate = await context.env.OPERATIONS_DB.prepare(`SELECT id FROM creator_enrollments
     WHERE campaign_id=? AND id<>? AND (LOWER(TRIM(handle))=? OR LOWER(TRIM(contact))=?) LIMIT 1`)
@@ -208,8 +210,8 @@ async function updateCreator(context, user, id) {
   const now = new Date().toISOString();
   const payload = creatorPayload(id, body, user.id, now);
   const mutationId = uid("MUT");
-  const update = context.env.OPERATIONS_DB.prepare(`UPDATE creator_enrollments SET creator_name=?,primary_platform=?,handle=?,contact=?,creator_status=?,compensation_model=?,rights_status=?,product_focus=?,notes=?,evidence_link=?,workflow_status='IN_PROGRESS',assigned_operator_id=?,last_updated=?,version=version+1,sync_status='PENDING_EXPORT',last_mutation_id=? WHERE id=? AND version=?`)
-    .bind(body.creatorName.trim(),body.primaryPlatform,body.handle.trim(),body.contact.trim(),body.creatorStatus,body.compensationModel,body.rightsStatus,body.productFocus.trim(),body.notes?.trim()||null,body.evidenceLink?.trim()||null,user.id,now,mutationId,id,body.version);
+  const update = context.env.OPERATIONS_DB.prepare(`UPDATE creator_enrollments SET creator_name=?,primary_platform=?,source_primary_platform=?,handle=?,contact=?,creator_status=?,compensation_model=?,rights_status=?,product_focus=?,notes=?,evidence_link=?,workflow_status='IN_PROGRESS',assigned_operator_id=?,last_updated=?,version=version+1,sync_status='PENDING_EXPORT',last_mutation_id=? WHERE id=? AND version=?`)
+    .bind(body.creatorName.trim(),platformCategory,body.primaryPlatform,body.handle.trim(),body.contact.trim(),body.creatorStatus,body.compensationModel,body.rightsStatus,body.productFocus.trim(),body.notes?.trim()||null,body.evidenceLink?.trim()||null,user.id,now,mutationId,id,body.version);
   const result = await context.env.OPERATIONS_DB.batch([
     update,
     conditionalCreatorAudit(context.env.OPERATIONS_DB,user,current.campaign_id,id,"CREATOR_ENROLLMENT_UPDATED",current.workflow_status,"IN_PROGRESS",null,mutationId),
