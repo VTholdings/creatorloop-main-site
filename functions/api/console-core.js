@@ -1,21 +1,30 @@
 export const ROLES = ["OPERATOR","MARKETING","MERCH","LOOPERS","OPERATIONS","QA_REVIEWER","APPROVAL_AUTHORITY","ADMINISTRATOR"];
 export const QA_ROLES = new Set(["OPERATIONS","QA_REVIEWER","APPROVAL_AUTHORITY","ADMINISTRATOR"]);
 export const AUDIT_ROLES = new Set(["ADMINISTRATOR"]);
-export const PLATFORMS = ["Meta","TikTok","Google","Shopify","Klaviyo","Recharge","Clipster","Other"];
-export const CREATOR_STATUSES = ["Not Started","In Progress","Blocked","Ready for Review","Approved","Active","Complete","Archived"];
-export const COMPENSATION = ["Performance","Fixed Content Fee","Hybrid","Product Seeding","Performance Bonus","Organic Only","N/A"];
-export const RIGHTS = ["Not Reviewed","Organic Only","Paid Usage Approved","Expired","Blocked"];
+export const PLATFORMS = ["Meta","TikTok","Google","Clipster","Shopify","Klaviyo","Recharge","Other"];
+export const CREATOR_STATUSES = ["Not Started","In Progress","Blocked","Ready for Review","Approved","Live","Paused","Complete","Archived","Active"];
+export const COMPENSATION = ["Performance","Fixed Content Fee","Hybrid","Product Seeding","Performance Bonus","N/A"];
+export const RIGHTS = ["Not Reviewed","Organic Only","Paid Usage Approved","Expired","Blocked","N/A"];
 export const ASSIGNMENT_RIGHTS = ["Yes","No","Pending"];
 export const EVIDENCE_STATUSES = ["Planned","Pending","Verified","Blocked","Expired"];
 
-export function validateEnrollment(body) {
+export const PRODUCT_FOCUS = [
+  "PNB_META_ACQ_3ITEMS_202609 — 3-product campaign",
+  "West Paw Natural Dental Sticks for Small & Medium Dogs | Parsley & Mint, 14 oz (Approx. 14 Sticks)",
+  "West Paw Nut Butter, Blueberry & Chia Seed Dog Treat — Natural & Nutrient-Rich, 6.2 oz",
+  "PRODUCT 3 — NOT IDENTIFIED / DO NOT ASSUME",
+  "PNB_TIKTOK_ACQ_DENTAL_202609 — Dental Sticks campaign"
+];
+
+export function validateEnrollment(body, current = null) {
   const required = ["campaignId","creatorName","primaryPlatform","handle","contact","creatorStatus","compensationModel","rightsStatus","productFocus"];
   const errors = {};
   for (const key of required) if (!String(body[key] ?? "").trim()) errors[key] = "Required";
-  if (body.primaryPlatform && !PLATFORMS.includes(body.primaryPlatform)) errors.primaryPlatform = "Choose an approved platform";
+  if (body.primaryPlatform && !PLATFORMS.includes(body.primaryPlatform) && body.primaryPlatform !== current?.primary_platform) errors.primaryPlatform = "Choose an approved platform";
   if (body.creatorStatus && !CREATOR_STATUSES.includes(body.creatorStatus)) errors.creatorStatus = "Choose an approved status";
   if (body.compensationModel && !COMPENSATION.includes(body.compensationModel)) errors.compensationModel = "Choose an approved compensation model";
   if (body.rightsStatus && !RIGHTS.includes(body.rightsStatus)) errors.rightsStatus = "Choose an approved rights status";
+  if (body.productFocus && !PRODUCT_FOCUS.includes(body.productFocus)) errors.productFocus = "Choose a Product Focus from LISTS";
   if (body.rightsStatus === "Paid Usage Approved" && !isHttpUrl(body.evidenceLink)) errors.evidenceLink = "Approved paid usage requires an evidence link";
   if (body.evidenceLink && !isHttpUrl(body.evidenceLink)) errors.evidenceLink = "Use an http or https evidence link";
   return errors;

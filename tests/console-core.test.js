@@ -4,7 +4,7 @@ import { canViewAudit, nextCreatorId, nextEntityId, normalizeCreatorIdentity, qa
 
 const valid = {
   campaignId:"CMP-100", creatorName:"Creator One", primaryPlatform:"TikTok", handle:"@creator", contact:"creator@example.com",
-  creatorStatus:"Active", compensationModel:"Performance", rightsStatus:"Organic Only", productFocus:"CMP-100",
+  creatorStatus:"Active", compensationModel:"Performance", rightsStatus:"Organic Only", productFocus:"PNB_META_ACQ_3ITEMS_202609 — 3-product campaign",
 };
 
 test("AUTO permanent IDs advance and are never recycled",()=>{
@@ -60,4 +60,12 @@ test("audit visibility is reserved for the administrator / project owner role", 
   assert.equal(canViewAudit("OPERATOR"),false);
   assert.equal(canViewAudit("QA_REVIEWER"),false);
   assert.equal(canViewAudit("ADMINISTRATOR"),true);
+});
+
+ test("PNB options reject invented Product Focus and preserve an unchanged legacy platform", () => {
+  assert.match(validateEnrollment({...valid,productFocus:"CMP-100"}).productFocus,/LISTS/);
+  assert.deepEqual(validateEnrollment({...valid,creatorStatus:"Live",rightsStatus:"N/A"}),{});
+  assert.deepEqual(validateEnrollment({...valid,primaryPlatform:"TikTok + Instagram"},{primary_platform:"TikTok + Instagram"}),{});
+  assert.ok(validateEnrollment({...valid,primaryPlatform:"TikTok + Instagram"}).primaryPlatform);
+  assert.ok(validateEnrollment({...valid,compensationModel:"Organic Only"}).compensationModel);
 });

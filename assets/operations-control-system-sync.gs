@@ -141,12 +141,12 @@ function campaignRows_() {
 function creatorRows_(primaryCampaign) {
   const table = rowsByHeader_(CL_SYNC.CREATORS);
   return table.rows.map((row) => objectFromRow_(table.headers,row))
-    .filter((row) => /^CR-\d+$/.test(row["Creator ID"]) && row["Creator Name"] && primaryCampaign[row["Creator ID"]])
+    .filter((row) => /^CR-\d+$/.test(row["Creator ID"]) && row["Creator Name"])
     .map((row) => ({
       id: row["Creator ID"],
-      campaignId: primaryCampaign[row["Creator ID"]],
+      campaignId: primaryCampaign[row["Creator ID"]] || null,
       creatorName: row["Creator Name"],
-      primaryPlatform: platform_(row["Primary Platform"]),
+      primaryPlatform: row["Primary Platform"],
       handle: row["Handle"],
       contact: row["Email / Contact"],
       creatorStatus: row["Status"],
@@ -299,6 +299,12 @@ function upsertMappedRow_(sheetName,idHeader,id,values) {
     const value = values[header];
     if (cell.getFormula()) {
       if (String(cell.getDisplayValue()) === String(value ?? "")) return;
+      // A date input uses YYYY-MM-DD while Sheets displays the same date in its locale.
+      if (["Start Date","Content Due"].includes(header) && /^\d{4}-\d{2}-\d{2}/.test(String(value))) {
+        const existing = cell.getValue();
+        if (Object.prototype.toString.call(existing) === "[object Date]" &&
+            Utilities.formatDate(existing,SpreadsheetApp.getActive().getSpreadsheetTimeZone(),"yyyy-MM-dd") === String(value).slice(0,10)) return;
+      }
       throw new Error("Refusing to overwrite formula: " + header);
     }
     const rule = cell.getDataValidation() || (newRow ? table.sheet.getRange(CL_SYNC.HEADER_ROW + 1,table.headers.indexOf(header) + 1).getDataValidation() : null);

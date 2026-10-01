@@ -53,6 +53,9 @@ async function databaseFixture() {
   const database = new DatabaseSync(":memory:");
   database.exec(await readFile("migrations/0001_bm01.sql","utf8"));
   database.exec(await readFile("migrations/0002_operations_console_v2.sql","utf8"));
+  database.exec("BEGIN");
+  database.exec(await readFile("migrations/0003_pnb_source_contract.sql","utf8"));
+  database.exec("COMMIT");
   return { database, binding: new D1Database(database) };
 }
 async function signature(secret,timestamp,body) {
@@ -205,4 +208,20 @@ test("new assignment rows inherit source formulas and validation without another
   assert.equal(values.get('5,1'),'ASG-101');assert.equal(values.get('5,2'),'Not Started');assert.equal(values.get('5,5'),0);
   assert.equal(formulas.get('5,3'),formulas.get('4,3'));assert.equal(formulas.get('5,4'),formulas.get('4,4'));
   assert.equal(formats,1);assert.equal(validations,1);assert.equal(values.get('4,5'),50);
+});
+
+ test("unchanged source date formulas allow note edits but changed dates fail closed",async()=>{
+  const source=await readFile('assets/operations-control-system-sync.gs','utf8');
+  const writes=[]; const headers=['Assignment ID','Start Date','Notes'];
+  const sheet={getLastColumn:()=>3,getLastRow:()=>4,getRange(row,col,rows){
+    if(row===3)return {getDisplayValues:()=>[headers]};
+    if(rows)return {getDisplayValues:()=>[['ASG-100','9/20/2026','Old']]};
+    return {getFormula:()=>col===2?'=DATE(2026,9,20)':'',getDisplayValue:()=>col===2?'9/20/2026':'Old',getValue:()=>new Date('2026-09-20T10:00:00Z'),getDataValidation:()=>null,setValue:v=>writes.push(v)};
+  }};
+  const context={SpreadsheetApp:{getActive:()=>({getSheetByName:()=>sheet,getSpreadsheetTimeZone:()=> 'Pacific/Honolulu'})},Utilities:{formatDate:()=> '2026-09-20'}};
+  runInNewContext(source,context);
+  context.upsertMappedRow_('CREATOR ASSIGNMENTS','Assignment ID','ASG-100',{'Start Date':'2026-09-20','Notes':'New'});
+  assert.deepEqual(writes,['New']);
+  assert.throws(()=>context.upsertMappedRow_('CREATOR ASSIGNMENTS','Assignment ID','ASG-100',{'Start Date':'2026-09-21','Notes':'Changed'}),/Refusing to overwrite formula/);
+  assert.deepEqual(writes,['New']);
 });

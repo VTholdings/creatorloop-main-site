@@ -1,5 +1,5 @@
 import {
-  AUDIT_ROLES, nextCreatorId, nextEntityId, normalizeCreatorIdentity,
+  PLATFORMS, CREATOR_STATUSES, COMPENSATION, RIGHTS, PRODUCT_FOCUS, AUDIT_ROLES, nextCreatorId, nextEntityId, normalizeCreatorIdentity,
   qaChecklist, QA_ROLES, transitionAllowed, validateAssignment, validateEnrollment
 } from "../console-core.js";
 
@@ -91,6 +91,7 @@ async function dashboard({ env, request }, user) {
     user: safeUser(user),
     campaign,
     counts: Object.fromEntries(counts.results.map((row) => [row.status, row.count])),
+    options: { platforms: PLATFORMS, creatorStatuses: CREATOR_STATUSES, compensation: COMPENSATION, rights: RIGHTS, productFocus: PRODUCT_FOCUS },
     nextAction: QA_ROLES.has(user.role) ? "Review work awaiting QA" : "Start or correct a creator enrollment",
     system: {
       schemaReady: ready,
@@ -144,7 +145,7 @@ async function listCreators({ env, request }) {
   const where = clauses.length ? "WHERE " + clauses.join(" AND ") : "";
   const campaignFields = ready ? "c.name campaign_name,c.slug campaign_slug" : "c.name campaign_name,NULL campaign_slug";
   const rows = await env.OPERATIONS_DB.prepare(`SELECT e.*,${campaignFields}
-    FROM creator_enrollments e JOIN campaigns c ON c.id=e.campaign_id
+    FROM creator_enrollments e LEFT JOIN campaigns c ON c.id=e.campaign_id
     ${where} ORDER BY e.campaign_id,CAST(SUBSTR(e.id,4) AS INTEGER)`).bind(...values).all();
   return json({ creators: rows.results });
 }
@@ -155,7 +156,7 @@ async function getCreator({ env }, id) {
     ? "c.name campaign_name,c.slug campaign_slug,c.platform campaign_platform,c.product_scope campaign_product_scope"
     : "c.name campaign_name,NULL campaign_slug,NULL campaign_platform,NULL campaign_product_scope";
   const creator = await env.OPERATIONS_DB.prepare(`SELECT e.*,${campaignFields}
-    FROM creator_enrollments e JOIN campaigns c ON c.id=e.campaign_id WHERE e.id=?`).bind(id).first();
+    FROM creator_enrollments e LEFT JOIN campaigns c ON c.id=e.campaign_id WHERE e.id=?`).bind(id).first();
   if (!creator) return json({ error: "Creator record not found" }, 404);
   const reviews = await env.OPERATIONS_DB.prepare("SELECT q.*,o.display_name reviewer_name,o.role reviewer_role FROM qa_reviews q JOIN operators o ON o.id=q.reviewer_id WHERE q.enrollment_id=? ORDER BY q.created_at DESC").bind(id).all();
   const assignments = await optionalRows(env.OPERATIONS_DB, `SELECT a.*,c.name campaign_name,c.platform campaign_platform,c.product_scope campaign_product_scope,c.product_scope product_scope,c.platform platform
@@ -198,7 +199,7 @@ async function updateCreator(context, user, id) {
   const body = await context.request.json();
   if (body.action) return updateCreatorWorkflow(context, user, current, body);
   body.campaignId = current.campaign_id;
-  const errors = validateEnrollment(body);
+  const errors = validateEnrollment(body, current);
   if (Object.keys(errors).length) return json({ error: "Check the highlighted fields", fields: errors }, 422);
   if (!["IN_PROGRESS","CORRECTION_REQUIRED","HOLD"].includes(current.workflow_status)) return json({ error: "This record is locked during or after QA" }, 409);
   const duplicate = await context.env.OPERATIONS_DB.prepare(`SELECT id FROM creator_enrollments
@@ -220,6 +221,7 @@ async function updateCreator(context, user, id) {
 }
 
 async function updateCreatorWorkflow(context, user, current, body) {
+  if (!current.campaign_id) return json({ error: "Create a campaign assignment before changing this creator workflow" }, 422);
   if (!transitionAllowed(current.workflow_status, body.action, user.role)) return json({ error: "This status change is not authorized" }, 409);
   if (body.action === "AWAITING_QA") {
     const checks = qaChecklist(current);
