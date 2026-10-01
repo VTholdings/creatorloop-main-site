@@ -8,7 +8,7 @@ const api = async (path, options = {}) => {
   return body;
 };
 
-const state = { dashboard: null, campaigns: [], creators: [], current: null, currentCampaign: null };
+const state = { dashboard: null, campaigns: [], creators: [], assignments: [], current: null, currentCampaign: null };
 const $ = (selector) => document.querySelector(selector);
 const esc = (value = "") => String(value ?? "").replace(/[&<>'"]/g, (character) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;"
@@ -46,6 +46,7 @@ async function start() {
 async function loadCampaign(id) {
   state.dashboard = await api("dashboard?campaignId=" + encodeURIComponent(id));
   state.creators = (await api("creators?campaignId=" + encodeURIComponent(id))).creators;
+  state.assignments = (await api("campaigns/" + encodeURIComponent(id))).assignments || [];
   state.current = null;
   state.currentCampaign = null;
 }
@@ -63,6 +64,7 @@ function renderChrome() {
   $("#operator-name").textContent = user.displayName;
   $("#operator-role").textContent = user.role.replaceAll("_"," ");
   $("#operator-id").textContent = user.id;
+  $("#operator-login").textContent = user.loginIdentity || "Login identity unavailable";
   $("#campaign-name").textContent = campaignLabel(campaign);
   document.querySelectorAll(".admin-only").forEach((element) => { element.hidden = !user.canViewAudit; });
 }
@@ -74,13 +76,21 @@ function total() {
 
 function renderHome() {
   const data = state.dashboard;
+  const today = operatingDate();
+  const queue = dailyWork(state.creators, state.assignments, data.user, today);
   $("#home-view").innerHTML =
-    '<div class="hero"><span class="eyebrow">CREATOR ON THE SURFACE. OPERATIONS UNDERNEATH.</span>' +
-    '<h1>Know what’s next.<br><em>Keep the proof.</em></h1>' +
-    '<p>Operators work here—not in the back-office Control System. Campaign identity, creator facts, evidence, workflow, and QA stay together while system fields remain locked.</p>' +
+    '<div class="hero"><span class="eyebrow">OPERATOR HOME</span>' +
+    '<h1>What do I need<br><em>to do today?</em></h1>' +
+    '<p>Open the record below. Check the facts and proof. Send completed creator work to QA. Escalate decisions outside your role.</p>' +
     '<div class="identity-callout"><strong>' + esc(data.campaign.id) + '</strong><span>' + esc(data.campaign.name) + '</span></div>' +
     '<button class="action" data-go="work">Open creator work</button></div>' +
     (!data.system.schemaReady ? '<div class="notice error persistent">V2 database migration is pending. Browsing remains available; record changes are locked.</div>' : "") +
+    (/TEST\s*\/\s*FICTIONAL|certification/i.test(data.campaign.notes || "") ? '<div class="panel"><strong>Certification data</strong><p>This campaign contains fictional certification records. An isolated operator training campaign has not been established. These records do not authorize payment, paid use, or launch.</p></div>' : "") +
+    '<div class="section-head"><div><h2>Today’s creator work</h2><p>' + esc(today) + ' · Pacific/Honolulu · Selected campaign. Open records are shared; this is not a personal assignment queue.</p></div></div>' +
+    dailyWorkCards(queue.actionable, 'No actionable creator records or dated assignments are currently shown. Other workflow checks below still apply.') +
+    (queue.waiting.length ? '<div class="section-head"><div><h2>Waiting for QA</h2><p>An authorized reviewer makes the decision.</p></div></div>' + dailyWorkCards(queue.waiting, '') : '') +
+    '<div class="panel"><h2>Checks outside this queue</h2><p>Submissions are not connected to this Console. Use the approved intake route; ask Operations if that route is missing.</p><p>DECISIONS &amp; BLOCKERS, LAUNCH CONTROL, DATA INTAKE, monitoring, and closeout are not synchronized here. Ask Operations for those open items. An empty creator queue does not mean the campaign is clear to launch.</p><p><strong>QA PASS is not Owner Approval.</strong> Verify the required launch gates and explicit approval before any live use or spend.</p></div>' +
+    operatorWorkflowGuide() +
     '<div class="system-strip"><span><b>SYSTEM OF RECORD</b>' + esc(data.system.systemOfRecord) + '</span>' +
     '<span><b>CONTROL SYSTEM</b>' + esc(data.system.controlSystem) + '</span>' +
     '<span><b>SYNC BRIDGE</b>' + (data.system.syncConfigured ? "Configured" : "Activation pending") + '</span></div>' +
@@ -90,7 +100,57 @@ function renderHome() {
     '<div class="status-card blocked"><small>BLOCKED / CORRECTION</small><strong>' + total("HOLD","CORRECTION_REQUIRED") + '</strong></div>' +
     '<div class="status-card qa"><small>AWAITING QA</small><strong>' + total("AWAITING_QA") + '</strong></div>' +
     '<div class="status-card passed"><small>PASSED</small><strong>' + total("PASSED") + '</strong></div></div>' +
-    '<div class="section-head"><div><h2>Your next action</h2><p>' + esc(data.nextAction) + '</p></div><button class="action secondary" data-go="work">Continue</button></div>';
+    '<div class="section-head"><div><h2>CAMPAIGNS · Status</h2><p>' + esc(data.campaign.status.replaceAll("_", " ")) + '. Campaign Status is separate from Launch Status in LAUNCH CONTROL.</p></div><button class="action secondary" data-go="campaigns">Open campaign</button></div>';
+}
+
+// The connected PNB source workbook uses Pacific/Honolulu calendar dates.
+function operatingDate(now = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Pacific/Honolulu", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(now);
+  const value = type => parts.find(part => part.type === type).value;
+  return value("year") + "-" + value("month") + "-" + value("day");
+}
+
+function dailyWork(creators, assignments, user, today) {
+  const actionable = [], waiting = [];
+  const canReview = ["OPERATIONS", "QA_REVIEWER", "APPROVAL_AUTHORITY", "ADMINISTRATOR"].includes(user.role);
+  for (const creator of creators) {
+    const item = { id: creator.id, recordId: creator.id, name: creator.creator_name, status: creator.workflow_status };
+    if (["HOLD", "CORRECTION_REQUIRED"].includes(creator.workflow_status)) actionable.push({ ...item, priority: 0, instruction: "Read the QA notes. Correct what is requested; escalate unclear or unapproved changes." });
+    else if (creator.creator_status === "Blocked") actionable.push({ ...item, priority: 0, status: "Status: Blocked", instruction: "Open the record. Identify the blocker and route decisions to Operations." });
+    else if (["AVAILABLE", "IN_PROGRESS"].includes(creator.workflow_status)) actionable.push({ ...item, priority: 2, instruction: "Check creator facts and Evidence Link. Complete work within your role, then Send to QA." });
+    else if (creator.workflow_status === "AWAITING_QA") {
+      const review = { ...item, priority: 1, instruction: canReview ? "Review the required evidence. Record PASS, HOLD, or CORRECTION REQUIRED within your authority." : "Wait for an authorized QA reviewer. Do not change the locked record." };
+      (canReview ? actionable : waiting).push(review);
+    }
+    if (creator.sync_status && creator.sync_status !== "SYNCED") actionable.push({ ...item, id: creator.id + " · synchronization", priority: 0, status: creator.sync_status, instruction: "The source has not acknowledged this record. Ask Operations to check synchronization before relying on the change." });
+  }
+  for (const assignment of assignments) {
+    if (["Complete", "Archived"].includes(assignment.status)) continue;
+    const due = dateInput(assignment.content_due);
+    const blocked = assignment.status === "Blocked";
+    if (!blocked && (!due || due > today)) continue;
+    actionable.push({ id: assignment.id, recordId: assignment.creator_id, name: assignment.creator_name || assignment.creator_id,
+      status: blocked ? "Status: Blocked" : "Content Due: " + due, priority: 0,
+      instruction: blocked ? "Read the assignment Notes and escalate the blocker." : due < today ? "Content Due has passed. Verify delivery and record the next step; escalate a deadline exception." : "Content Due is today. Check the submitted file and hand it to the reviewer." });
+  }
+  actionable.sort((a, b) => a.priority - b.priority || a.id.localeCompare(b.id));
+  return { actionable, waiting };
+}
+
+function dailyWorkCards(items, empty) {
+  if (!items.length) return '<div class="panel"><p>' + esc(empty) + '</p></div>';
+  return '<div class="daily-queue">' + items.map(item => '<article class="panel"><strong>' + esc(item.id) + ' · ' + esc(item.name) + '</strong><p>' + esc(item.status.replaceAll("_", " ")) + '</p><p>' + esc(item.instruction) + '</p><button class="action secondary" data-record="' + esc(item.recordId) + '">Open record</button></article>').join('') + '</div>';
+}
+
+function operatorWorkflowGuide() {
+  return '<details class="panel workflow-guide"><summary>Receive submission → Process → QA → Escalate → Launch Gate → Monitor → Close Out</summary><ol>' +
+    '<li><strong>Receive submission.</strong> Use the approved intake route. Keep the submitted file and version linked to the correct Creator ID and Campaign ID. A submission does not create a purchase or rights grant.</li>' +
+    '<li><strong>Process.</strong> Open Creator work. Check Creator Name, Primary Platform, Handle, Email / Contact, Product Focus, and Evidence Link against the source. Use the existing Creator ID. Keep Product Scope tied to the campaign.</li>' +
+    '<li><strong>QA.</strong> Read the content scorecard and rights checklist for the exact asset. Send completed creator work to QA. An authorized reviewer records PASS, HOLD, or CORRECTION REQUIRED. The Console creator checklist does not replace content or launch QA.</li>' +
+    '<li><strong>Escalate.</strong> Send compensation, rights, claims, exceptions, missing proof, or conflicting facts to Operations. Operations records decisions in DECISIONS &amp; BLOCKERS. Do not guess or change terms.</li>' +
+    '<li><strong>Launch Gate.</strong> Verify LAUNCH CONTROL with Operations. Ready for Review, creator QA PASS, or a budget ceiling does not authorize launch. Owner Approval must cover the actual campaign, platform, creative, and budget.</li>' +
+    '<li><strong>Monitor.</strong> Only after explicit launch authorization, check the approved placement, tracking, rights, and authorized spend. Use verified results in DATA INTAKE. Escalate broken tracking, checkout, wrong claims, or uncontrolled spend immediately.</li>' +
+    '<li><strong>Close Out.</strong> Operations reconciles spend, orders, refunds, creator compensation, rights, and the next decision. Keep the evidence and update the existing Daily Tasks Log. No new spend is authorized by closeout.</li></ol><p><strong>Training:</strong> Do not practice against live campaigns or real money. Ask Operations to identify the isolated training campaign before making training edits. Existing fictional certification records must be preserved.</p></details>';
 }
 
 function campaignCard(campaign) {
@@ -394,4 +454,3 @@ $("#global-search").addEventListener("keydown",(event) => {
 });
 $("#menu").addEventListener("click",() => $(".sidebar").classList.toggle("open"));
 start();
-
