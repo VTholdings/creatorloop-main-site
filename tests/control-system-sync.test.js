@@ -6,6 +6,34 @@ import { createHmac } from "node:crypto";
 import { runInNewContext } from "node:vm";
 import { onRequest } from "../functions/api/integrations/control-system.js";
 
+test("creator snapshots preserve exact source fields and include unassigned creators",async () => {
+  const source=await readFile('assets/operations-control-system-sync.gs','utf8');
+  const headers=['Creator ID','Creator Name','Primary Platform','Product Focus'];
+  const values=['CR-100','Synthetic','TikTok + Instagram','Established Product Focus'];
+  const context={SpreadsheetApp:{getActive:()=>({getSheetByName:name=>{
+    assert.equal(name,'🗺️CREATORS');
+    return {getLastColumn:()=>4,getLastRow:()=>4,getRange:row=>({getDisplayValues:()=>[row===3?headers:values]})};
+  }})}};
+  runInNewContext(source,context);
+  const [row]=context.creatorRows_({});
+  assert.equal(row.primaryPlatform,'TikTok + Instagram');assert.equal(row.productFocus,'Established Product Focus');assert.equal(row.campaignId,null);
+  assert.match(row.sourceRecord,/🗺️CREATORS/);
+});
+
+test("signed source import preserves the exact Primary Platform",async () => {
+  const {database,binding}=await databaseFixture();
+  const secret='synthetic-secret',timestamp=String(Math.floor(Date.now()/1000));
+  const payload={mode:'import',eventId:'SOURCE-PRIMARY-PLATFORM',sourceVersion:'SHEET-TEST',creators:[{
+    id:'CR-100',campaignId:'CMP-100',creatorName:'Synthetic',primaryPlatform:'TikTok + Instagram',
+    handle:'@synthetic',contact:'synthetic@example.com',creatorStatus:'Active',compensationModel:'Performance',rightsStatus:'Organic Only',productFocus:'Established Product Focus'
+  }]};
+  const result=await call(binding,secret,payload,{'X-CreatorLoop-Timestamp':timestamp,'X-CreatorLoop-Signature':await signature(secret,timestamp,JSON.stringify(payload))});
+  assert.equal(result.response.status,200);
+  const row=database.prepare("SELECT primary_platform,product_focus FROM creator_enrollments WHERE id='CR-100'").get();
+  assert.equal(row.primary_platform,'TikTok + Instagram');assert.equal(row.product_focus,'Established Product Focus');
+  database.close();
+});
+
 test("Apps Script signs Unicode payloads with explicit UTF-8 and identical transmitted bytes",async () => {
   const source = await readFile("assets/operations-control-system-sync.gs","utf8");
   const secret = "synthetic-secret";

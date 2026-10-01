@@ -156,7 +156,7 @@ function creatorRows_(primaryCampaign) {
       enrollmentDate: iso_(row["Enrollment Date"]) || new Date().toISOString(),
       notes: row["Notes"] || null,
       evidenceLink: row["Evidence Link"] || null,
-      sourceRecord: "PNB Acquisition & Launch Control System / CREATORS / " + row["Creator ID"],
+      sourceRecord: "PNB Acquisition & Launch Control System / 🗺️CREATORS / " + row["Creator ID"],
       sourceUpdatedAt: iso_(row["Last Updated"]) || new Date().toISOString()
     }));
 }
@@ -339,3 +339,4 @@ function upsertMappedRow_(sheetName,idHeader,id,values) {
   });
   writes.forEach((write) => write.cell.setValue(write.value));
 }
+

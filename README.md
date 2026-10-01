@@ -86,7 +86,7 @@ GA4 and Meta Pixel placeholders are in every page `<head>`. Uncomment and replac
 
 ## Operations Console V2
 
-The protected Operations Console is the operator-facing layer over the Acquisition & Launch Control System. Operators search and work by campaign/creator identity, manage creator enrollments and assignments, attach evidence, and submit QA without opening the system-of-record spreadsheet.
+The protected Operations Console is the operator-facing layer over the PNB Acquisition & Launch Control System. Operators search and work by campaign/creator identity, manage creator enrollments and assignments, attach evidence, and submit QA without opening the system-of-record spreadsheet.
 
 V2 preserves these boundaries:
 
@@ -113,3 +113,4 @@ Store `CONTROL_SYSTEM_SYNC_SECRET` only as an encrypted Cloudflare Pages secret 
 Cloudflare Pages binds encrypted environment values to a deployment. After adding or rotating `CONTROL_SYSTEM_SYNC_SECRET`, create a fresh Production deployment before testing the bridge. The Console home card reports `Configured` only when the running deployment can see the secret.
 
 Because Cloudflare Access protects the Operations hostname, create a scoped Access service token and permit it only on the Control System integration path. Store its client ID and secret as the Apps Script properties `CREATORLOOP_ACCESS_CLIENT_ID` and `CREATORLOOP_ACCESS_CLIENT_SECRET`. The Apps Script sends those Access headers in addition to the application-level HMAC signature; both security layers must pass. Redirect following is disabled so credentials cannot be forwarded to an interactive login origin. Never commit or paste any shared secret or service-token credential into source, issues, logs, or chat.
+

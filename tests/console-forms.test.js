@@ -28,3 +28,12 @@ test("assignment Product Scope and Platform use locked campaign-derived fields",
   assert.match(html,/<label>Platform <input disabled value="TikTok">/);
   assert.doesNotMatch(html,/name="productScope"|name="platform"/);
 });
+
+test("an imported Primary Platform renders selected without choosing a substitute",async () => {
+  const source=await readFile('console/app.js','utf8');
+  const context={document:{addEventListener(){},querySelector(){return {addEventListener(){}};}}};
+  runInNewContext(source.replace(/start\(\);\s*$/,''),context);
+  const html=runInNewContext(`optionList(['Meta','TikTok'],'TikTok + Instagram')`,context);
+  assert.match(html,/<option selected>TikTok \+ Instagram<\/option>/);
+  assert.doesNotMatch(html,/<option selected>TikTok<\/option>/);
+});
