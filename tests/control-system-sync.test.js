@@ -183,3 +183,26 @@ test("workbook validation failures leave the whole mapped record unchanged", asy
   assert.throws(()=>context.upsertMappedRow_('🗺️CREATORS','Creator ID','CR-101',{'Missing field':'x'}),/Missing mapped column/);
   assert.deepEqual(writes,[]);
 });
+
+test("new assignment rows inherit source formulas and validation without another record's business values",async () => {
+  const source=await readFile('assets/operations-control-system-sync.gs','utf8');
+  const headers=['Assignment ID','Status','Product Scope','Platform','Fixed Content Fee ($)'];
+  const values=new Map([[`4,1`,'ASG-100'],[`4,2`,'Active'],[`4,3`,'Existing scope'],[`4,4`,'Meta'],[`4,5`,50]]);
+  const formulas=new Map([[`4,3`,'=CAMPAIGN_SCOPE(RC[-1])'],[`4,4`,'=CAMPAIGN_PLATFORM(RC[-2])']]);
+  let formats=0,validations=0;
+  const sheet={getLastColumn:()=>5,getLastRow:()=>4,getRange(row,col,rows,cols){
+    if(row===3) return {getDisplayValues:()=>[headers]};
+    if(rows>1 || (rows===1 && cols===5)) return {
+      getDisplayValues:()=>[['ASG-100','Active','Existing scope','Meta','50']],
+      copyTo:()=>{formats++;},getDataValidations:()=>[[null,null,null,null,null]],setDataValidations:()=>{validations++;}
+    };
+    const key=`${row},${col}`;
+    return {getFormula:()=>formulas.get(key)||'',getFormulaR1C1:()=>formulas.get(key)||'',getDisplayValue:()=>values.get(key)||'',getDataValidation:()=>null,setValue:v=>values.set(key,v),setFormulaR1C1:f=>formulas.set(key,f)};
+  }};
+  const context={SpreadsheetApp:{getActive:()=>({getSheetByName:()=>sheet}),CopyPasteType:{PASTE_FORMAT:'FORMAT'}}};
+  runInNewContext(source,context);
+  context.upsertMappedRow_('CREATOR ASSIGNMENTS','Assignment ID','ASG-101',{'Status':'Not Started','Fixed Content Fee ($)':0});
+  assert.equal(values.get('5,1'),'ASG-101');assert.equal(values.get('5,2'),'Not Started');assert.equal(values.get('5,5'),0);
+  assert.equal(formulas.get('5,3'),formulas.get('4,3'));assert.equal(formulas.get('5,4'),formulas.get('4,4'));
+  assert.equal(formats,1);assert.equal(validations,1);assert.equal(values.get('4,5'),50);
+});

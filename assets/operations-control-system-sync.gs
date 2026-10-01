@@ -291,7 +291,8 @@ function upsertMappedRow_(sheetName,idHeader,id,values) {
     if (row[idColumn] === id) { rowNumber = CL_SYNC.HEADER_ROW + 1 + index; return true; }
     return false;
   });
-  if (rowNumber < 0) throw new Error("No prepared workbook row for " + id + "; preserve the source row structure");
+  const newRow = rowNumber < 0;
+  if (newRow) rowNumber = table.sheet.getLastRow() + 1;
   const writes = [];
   writable.forEach((header) => {
     const cell = table.sheet.getRange(rowNumber,table.headers.indexOf(header) + 1);
@@ -300,7 +301,7 @@ function upsertMappedRow_(sheetName,idHeader,id,values) {
       if (String(cell.getDisplayValue()) === String(value ?? "")) return;
       throw new Error("Refusing to overwrite formula: " + header);
     }
-    const rule = cell.getDataValidation();
+    const rule = cell.getDataValidation() || (newRow ? table.sheet.getRange(CL_SYNC.HEADER_ROW + 1,table.headers.indexOf(header) + 1).getDataValidation() : null);
     if (rule && !rule.getAllowInvalid()) {
       const type = rule.getCriteriaType();
       const args = rule.getCriteriaValues();
@@ -312,6 +313,23 @@ function upsertMappedRow_(sheetName,idHeader,id,values) {
       }
     }
     writes.push({cell:cell,value:value});
+  });
+  // Extend the established row scaffold, never copy another creator's business values.
+  if (newRow) {
+    const template = table.sheet.getRange(CL_SYNC.HEADER_ROW + 1,1,1,table.headers.length);
+    const target = table.sheet.getRange(rowNumber,1,1,table.headers.length);
+    template.copyTo(target,SpreadsheetApp.CopyPasteType.PASTE_FORMAT,false);
+    target.setDataValidations(template.getDataValidations());
+    table.sheet.getRange(rowNumber,idColumn + 1).setValue(id);
+  }
+  const formulaHeaders = ["Product Scope","Platform","ID Integrity","Attributed Revenue ($)","Commission ($)","Total Creator Cost ($)","Last Updated"];
+  formulaHeaders.forEach((header) => {
+    const column = table.headers.indexOf(header);
+    if (column < 0 || writable.includes(header)) return;
+    const cell = table.sheet.getRange(rowNumber,column + 1);
+    if (cell.getFormula() || cell.getDisplayValue()) return;
+    const formula = table.sheet.getRange(CL_SYNC.HEADER_ROW + 1,column + 1).getFormulaR1C1();
+    if (formula) cell.setFormulaR1C1(formula);
   });
   writes.forEach((write) => write.cell.setValue(write.value));
 }
