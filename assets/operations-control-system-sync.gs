@@ -1,7 +1,7 @@
 /**
  * CreatorLoop Operations Console V2 — Control System bridge
  *
- * Install this code as a bound Apps Script in the approved Acquisition & Launch
+ * Install this code as a bound Apps Script in the approved PNB Acquisition & Launch
  * Control System spreadsheet. Configure Script Properties (never source code):
  *   CREATORLOOP_SYNC_ENDPOINT = https://ops.creatorloop.net/api/integrations/control-system
  *   CREATORLOOP_SYNC_SECRET   = the same high-entropy secret stored in Cloudflare
@@ -39,6 +39,7 @@ function syncCreatorLoopOperations() {
     const acknowledged = [];
     (pending.changes || []).forEach((change) => {
       applyConsoleChange_(change);
+      SpreadsheetApp.flush();
       acknowledged.push(change.id);
     });
     if (acknowledged.length) {
@@ -122,7 +123,7 @@ function campaignRows_() {
       name: row["Campaign Name"],
       brandCode: String(row["Campaign Name"]).split("_")[0] || "CL",
       status: campaignStatus_(row["Status"]),
-      sourceReference: "Acquisition & Launch Control System / CAMPAIGNS",
+      sourceReference: "PNB Acquisition & Launch Control System / CAMPAIGNS",
       platform: platform_(row["Platform"]),
       objective: row["Objective"] || null,
       slug: row["Campaign Slug"] || null,
@@ -155,7 +156,7 @@ function creatorRows_(primaryCampaign) {
       enrollmentDate: iso_(row["Enrollment Date"]) || new Date().toISOString(),
       notes: row["Notes"] || null,
       evidenceLink: row["Evidence Link"] || null,
-      sourceRecord: "Acquisition & Launch Control System / CREATORS / " + row["Creator ID"],
+      sourceRecord: "PNB Acquisition & Launch Control System / CREATORS / " + row["Creator ID"],
       sourceUpdatedAt: iso_(row["Last Updated"]) || new Date().toISOString()
     }));
 }
@@ -237,6 +238,10 @@ function signedFetch_(endpoint,secret,accessClientId,accessClientSecret,method,p
 
 function applyConsoleChange_(change) {
   const payload = change.payload || {};
+  if (change.entity_type === "CREATOR" && change.action !== "UPSERT") {
+    if (!["WORKFLOW","QA_RESULT"].includes(change.action)) throw new Error("Unsupported creator action");
+    return; // These actions are recorded in Console audit; there is no source workbook field.
+  }
   if (change.entity_type === "CREATOR") {
     upsertMappedRow_(CL_SYNC.CREATORS,"Creator ID",payload.id,{
       "Creator Name": payload.creatorName,
@@ -254,7 +259,7 @@ function applyConsoleChange_(change) {
   }
   if (change.entity_type === "ASSIGNMENT") {
     upsertMappedRow_(CL_SYNC.ASSIGNMENTS,"Assignment ID",payload.id,{
-      "Environment": "NONPRODUCTION",
+      "Environment": payload.environment,
       "Creator ID": payload.creatorId,
       "Campaign ID": payload.campaignId,
       "Status": payload.status,
@@ -268,24 +273,45 @@ function applyConsoleChange_(change) {
       "Notes": payload.notes,
       "Signed Rights Evidence Link": payload.signedRightsEvidenceLink
     });
+    return;
   }
+  throw new Error("Unsupported Console change: " + change.entity_type);
 }
 
 function upsertMappedRow_(sheetName,idHeader,id,values) {
   const table = rowsByHeader_(sheetName);
   const idColumn = table.headers.indexOf(idHeader);
   if (idColumn < 0) throw new Error("Missing ID column " + idHeader + " in " + sheetName);
+  const writable = Object.keys(values).filter((header) => values[header] !== undefined);
+  writable.forEach((header) => {
+    if (table.headers.indexOf(header) < 0) throw new Error("Missing mapped column " + header + " in " + sheetName);
+  });
   let rowNumber = -1;
   table.rows.some((row,index) => {
     if (row[idColumn] === id) { rowNumber = CL_SYNC.HEADER_ROW + 1 + index; return true; }
     return false;
   });
-  if (rowNumber < 0) {
-    rowNumber = table.sheet.getLastRow() + 1;
-    table.sheet.getRange(rowNumber,idColumn + 1).setValue(id);
-  }
-  Object.keys(values).forEach((header) => {
-    const column = table.headers.indexOf(header);
-    if (column >= 0 && values[header] !== undefined) table.sheet.getRange(rowNumber,column + 1).setValue(values[header]);
+  if (rowNumber < 0) throw new Error("No prepared workbook row for " + id + "; preserve the source row structure");
+  const writes = [];
+  writable.forEach((header) => {
+    const cell = table.sheet.getRange(rowNumber,table.headers.indexOf(header) + 1);
+    const value = values[header];
+    if (cell.getFormula()) {
+      if (String(cell.getDisplayValue()) === String(value ?? "")) return;
+      throw new Error("Refusing to overwrite formula: " + header);
+    }
+    const rule = cell.getDataValidation();
+    if (rule && !rule.getAllowInvalid()) {
+      const type = rule.getCriteriaType();
+      const args = rule.getCriteriaValues();
+      const allowed = type === SpreadsheetApp.DataValidationCriteria.VALUE_IN_RANGE
+        ? args[0].getDisplayValues().flat()
+        : type === SpreadsheetApp.DataValidationCriteria.VALUE_IN_LIST ? args[0] : null;
+      if (allowed && value !== null && value !== "" && !allowed.includes(String(value))) {
+        throw new Error("Value is not allowed for " + header);
+      }
+    }
+    writes.push({cell:cell,value:value});
   });
+  writes.forEach((write) => write.cell.setValue(write.value));
 }

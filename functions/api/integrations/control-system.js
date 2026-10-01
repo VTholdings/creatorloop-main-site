@@ -44,7 +44,7 @@ export async function onRequest(context) {
 }
 
 async function exportPending(db) {
-  const rows = await db.prepare("SELECT id,idempotency_key,entity_type,entity_id,action,payload_json,created_at FROM control_system_outbox WHERE status IN ('PENDING','FAILED') ORDER BY created_at LIMIT 100").all();
+  const rows = await db.prepare("SELECT id,idempotency_key,entity_type,entity_id,action,payload_json,created_at FROM control_system_outbox WHERE status IN ('PENDING','FAILED','EXPORTED') ORDER BY created_at,rowid LIMIT 100").all();
   if (rows.results.length) {
     await db.batch(rows.results.map((row) =>
       db.prepare("UPDATE control_system_outbox SET status='EXPORTED',attempt_count=attempt_count+1,exported_at=CURRENT_TIMESTAMP,last_error=NULL WHERE id=?").bind(row.id)
@@ -100,7 +100,7 @@ const upsertCreator = (db,row,version) => db.prepare(`INSERT INTO creator_enroll
   (id,campaign_id,creator_name,primary_platform,handle,contact,creator_status,compensation_model,rights_status,product_focus,notes,evidence_link,workflow_status,enrollment_date,last_updated,source_record,sync_status,source_updated_at,source_version)
   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
   ON CONFLICT(id) DO UPDATE SET campaign_id=excluded.campaign_id,creator_name=excluded.creator_name,primary_platform=excluded.primary_platform,handle=excluded.handle,contact=excluded.contact,creator_status=excluded.creator_status,compensation_model=excluded.compensation_model,rights_status=excluded.rights_status,product_focus=excluded.product_focus,notes=excluded.notes,evidence_link=excluded.evidence_link,source_record=excluded.source_record,last_updated=excluded.last_updated,sync_status='SYNCED',source_updated_at=excluded.source_updated_at,source_version=excluded.source_version
-  WHERE ${newer} AND NOT EXISTS (SELECT 1 FROM control_system_outbox o WHERE o.entity_type='CREATOR' AND o.entity_id=excluded.id AND o.status IN ('PENDING','EXPORTED','FAILED'))`).bind(row.id,row.campaignId,row.creatorName,row.primaryPlatform,row.handle,row.contact,row.creatorStatus,row.compensationModel,row.rightsStatus,row.productFocus,row.notes||null,row.evidenceLink||null,row.workflowStatus||"AVAILABLE",row.enrollmentDate||new Date().toISOString(),row.sourceUpdatedAt||new Date().toISOString(),row.sourceRecord||"Control System / CREATORS","SYNCED",row.sourceUpdatedAt||new Date().toISOString(),version);
+  WHERE ${newer} AND NOT EXISTS (SELECT 1 FROM control_system_outbox o WHERE o.entity_type='CREATOR' AND o.entity_id=excluded.id AND o.status IN ('PENDING','EXPORTED','FAILED'))`).bind(row.id,row.campaignId,row.creatorName,row.primaryPlatform,row.handle,row.contact,row.creatorStatus,row.compensationModel,row.rightsStatus,row.productFocus||"",row.notes||null,row.evidenceLink||null,row.workflowStatus||"AVAILABLE",row.enrollmentDate||new Date().toISOString(),row.sourceUpdatedAt||new Date().toISOString(),row.sourceRecord||"Control System / CREATORS","SYNCED",row.sourceUpdatedAt||new Date().toISOString(),version);
 
 const upsertAssignment = (db,row,version) => db.prepare(`INSERT INTO creator_assignments
   (id,environment,creator_id,campaign_id,status,start_date,content_due,fixed_content_fee,commission_rate,paid_usage_rights,attribution_window_days,evidence_status,notes,signed_rights_evidence_link,last_updated,sync_status,source_updated_at,source_version)

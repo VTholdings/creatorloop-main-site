@@ -18,3 +18,13 @@ test("imported optional fields and ISO dates render valid editable assignment va
   assert.match(html,/<textarea name="notes"><\/textarea>/);
   assert.equal(runInNewContext(`esc('<script>')`,context),'&lt;script&gt;');
 });
+
+test("assignment Product Scope and Platform use locked campaign-derived fields",async () => {
+  const source=await readFile('console/app.js','utf8');
+  const context={document:{addEventListener(){},querySelector(){return {addEventListener(){}};}}};
+  runInNewContext(source.replace(/start\(\);\s*$/,''),context);
+  const html=runInNewContext(`state.dashboard={campaign:{id:'CMP-100'}};state.campaigns=[{id:'CMP-100',name:'Test'}];assignmentForm({id:'ASG-1',creator_id:'CR-1',campaign_id:'CMP-100',product_scope:'Scope from campaign',platform:'TikTok'});`,context);
+  assert.match(html,/<label>Product Scope <textarea disabled>Scope from campaign<\/textarea>/);
+  assert.match(html,/<label>Platform <input disabled value="TikTok">/);
+  assert.doesNotMatch(html,/name="productScope"|name="platform"/);
+});

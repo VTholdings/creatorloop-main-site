@@ -94,7 +94,7 @@ async function dashboard({ env, request }, user) {
     nextAction: QA_ROLES.has(user.role) ? "Review work awaiting QA" : "Start or correct a creator enrollment",
     system: {
       schemaReady: ready,
-      controlSystem: "Acquisition & Launch Control System",
+      controlSystem: "PNB Acquisition & Launch Control System",
       systemOfRecord: "Google Sheets",
       syncConfigured: Boolean(env.CONTROL_SYSTEM_SYNC_SECRET)
     }
@@ -158,7 +158,7 @@ async function getCreator({ env }, id) {
     FROM creator_enrollments e JOIN campaigns c ON c.id=e.campaign_id WHERE e.id=?`).bind(id).first();
   if (!creator) return json({ error: "Creator record not found" }, 404);
   const reviews = await env.OPERATIONS_DB.prepare("SELECT q.*,o.display_name reviewer_name,o.role reviewer_role FROM qa_reviews q JOIN operators o ON o.id=q.reviewer_id WHERE q.enrollment_id=? ORDER BY q.created_at DESC").bind(id).all();
-  const assignments = await optionalRows(env.OPERATIONS_DB, `SELECT a.*,c.name campaign_name,c.platform campaign_platform,c.product_scope campaign_product_scope
+  const assignments = await optionalRows(env.OPERATIONS_DB, `SELECT a.*,c.name campaign_name,c.platform campaign_platform,c.product_scope campaign_product_scope,c.product_scope product_scope,c.platform platform
     FROM creator_assignments a JOIN campaigns c ON c.id=a.campaign_id WHERE a.creator_id=? ORDER BY a.id`, [id]);
   const creatives = await optionalRows(env.OPERATIONS_DB, "SELECT * FROM creatives WHERE creator_id=? ORDER BY id", [id]);
   return json({ creator, checklist: qaChecklist(creator), reviews: reviews.results, assignments, creatives });
@@ -243,6 +243,7 @@ async function updateCreatorWorkflow(context, user, current, body) {
 async function createAssignment(context, user) {
   const blocked = await requireV2(context.env); if (blocked) return blocked;
   const body = await context.request.json();
+  body.environment = "NONPRODUCTION";
   const errors = validateAssignment(body);
   if (Object.keys(errors).length) return json({ error: "Check the highlighted assignment fields", fields: errors }, 422);
   const creator = await context.env.OPERATIONS_DB.prepare("SELECT id FROM creator_enrollments WHERE id=?").bind(body.creatorId).first();
@@ -272,6 +273,7 @@ async function updateAssignment(context, user, id) {
   const body = await context.request.json();
   body.creatorId = current.creator_id;
   body.campaignId = current.campaign_id;
+  body.environment = current.environment;
   const errors = validateAssignment(body);
   if (Object.keys(errors).length) return json({ error: "Check the highlighted assignment fields", fields: errors }, 422);
   const now = new Date().toISOString();
@@ -331,7 +333,7 @@ async function systemStatus({ env }, user) {
   return json({
     schemaReady: ready,
     syncConfigured: Boolean(env.CONTROL_SYSTEM_SYNC_SECRET),
-    sourceSystem: "Acquisition & Launch Control System",
+    sourceSystem: "PNB Acquisition & Launch Control System",
     outbound: Object.fromEntries(counts.results.map((row) => [row.status,row.count]))
   });
 }
@@ -354,7 +356,7 @@ const creatorPayload = (id, body, operatorId, updatedAt) => ({
 });
 const assignmentPayload = (id, body, operatorId, updatedAt) => ({
   id,
-  environment: "NONPRODUCTION",
+  environment: body.environment || "NONPRODUCTION",
   creatorId: body.creatorId,
   campaignId: body.campaignId,
   status: body.status,
