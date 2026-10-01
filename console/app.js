@@ -131,7 +131,7 @@ async function openCampaign(id) {
     detail("Objective",campaign.objective || "Awaiting sync","SELECT") + detail("Status",campaign.status.replaceAll("_"," "),"SELECT") +
     detail("Start date",campaign.start_date || "—","INPUT") + detail("End date",campaign.end_date || "—","INPUT") +
     detail("Owner",campaign.owner_name || "—","SELECT") + detail("Cash budget",campaign.cash_budget ? "$" + Number(campaign.cash_budget).toFixed(2) : "—","APPROVAL") + '</div>' +
-    '<section class="record-section"><h3>Product scope</h3><p>' + esc(campaign.product_scope || "Awaiting source-system synchronization.") + '</p></section>' +
+    '<section class="record-section"><h3>Product Scope</h3><p>' + esc(campaign.product_scope || "Awaiting source-system synchronization.") + '</p></section>' +
     '<section class="record-section"><h3>Operational notes</h3><p>' + esc(campaign.notes || "No notes recorded.") + '</p></section>' +
     '<div class="related-grid"><div><b>' + creators.length + '</b><span>Creators</span></div><div><b>' + assignments.length +
     '</b><span>Assignments</span></div><div><b>' + creatives.length + '</b><span>Creatives</span></div></div>' +
@@ -170,7 +170,7 @@ function creatorForm(creator = {}) {
     '<label>Compensation model <select name="compensationModel">' + optionList(["Performance","Fixed Content Fee","Hybrid","Product Seeding","Performance Bonus","Organic Only","N/A"],creator.compensation_model) + '</select></label>' +
     '<label>Rights status <select name="rightsStatus">' + optionList(["Not Reviewed","Organic Only","Paid Usage Approved","Expired","Blocked"],creator.rights_status) + '</select></label>' +
     '<label>Evidence link <input name="evidenceLink" type="url" value="' + esc(creator.evidence_link) + '"><span class="field-help">INPUT · Never store secrets.</span></label></div>' +
-    '<label>Product / campaign focus <textarea name="productFocus" required>' + esc(creator.product_focus) + '</textarea></label>' +
+    '<label>Product Focus <textarea name="productFocus" required>' + esc(creator.product_focus) + '</textarea></label>' +
     '<label>Operational notes <textarea name="notes">' + esc(creator.notes) + '</textarea></label>' +
     '<div class="form-actions"><button class="action" type="submit">' + (edit ? "Save changes" : "Create enrollment") + '</button>' +
     (edit && ["IN_PROGRESS","CORRECTION_REQUIRED","HOLD"].includes(creator.workflow_status) ? '<button class="action secondary" type="button" id="submit-qa">Send to QA</button>' : "") +
@@ -191,6 +191,8 @@ function assignmentForm(assignment = {}) {
     (edit ? '<span class="sync-state ' + esc(assignment.sync_status || "LOCAL_ONLY") + '">' + esc((assignment.sync_status || "LOCAL ONLY").replaceAll("_"," ")) + '</span>' : "") + '</div>' +
     '<input type="hidden" name="creatorId" value="' + esc(assignment.creator_id || state.current.creator.id) + '">' +
     '<label>Campaign <select name="campaignId" ' + (edit ? "disabled" : "") + '>' + campaignOptions(campaignId) + '</select></label>' +
+    '<label>Product Scope <textarea disabled>' + esc(assignment.product_scope ?? assignment.campaign_product_scope) + '</textarea><span class="field-help">LOCKED · From CAMPAIGNS through CREATOR ASSIGNMENTS.</span></label>' +
+    '<label>Platform <input disabled value="' + esc(assignment.platform ?? assignment.campaign_platform) + '"></label>' +
     '<div class="form-grid"><label>Status <select name="status">' + optionList(["Not Started","In Progress","Blocked","Ready for Review","Approved","Active","Complete","Archived"],assignment.status) + '</select></label>' +
     '<label>Paid usage rights <select name="paidUsageRights">' + optionList(["Yes","No","Pending"],assignment.paid_usage_rights) + '</select></label>' +
     '<label>Evidence status <select name="evidenceStatus">' + optionList(["Planned","Pending","Verified","Blocked","Expired"],assignment.evidence_status) + '</select></label>' +
