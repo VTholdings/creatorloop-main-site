@@ -146,6 +146,20 @@ test("stale version and cross-origin mutations fail closed", async () => {
   database.close();
 });
 
+test("a note edit preserves an imported Primary Platform in database and export",async () => {
+  const {database,env}=await fixture();
+  database.exec('BEGIN');database.exec(await readFile('migrations/0003_pnb_source_contract.sql','utf8'));database.exec('COMMIT');
+  await request(env,'operator@example.com','POST','creators',enrollment);
+  database.prepare("UPDATE creator_enrollments SET primary_platform=?,source_version=? WHERE id='CR-101'").run('TikTok + Instagram','SHEET-TEST');
+  const record=await request(env,'operator@example.com','GET','creators/CR-101');
+  const edited=await request(env,'operator@example.com','PATCH','creators/CR-101',{...enrollment,primaryPlatform:'TikTok + Instagram',notes:'Preserve source platform',version:record.body.creator.version});
+  assert.equal(edited.response.status,200);
+  assert.equal(database.prepare("SELECT primary_platform FROM creator_enrollments WHERE id='CR-101'").get().primary_platform,'TikTok + Instagram');
+  const payloads=database.prepare("SELECT payload_json FROM control_system_outbox WHERE entity_id='CR-101' AND action='UPSERT'").all().map(row=>JSON.parse(row.payload_json));
+  assert.ok(payloads.some(row=>row.primaryPlatform==='TikTok + Instagram' && row.notes==='Preserve source platform'));
+  database.close();
+});
+
 
 test("V2 campaign and creator search opens existing records", async () => {
   const { database, env } = await fixture();

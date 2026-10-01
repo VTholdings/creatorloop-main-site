@@ -13,7 +13,7 @@ const $ = (selector) => document.querySelector(selector);
 const esc = (value = "") => String(value ?? "").replace(/[&<>'"]/g, (character) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;"
 }[character]));
-const optionList = (values,current) => values.map((value) =>
+const optionList = (values,current) => (current && !values.includes(current) ? [current,...values] : values).map((value) =>
   '<option ' + (value === current ? "selected" : "") + '>' + esc(value) + '</option>'
 ).join("");
 const campaignLabel = (campaign) => campaign.id + " · " + campaign.name;
@@ -126,13 +126,13 @@ async function openCampaign(id) {
   $("#campaign-detail").innerHTML =
     '<div class="campaign-heading"><span class="campaign-id">' + esc(campaign.id) + '</span><h2>' + esc(campaign.name) + '</h2></div>' +
     '<div class="guide"><span><b>AUTO</b>Generated name</span><span><b>SELECT</b>Approved options</span><span><b>INPUT</b>Operational facts</span><span><b>LOCKED</b>IDs & rollups</span><span><b>APPROVAL</b>QA / owner</span></div>' +
-    '<div class="detail-grid">' + detail("Campaign ID",campaign.id,"LOCKED") + detail("Campaign name",campaign.name,"AUTO") +
-    detail("Campaign slug",campaign.slug || "—","INPUT") + detail("Platform",campaign.platform || "Awaiting sync","SELECT") +
+    '<div class="detail-grid">' + detail("Campaign ID",campaign.id,"LOCKED") + detail("Campaign Name",campaign.name,"AUTO") +
+    detail("Campaign Slug",campaign.slug || "—","INPUT") + detail("Platform",campaign.platform || "Awaiting sync","SELECT") +
     detail("Objective",campaign.objective || "Awaiting sync","SELECT") + detail("Status",campaign.status.replaceAll("_"," "),"SELECT") +
-    detail("Start date",campaign.start_date || "—","INPUT") + detail("End date",campaign.end_date || "—","INPUT") +
-    detail("Owner",campaign.owner_name || "—","SELECT") + detail("Cash budget",campaign.cash_budget ? "$" + Number(campaign.cash_budget).toFixed(2) : "—","APPROVAL") + '</div>' +
+    detail("Start Date",campaign.start_date || "—","INPUT") + detail("End Date",campaign.end_date || "—","INPUT") +
+    detail("Owner",campaign.owner_name || "—","SELECT") + detail("Cash Budget ($)",campaign.cash_budget ? "$" + Number(campaign.cash_budget).toFixed(2) : "—","APPROVAL") + '</div>' +
     '<section class="record-section"><h3>Product Scope</h3><p>' + esc(campaign.product_scope || "Awaiting source-system synchronization.") + '</p></section>' +
-    '<section class="record-section"><h3>Operational notes</h3><p>' + esc(campaign.notes || "No notes recorded.") + '</p></section>' +
+    '<section class="record-section"><h3>Notes</h3><p>' + esc(campaign.notes || "No notes recorded.") + '</p></section>' +
     '<div class="related-grid"><div><b>' + creators.length + '</b><span>Creators</span></div><div><b>' + assignments.length +
     '</b><span>Assignments</span></div><div><b>' + creatives.length + '</b><span>Creatives</span></div></div>' +
     '<button class="action secondary" data-open-work="' + esc(campaign.id) + '">Open campaign work</button>';
@@ -163,15 +163,15 @@ function creatorForm(creator = {}) {
     (edit ? '<span class="sync-state ' + esc(creator.sync_status || "LOCAL_ONLY") + '">' + esc((creator.sync_status || "LOCAL ONLY").replaceAll("_"," ")) + '</span>' : "") + '</div>' +
     '<div class="form-grid"><label>Creator ID <input class="locked" value="' + esc(creator.id || "Assigned automatically") + '" disabled><span class="field-help">AUTO · Permanent and never recycled.</span></label>' +
     '<label>Campaign ' + campaignField + '<span class="field-help">' + (edit ? "LOCKED · Relationship cannot be silently changed." : "SELECT · Existing campaign.") + '</span></label>' +
-    '<label>Creator name <input name="creatorName" value="' + esc(creator.creator_name) + '" required></label>' +
-    '<label>Primary platform <select name="primaryPlatform">' + optionList(["Meta","TikTok","Google","Shopify","Klaviyo","Recharge","Clipster","Other"],creator.primary_platform) + '</select></label>' +
-    '<label>Handle <input name="handle" value="' + esc(creator.handle) + '" required></label><label>Email / contact <input name="contact" value="' + esc(creator.contact) + '" required></label>' +
-    '<label>Creator status <select name="creatorStatus">' + optionList(["Not Started","In Progress","Blocked","Ready for Review","Approved","Active","Complete","Archived"],creator.creator_status) + '</select></label>' +
-    '<label>Compensation model <select name="compensationModel">' + optionList(["Performance","Fixed Content Fee","Hybrid","Product Seeding","Performance Bonus","Organic Only","N/A"],creator.compensation_model) + '</select></label>' +
-    '<label>Rights status <select name="rightsStatus">' + optionList(["Not Reviewed","Organic Only","Paid Usage Approved","Expired","Blocked"],creator.rights_status) + '</select></label>' +
-    '<label>Evidence link <input name="evidenceLink" type="url" value="' + esc(creator.evidence_link) + '"><span class="field-help">INPUT · Never store secrets.</span></label></div>' +
-    '<label>Product Focus <textarea name="productFocus" required>' + esc(creator.product_focus) + '</textarea></label>' +
-    '<label>Operational notes <textarea name="notes">' + esc(creator.notes) + '</textarea></label>' +
+    '<label>Creator Name <input name="creatorName" value="' + esc(creator.creator_name) + '" required></label>' +
+    '<label>Primary Platform <select name="primaryPlatform">' + optionList(state.dashboard.options?.platforms || ["Meta","TikTok","Google","Clipster","Shopify","Klaviyo","Recharge","Other"],creator.primary_platform) + '</select></label>' +
+    '<label>Handle <input name="handle" value="' + esc(creator.handle) + '" required></label><label>Email / Contact <input name="contact" value="' + esc(creator.contact) + '" required></label>' +
+    '<label>Status <select name="creatorStatus">' + optionList(state.dashboard.options?.creatorStatuses || ["Not Started","In Progress","Blocked","Ready for Review","Approved","Live","Paused","Complete","Archived","Active"],creator.creator_status) + '</select></label>' +
+    '<label>Compensation Model <select name="compensationModel">' + optionList(state.dashboard.options?.compensation || ["Performance","Fixed Content Fee","Hybrid","Product Seeding","Performance Bonus","N/A"],creator.compensation_model) + '</select></label>' +
+    '<label>Rights Status <select name="rightsStatus">' + optionList(state.dashboard.options?.rights || ["Not Reviewed","Organic Only","Paid Usage Approved","Expired","Blocked","N/A"],creator.rights_status) + '</select></label>' +
+    '<label>Evidence Link <input name="evidenceLink" type="url" value="' + esc(creator.evidence_link) + '"><span class="field-help">INPUT · Never store secrets.</span></label></div>' +
+    '<label>Product Focus <select name="productFocus" required><option value="">Choose Product Focus</option>' + optionList(state.dashboard.options?.productFocus || [],creator.product_focus) + '</select></label>' +
+    '<label>Notes <textarea name="notes">' + esc(creator.notes) + '</textarea></label>' +
     '<div class="form-actions"><button class="action" type="submit">' + (edit ? "Save changes" : "Create enrollment") + '</button>' +
     (edit && ["IN_PROGRESS","CORRECTION_REQUIRED","HOLD"].includes(creator.workflow_status) ? '<button class="action secondary" type="button" id="submit-qa">Send to QA</button>' : "") +
     '</div></form>' + (edit ? assignmentPanel() + creativePanel() + qaPanel(creator) : "");
@@ -193,16 +193,16 @@ function assignmentForm(assignment = {}) {
     '<label>Campaign <select name="campaignId" ' + (edit ? "disabled" : "") + '>' + campaignOptions(campaignId) + '</select></label>' +
     '<label>Product Scope <textarea disabled>' + esc(assignment.product_scope ?? assignment.campaign_product_scope) + '</textarea><span class="field-help">LOCKED · From CAMPAIGNS through CREATOR ASSIGNMENTS.</span></label>' +
     '<label>Platform <input disabled value="' + esc(assignment.platform ?? assignment.campaign_platform) + '"></label>' +
-    '<div class="form-grid"><label>Status <select name="status">' + optionList(["Not Started","In Progress","Blocked","Ready for Review","Approved","Active","Complete","Archived"],assignment.status) + '</select></label>' +
-    '<label>Paid usage rights <select name="paidUsageRights">' + optionList(["Yes","No","Pending"],assignment.paid_usage_rights) + '</select></label>' +
-    '<label>Evidence status <select name="evidenceStatus">' + optionList(["Planned","Pending","Verified","Blocked","Expired"],assignment.evidence_status) + '</select></label>' +
-    '<label>Signed rights evidence <input name="signedRightsEvidenceLink" type="url" value="' + esc(assignment.signed_rights_evidence_link) + '"></label>' +
-    '<label>Start date <input name="startDate" type="date" value="' + dateInput(assignment.start_date) + '"></label><label>Content due <input name="contentDue" type="date" value="' + dateInput(assignment.content_due) + '"></label>' +
-    '<label>Fixed content fee ($) <input name="fixedContentFee" type="number" min="0" step="0.01" value="' + esc(assignment.fixed_content_fee ?? 0) + '"></label>' +
-    '<label>Commission rate <input name="commissionRate" type="number" min="0" max="1" step="0.01" value="' + esc(assignment.commission_rate ?? 0) + '"></label>' +
-    '<label>Attribution window <input name="attributionWindowDays" type="number" min="1" max="365" value="' + esc(assignment.attribution_window_days ?? 30) + '"></label>' +
+    '<div class="form-grid"><label>Status <select name="status">' + optionList(state.dashboard.options?.creatorStatuses || ["Not Started","In Progress","Blocked","Ready for Review","Approved","Live","Paused","Complete","Archived","Active"],assignment.status) + '</select></label>' +
+    '<label>Paid Usage Rights <select name="paidUsageRights">' + optionList(["Yes","No","Pending"],assignment.paid_usage_rights) + '</select></label>' +
+    '<label>Evidence Status <select name="evidenceStatus">' + optionList(["Planned","Pending","Verified","Blocked","Expired"],assignment.evidence_status) + '</select></label>' +
+    '<label>Signed Rights Evidence Link <input name="signedRightsEvidenceLink" type="url" value="' + esc(assignment.signed_rights_evidence_link) + '"></label>' +
+    '<label>Start Date <input name="startDate" type="date" value="' + dateInput(assignment.start_date) + '"></label><label>Content Due <input name="contentDue" type="date" value="' + dateInput(assignment.content_due) + '"></label>' +
+    '<label>Fixed Content Fee ($) <input name="fixedContentFee" type="number" min="0" step="0.01" value="' + esc(assignment.fixed_content_fee ?? 0) + '"></label>' +
+    '<label>Commission % <input name="commissionRate" type="number" min="0" max="1" step="0.01" value="' + esc(assignment.commission_rate ?? 0) + '"><span class="field-help">Enter 0.10 for 10%.</span></label>' +
+    '<label>Attribution Window (Days) <input name="attributionWindowDays" type="number" min="1" max="365" value="' + esc(assignment.attribution_window_days ?? 30) + '"></label>' +
     '<label>Environment <input class="locked" value="' + esc(assignment.environment || "NONPRODUCTION") + '" disabled></label></div>' +
-    '<label>Assignment notes <textarea name="notes">' + esc(assignment.notes) + '</textarea></label><button class="action" type="submit">' + (edit ? "Save assignment" : "Create assignment") + '</button></form>';
+    '<label>Notes <textarea name="notes">' + esc(assignment.notes) + '</textarea></label><button class="action" type="submit">' + (edit ? "Save assignment" : "Create assignment") + '</button></form>';
 }
 
 function creativePanel() {
@@ -216,7 +216,7 @@ function creativePanel() {
 function qaPanel(creator) {
   const canReview = ["OPERATIONS","QA_REVIEWER","APPROVAL_AUTHORITY","ADMINISTRATOR"].includes(state.dashboard.user.role);
   const checks = Object.entries(state.current.checklist || {}).map(([key,value]) =>
-    '<div class="check ' + (value ? "ok" : "no") + '">' + (value ? "✓" : "✕") + " " + esc(key.replace(/([A-Z])/g," $1")) + '</div>'
+    '<div class="check ' + (value ? "ok" : "no") + '">' + (value ? "✓" : "✕") + " " + esc(key === "productCampaignFocus" ? "Product Focus" : key.replace(/([A-Z])/g," $1")) + '</div>'
   ).join("");
   const history = (state.current.reviews || []).map((review) =>
     '<div class="check"><strong>' + esc(review.result) + '</strong> · ' + esc(review.reviewer_role) + ' · ' + esc(review.created_at) + '<br>' + esc(review.notes || "") + '</div>'
@@ -228,7 +228,7 @@ function qaPanel(creator) {
 
 async function openRecord(id) {
   let record = await api("creators/" + encodeURIComponent(id));
-  if (record.creator.campaign_id !== state.dashboard.campaign.id) {
+  if (record.creator.campaign_id && record.creator.campaign_id !== state.dashboard.campaign.id) {
     await loadCampaign(record.creator.campaign_id);
     record = await api("creators/" + encodeURIComponent(id));
     renderAll();
@@ -243,10 +243,17 @@ async function openRecord(id) {
 }
 
 function lockEditorIfMigrationPending() {
-  if (state.dashboard.system.schemaReady) return;
+  if (state.dashboard.system.schemaReady) {
+    if (state.current && !state.current.creator.campaign_id) {
+      const form = $("#creator-form");
+      form.insertAdjacentHTML("afterbegin", '<p class="field-help">Create a campaign assignment before editing this creator.</p>');
+      form.querySelectorAll("input,select,textarea,button").forEach((control) => { control.disabled = true; });
+    }
+    return;
+  }
   const editor = $("#editor");
   if (!editor) return;
-  editor.insertAdjacentHTML("afterbegin", '<div class="notice error persistent">Migration pending · This record is view-only.</div>');
+  editor.insertAdjacentHTML("afterbegin", '<div class="notice error persistent">This record is view-only. Check the campaign assignment and database migration.</div>');
   editor.querySelectorAll("input,select,textarea,button").forEach((control) => { control.disabled = true; });
 }
 
@@ -387,3 +394,4 @@ $("#global-search").addEventListener("keydown",(event) => {
 });
 $("#menu").addEventListener("click",() => $(".sidebar").classList.toggle("open"));
 start();
+
