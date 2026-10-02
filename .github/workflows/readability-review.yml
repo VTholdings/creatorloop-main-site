@@ -1,0 +1,25 @@
+name: Isolated Console readability review
+on:
+  push:
+    branches: [verify-console-readability]
+permissions:
+  contents: read
+jobs:
+  browser-review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --prefix "$RUNNER_TEMP/readability" playwright --ignore-scripts --no-audit --no-fund
+      - run: PLAYWRIGHT_MODULE_PATH="$RUNNER_TEMP/readability/node_modules/playwright" node scripts/readability-check.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: console-readability-review
+          path: readability-artifacts
+          retention-days: 7

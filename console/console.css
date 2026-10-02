@@ -10,3 +10,86 @@
 @media(max-width:560px){.global-search>div,.search-row{display:grid}.search-grid{grid-template-columns:1fr}.related-grid{grid-template-columns:1fr}.identity-callout{align-items:flex-start;flex-direction:column}}
 
 .daily-queue{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));margin-bottom:24px}.daily-queue .panel p{line-height:1.55}.workflow-guide{margin:24px 0}.workflow-guide summary{cursor:pointer;font-weight:700;line-height:1.6}.workflow-guide li{margin:14px 0;line-height:1.65}.operator-card small{overflow-wrap:anywhere}
+
+/* Operator readability: retain the existing palette, font and workflow layout. */
+body{font-size:1rem;line-height:1.55}
+.app-shell{grid-template-columns:240px minmax(0,1fr)}
+.app-shell>main,.topbar>div,.form-grid>*,.detail-grid>*,.record-title>div{min-width:0}
+.sidebar{overflow-y:auto}
+.brand span,.eyebrow,.environment{font-size:.75rem;line-height:1.5}
+.nav-button{font-size:.9375rem;line-height:1.5;padding:14px 15px}
+.operator-card{padding:18px;gap:7px}
+.operator-card span{font-size:1rem;line-height:1.5}
+.operator-card small{font-size:.875rem;line-height:1.5}
+.topbar{height:auto;min-height:86px;padding:16px 34px}
+.topbar strong{font-size:1rem;line-height:1.45;overflow-wrap:anywhere}
+.environment{flex-shrink:0;font-weight:600}
+.hero p{font-size:1rem;line-height:1.55}
+.action{font-size:.9375rem;line-height:1.5;padding:13px 18px}
+.section-head{margin:40px 0 20px;flex-wrap:wrap}
+.section-head h2,.panel h2,.campaign-heading h2,.record-title h2{font-size:1.125rem;line-height:1.45}
+.panel h3,.record-section h3{font-size:1.0625rem;line-height:1.45}
+.section-head p,.field-help{font-size:.875rem;line-height:1.55}
+.status-grid{grid-template-columns:repeat(5,minmax(0,1fr));gap:16px}
+.panel{padding:24px}
+.status-card{padding:20px}
+.status-card small{font-size:.75rem;font-weight:600;line-height:1.5;overflow-wrap:anywhere}
+.record,.campaign-card{padding:20px;font-family:inherit;font-size:1rem;line-height:1.5}
+.record strong,.campaign-card strong{font-size:1rem;font-weight:600;line-height:1.5;overflow-wrap:anywhere}
+.record small,.campaign-card small,.creative-grid small{font-size:.875rem;line-height:1.5;overflow-wrap:anywhere}
+.badge,.sync-state{font-size:.75rem;font-weight:600;line-height:1.5;overflow-wrap:anywhere}
+form{gap:20px}
+.form-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:20px 18px}
+label{font-size:.875rem;line-height:1.5;gap:9px}
+input,select,textarea{font-size:1rem;line-height:1.5;font-weight:500;padding:13px 14px;min-width:0}
+textarea{min-height:108px}
+.guide{grid-template-columns:repeat(auto-fit,minmax(min(100%,110px),1fr));gap:8px}
+.guide span{font-size:.8125rem;line-height:1.5;padding:12px 8px;overflow-wrap:anywhere}
+.guide b{font-size:.75rem;line-height:1.5;font-weight:600;margin-bottom:5px}
+.checklist{gap:12px;margin:16px 0}
+.check{font-size:.875rem;line-height:1.55;padding:13px 14px}
+.qa-actions{gap:12px}
+.qa-actions button{font-size:.875rem;line-height:1.5;padding:12px 14px}
+.audit-table{font-size:.875rem;line-height:1.55}
+.audit-table th,.audit-table td{padding:16px;overflow-wrap:anywhere}
+.audit-table th{font-size:.75rem;font-weight:600;line-height:1.5}
+.notice{font-size:.9375rem;line-height:1.55;padding:16px 18px}
+.global-search{padding:22px 34px;gap:10px}
+.global-search label{font-size:.875rem;line-height:1.5}
+.global-search input,.search-row input{min-width:0}
+.identity-callout strong,.campaign-id{font-size:.75rem;line-height:1.5;font-weight:600}
+.identity-callout span{font-size:.9375rem;line-height:1.5;overflow-wrap:anywhere}
+.system-strip{gap:14px;margin-top:24px}
+.system-strip span{font-size:.875rem;line-height:1.5;padding:18px;overflow-wrap:anywhere}
+.system-strip b{font-size:.75rem;font-weight:600;line-height:1.5}
+.detail-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:22px 0}
+.detail{padding:16px;gap:8px}
+.detail small{font-size:.75rem;font-weight:600;line-height:1.5}
+.detail strong{font-size:1rem;font-weight:500;line-height:1.5;overflow-wrap:anywhere}
+.record-section{padding:20px 0}
+.record-section p{font-size:1rem;line-height:1.55;overflow-wrap:anywhere}
+.related-grid{gap:12px;margin:20px 0}
+.related-grid div{padding:16px}
+.related-grid span{font-size:.875rem;line-height:1.5}
+.search-grid{grid-template-columns:minmax(0,1fr) 180px 190px auto;gap:12px;margin-bottom:18px}
+.record-title{flex-wrap:wrap}
+.nested-panel{padding:20px;margin:16px 0}
+.creative-grid{gap:14px}
+.daily-queue{gap:20px;margin-bottom:28px}
+.workflow-guide{margin:28px 0}
+.workflow-guide summary{font-size:1rem;line-height:1.55}
+.workflow-guide li{margin:16px 0;line-height:1.55}
+@media(max-width:900px){
+ .app-shell{grid-template-columns:minmax(0,1fr)}
+ .topbar{padding:16px 20px}
+ .global-search{padding:18px 20px}
+ .status-grid,.search-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .detail-grid{grid-template-columns:minmax(0,1fr)}
+}
+@media(max-width:560px){
+ .panel{padding:20px}
+ .status-grid,.form-grid,.search-grid{grid-template-columns:minmax(0,1fr)}
+ .environment{font-size:.75rem;padding:7px 9px;letter-spacing:.04em}
+ .topbar strong{font-size:.9375rem}
+ .system-strip span{padding:16px}
+}
