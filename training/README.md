@@ -24,16 +24,16 @@ Apply these approved boundaries to the existing Discord ADMIN SETUP CARD and ope
 6. Monitor verified DATA INTAKE, RETARGETING and CREATOR PERFORMANCE facts. Meta attribution is distinct from Shopify order/refund facts. Escalate discrepancies; do not expand budgets or treat imported metrics as approval.
 7. Capture closeout facts and evidence. Management verifies completion, money, rights and unresolved exceptions. No payment, new campaign or extra spend follows automatically.
 
-Before onboarding, the existing setup card must identify the actual approved intake/drop links, escalation lead and backup, handoff location, coverage, authorized identities and training URL. They must be read from the current setup infrastructure or supplied by the Owner; do not invent personnel or route sensitive approvals to the support mailbox. The Owner email in the approval message is still `[INSERT OWNER EMAIL]` and must be replaced with the actual individual identity.
+Before onboarding, the existing setup card must identify the actual approved intake/drop links, escalation lead and backup, handoff location, coverage, authorized identities and training URL. They must be read from the current setup infrastructure or supplied by the Owner; do not invent personnel or route sensitive approvals to the support mailbox. The approved Owner/Administrator identity is `team@creatorloop.net`, reserved for the Owner/Administrator and never a shared employee login. Each employee requires a separately authorized individual identity.
 
 ## Production rollout order
 
 1. Authenticate Wrangler to the correct existing account. Take a D1 export and record counts, IDs, terms, operator identities and audit counts.
-2. Apply `0004_operator_permissions.sql` remotely with Wrangler's D1 file/migration execution, not the dashboard multi-statement query box. Verify its registration and `PRAGMA foreign_key_check`; verify pre-existing records, compensation and audit history are unchanged.
-3. Deploy the tested commit; install the updated bound Apps Script and run the signed round trip. Source queues remain unverified until real imports/exports pass.
-4. Provision the actual individual Owner, configure the Cloudflare Access allowlist and bootstrap identity, and verify sign-in and intended permissions. Only then disable the historical support operator and remove support authorization from Access/bootstrap. Keep historical IDs and audit attribution unchanged.
+2. First provision `team@creatorloop.net` as an ACTIVE ADMINISTRATOR and add it to the Cloudflare Access authorization without removing support access. Verify that this identity successfully authenticates to the Console and has the intended Owner/Admin permissions. A Wrangler authorization alone does not verify Console sign-in.
+3. Apply `0004_operator_permissions.sql` remotely with Wrangler's D1 file/migration execution, not the dashboard multi-statement query box. Verify its registration and `PRAGMA foreign_key_check`; verify pre-existing records, compensation and audit history are unchanged. Deploy the tested commit; install the updated bound Apps Script and run the signed round trip. Source queues remain unverified until real imports/exports pass.
+4. Only after successful Owner/Admin Console verification, disable the historical support operator and remove support authorization from Cloudflare Access and bootstrap configuration wherever applicable. Keep the historical support operator record, IDs and audit attribution unchanged; its business mailbox is unaffected.
 5. Verify individual routine operator reads/writes and prohibited attempts live; verify Owner/Admin, QA, Operations and delegated approvals.
 6. Verify external source connections and exact mappings before enabling authoritative imports. No Shopify/Meta/Klaviyo/Discord integration is currently verified in this execution environment.
 7. Run the hosted training walkthrough and employee-facing SOP check. Certify operator readiness only after all live checks pass.
 
-No new policy approval is needed for the architecture above. Remaining account sign-ins, individual email substitution and connection permissions are execution dependencies.
+No new policy approval is needed for the architecture above. Remaining account sign-ins and connection permissions are execution dependencies.
