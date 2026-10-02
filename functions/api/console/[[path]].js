@@ -102,8 +102,9 @@ async function dashboard({ env, request }, user) {
     nextAction: QA_ROLES.has(user.role) ? "Review work awaiting QA" : "Start or correct a creator enrollment",
     system: {
       schemaReady: ready,
+      training: env.CONSOLE_ENVIRONMENT === 'TRAINING',
       controlSystem: "PNB Acquisition & Launch Control System",
-      systemOfRecord: "Google Sheets",
+      systemOfRecord: env.CONSOLE_ENVIRONMENT === 'TRAINING' ? 'Isolated training database — fictional records' : 'Google Sheets',
       syncConfigured: Boolean(env.CONTROL_SYSTEM_SYNC_SECRET)
     }
   });

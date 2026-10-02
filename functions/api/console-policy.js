@@ -64,7 +64,9 @@ export async function authorizeFields(db,user,type,body,current=null) {
     if(['Approved','Live','Active'].includes(body[statusKey])) {
       let gates=[];
       try {gates=(await db.prepare("SELECT fields_json FROM console_source_records WHERE tab='LAUNCH CONTROL' AND campaign_id=?").bind(body.campaignId).all()).results.map(row=>JSON.parse(row.fields_json));}catch{}
-      if(!gates.some(g=>g['Owner Approval']==='Approved' && g['Launch Status']==='Approved' && g['Pre-Launch QA']==='READY' && g['Economics Gate']==='READY' && g['Tracking Gate']==='VERIFIED' && g['Rights Gate']==='VERIFIED' && g['Budget Gate']==='READY'))return 'Verified LAUNCH CONTROL and explicit Owner Approval are required before this Status';
+      const campaign=await db.prepare('SELECT platform FROM campaigns WHERE id=?').bind(body.campaignId).first();
+      const applicable=gates.filter(g=>campaign?.platform && g['Platform']===campaign.platform && g['Campaign ID']===body.campaignId);
+      if(!applicable.length || !applicable.every(g=>g['Owner Approval']==='Approved' && g['Launch Status']==='Approved' && g['Pre-Launch QA']==='READY' && g['Economics Gate']==='READY' && g['Tracking Gate']==='VERIFIED' && g['Rights Gate']==='VERIFIED' && g['Budget Gate']==='READY'))return 'Verified LAUNCH CONTROL for this Campaign ID and Platform, with explicit Owner Approval, is required before this Status';
     }
   }
   const needs=changed.filter(k=>controlled[type].has(k)||(k==='evidenceLink' && current?.rights_status==='Paid Usage Approved'));

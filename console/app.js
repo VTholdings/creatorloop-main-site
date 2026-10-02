@@ -81,13 +81,14 @@ function renderHome() {
   const today = operatingDate();
   const queue = dailyWork(state.creators, state.assignments, data.user, today);
   $("#home-view").innerHTML =
+    (data.system.training ? '<div class="notice error persistent"><strong>TRAINING — FICTIONAL DATA</strong><p>Practice only. This isolated environment cannot synchronize with the PNB Acquisition &amp; Launch Control System. No real payment, compensation change, advertising delivery, or campaign launch is authorized.</p></div>' : '') +
     '<div class="hero"><span class="eyebrow">OPERATOR HOME</span>' +
     '<h1>What do I need<br><em>to do today?</em></h1>' +
     '<p>Open the record below. Check the facts and proof. Send completed creator work to QA. Escalate decisions outside your role.</p>' +
     '<div class="identity-callout"><strong>' + esc(data.campaign.id) + '</strong><span>' + esc(data.campaign.name) + '</span></div>' +
     '<button class="action" data-go="work">Open creator work</button></div>' +
     (!data.system.schemaReady ? '<div class="notice error persistent">V2 database migration is pending. Browsing remains available; record changes are locked.</div>' : "") +
-    (/TEST\s*\/\s*FICTIONAL|certification/i.test(data.campaign.notes || "") ? '<div class="panel"><strong>Certification data</strong><p>This campaign contains fictional certification records. An isolated operator training campaign has not been established. These records do not authorize payment, paid use, or launch.</p></div>' : "") +
+    (!data.system.training && /TEST\s*\/\s*FICTIONAL|certification/i.test(data.campaign.notes || "") ? '<div class="panel"><strong>Certification data</strong><p>This campaign contains fictional certification records. Practice only in the separately designated hosted training environment. These records do not authorize payment, paid use, or launch.</p></div>' : "") +
     '<div class="section-head"><div><h2>Today’s creator work</h2><p>' + esc(today) + ' · Pacific/Honolulu · Selected campaign. Only records authorized for your identity are shown.</p></div></div>' +
     dailyWorkCards(queue.actionable, 'No actionable creator records or dated assignments are currently shown. Other workflow checks below still apply.') +
     (queue.waiting.length ? '<div class="section-head"><div><h2>Waiting for QA</h2><p>An authorized reviewer makes the decision.</p></div></div>' + dailyWorkCards(queue.waiting, '') : '') +
@@ -95,7 +96,7 @@ function renderHome() {
     operationalQueueCards() + operatorWorkflowGuide() +
     '<div class="system-strip"><span><b>SYSTEM OF RECORD</b>' + esc(data.system.systemOfRecord) + '</span>' +
     '<span><b>CONTROL SYSTEM</b>' + esc(data.system.controlSystem) + '</span>' +
-    '<span><b>SYNC BRIDGE</b>' + (data.system.syncConfigured ? "Configured" : "Activation pending") + '</span></div>' +
+    '<span><b>SYNC BRIDGE</b>' + (data.system.training ? 'Production synchronization disabled' : data.system.syncConfigured ? "Configured" : "Activation pending") + '</span></div>' +
     '<div class="section-head"><div><h2>Work status</h2><p>Live D1 counts for ' + esc(campaignLabel(data.campaign)) + '.</p></div></div>' +
     '<div class="status-grid"><div class="status-card ready"><small>READY</small><strong>' + total("AVAILABLE") + '</strong></div>' +
     '<div class="status-card progress"><small>IN PROGRESS</small><strong>' + total("IN_PROGRESS") + '</strong></div>' +

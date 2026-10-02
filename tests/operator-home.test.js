@@ -41,9 +41,18 @@ test('Home names unavailable queues and approval limits; login identity and task
   assert.match(home,/No actionable creator records/);
   assert.match(home,/Submissions require a verified source/);
   assert.match(home,/QA PASS is not Owner Approval/);
-  assert.match(home,/isolated operator training campaign has not been established/);
+  assert.match(home,/separately designated hosted training environment/);
   assert.doesNotMatch(home,/Ready to launch/);
   const escaped=runInNewContext("dailyWorkCards([{id:'CR-1',recordId:'CR-1',name:'<script>bad</script>',status:'IN_PROGRESS',instruction:'Check <asset>'}],'')",context);
   assert.doesNotMatch(escaped,/<script>/);
   assert.match(escaped,/&lt;asset&gt;/);
+});
+test('hosted training Home prominently identifies fictional records and disabled production synchronization',async()=>{
+ const {context,elements}=await client();
+ runInNewContext("state.dashboard={user:{role:'OPERATOR'},campaign:{id:'CMP-900',name:'TEST / FICTIONAL — training',status:'IN_PROGRESS',notes:'TEST / FICTIONAL'},counts:{},system:{schemaReady:true,training:true,systemOfRecord:'Isolated training database — fictional records',controlSystem:'PNB Acquisition & Launch Control System',syncConfigured:false}};state.creators=[];state.assignments=[];renderHome();",context);
+ const home=elements.get('#home-view').innerHTML;
+ assert.match(home,/TRAINING — FICTIONAL DATA/);
+ assert.match(home,/Production synchronization disabled/);
+ assert.match(home,/No real payment, compensation change, advertising delivery, or campaign launch is authorized/);
+ assert.doesNotMatch(home,/Certification data/);
 });

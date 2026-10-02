@@ -98,9 +98,26 @@ test('Owner Status change requires verified source launch gates, not a client su
  const {db,env}=await fixture();
  try{
   assert.equal((await call(env,'ADMINISTRATOR','PATCH','assignments/ASG-200',{status:'Live',version:1})).status,403);
-  const fields={'Owner Approval':'Approved','Launch Status':'Approved','Pre-Launch QA':'READY','Economics Gate':'READY','Tracking Gate':'VERIFIED','Rights Gate':'VERIFIED','Budget Gate':'READY'};
+  db.prepare("UPDATE campaigns SET platform='Meta' WHERE id='CMP-100'").run();
+  const fields={'Campaign ID':'CMP-100','Platform':'Meta','Owner Approval':'Approved','Launch Status':'Approved','Pre-Launch QA':'READY','Economics Gate':'READY','Tracking Gate':'VERIFIED','Rights Gate':'VERIFIED','Budget Gate':'READY'};
   db.prepare('INSERT INTO console_source_records(tab,record_id,campaign_id,fields_json,source_version,source_updated_at) VALUES(?,?,?,?,?,?)').run('LAUNCH CONTROL','LCH-200','CMP-100',JSON.stringify(fields),'TRAINING-ONLY',new Date().toISOString());
   assert.equal((await call(env,'OPERATOR','PATCH','assignments/ASG-200',{status:'Live',version:1})).status,403);
   assert.equal((await call(env,'ADMINISTRATOR','PATCH','assignments/ASG-200',{status:'Live',version:1})).status,200);
+ }finally{db.close();}
+});
+test('launch approval cannot cross Platform or Campaign ID and cannot override a matching blocked launch',async()=>{
+ const {db,env}=await fixture();
+ try{
+  db.prepare("UPDATE campaigns SET platform='Meta' WHERE id='CMP-100'").run();
+  const ready={'Campaign ID':'CMP-100','Platform':'TikTok','Owner Approval':'Approved','Launch Status':'Approved','Pre-Launch QA':'READY','Economics Gate':'READY','Tracking Gate':'VERIFIED','Rights Gate':'VERIFIED','Budget Gate':'READY'};
+  const insert=fields=>db.prepare("INSERT OR REPLACE INTO console_source_records(tab,record_id,campaign_id,fields_json,source_version,source_updated_at) VALUES('LAUNCH CONTROL','LCH-200','CMP-100',?,'TRAINING-ONLY',?)").run(JSON.stringify(fields),new Date().toISOString());
+  const launch=()=>call(env,'ADMINISTRATOR','PATCH','assignments/ASG-200',{status:'Live',version:1});
+  insert(ready);assert.equal((await launch()).status,403);
+  insert({...ready,Platform:'Meta','Campaign ID':'CMP-200'});assert.equal((await launch()).status,403);
+  insert({...ready,Platform:'Meta'});
+  db.prepare("INSERT INTO console_source_records(tab,record_id,campaign_id,fields_json,source_version,source_updated_at) VALUES('LAUNCH CONTROL','LCH-201','CMP-100',?,'TRAINING-ONLY',?)").run(JSON.stringify({...ready,Platform:'Meta','Owner Approval':'','Launch Status':'Blocked'}),new Date().toISOString());
+  assert.equal((await launch()).status,403);
+  db.prepare("DELETE FROM console_source_records WHERE record_id='LCH-201'").run();
+  assert.equal((await launch()).status,200);
  }finally{db.close();}
 });
