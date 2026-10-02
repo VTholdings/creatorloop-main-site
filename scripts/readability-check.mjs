@@ -68,6 +68,7 @@ async function navigate(page,view,width){
  if(width<=900)await page.locator('#menu').click();
  await page.locator('.nav-button[data-view="'+view+'"]').click();
  await page.locator('#'+view+'-view').waitFor({state:'visible'});
+ if(width<=900)await page.waitForFunction(()=>document.querySelector('.sidebar').getBoundingClientRect().right<=0.5);
 }
 async function check(page,role,width,view){
  const data=await page.evaluate(()=>{
