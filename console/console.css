@@ -31,7 +31,7 @@ body{font-size:1rem;line-height:1.55}
 .panel h3,.record-section h3{font-size:1.0625rem;line-height:1.45}
 .section-head p,.field-help{font-size:.875rem;line-height:1.55}
 .status-grid{grid-template-columns:repeat(5,minmax(0,1fr));gap:16px}
-.panel{padding:24px}
+.panel{padding:24px;container-type:inline-size}
 .status-card{padding:20px}
 .status-card small{font-size:.75rem;font-weight:600;line-height:1.5;overflow-wrap:anywhere}
 .record,.campaign-card{padding:20px;font-family:inherit;font-size:1rem;line-height:1.5}
@@ -39,6 +39,7 @@ body{font-size:1rem;line-height:1.55}
 .record small,.campaign-card small,.creative-grid small{font-size:.875rem;line-height:1.5;overflow-wrap:anywhere}
 .badge,.sync-state{font-size:.75rem;font-weight:600;line-height:1.5;overflow-wrap:anywhere}
 form{gap:20px}
+.work-layout{grid-template-columns:minmax(220px,420px) minmax(320px,1fr)}
 .form-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:20px 18px}
 label{font-size:.875rem;line-height:1.5;gap:9px}
 input,select,textarea{font-size:1rem;line-height:1.5;font-weight:500;padding:13px 14px;min-width:0}
@@ -71,20 +72,22 @@ textarea{min-height:108px}
 .related-grid{gap:12px;margin:20px 0}
 .related-grid div{padding:16px}
 .related-grid span{font-size:.875rem;line-height:1.5}
-.search-grid{grid-template-columns:minmax(0,1fr) 180px 190px auto;gap:12px;margin-bottom:18px}
+.search-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:12px;margin-bottom:18px}
 .record-title{flex-wrap:wrap}
-.nested-panel{padding:20px;margin:16px 0}
+.nested-panel{padding:20px;margin:16px 0;container-type:inline-size}
 .creative-grid{gap:14px}
 .daily-queue{gap:20px;margin-bottom:28px}
 .workflow-guide{margin:28px 0}
 .workflow-guide summary{font-size:1rem;line-height:1.55}
 .workflow-guide li{margin:16px 0;line-height:1.55}
+@container(max-width:380px){.form-grid{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:900px){
  .app-shell{grid-template-columns:minmax(0,1fr)}
  .topbar{padding:16px 20px}
  .global-search{padding:18px 20px}
  .status-grid,.search-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
  .detail-grid{grid-template-columns:minmax(0,1fr)}
+ .work-layout{grid-template-columns:minmax(0,1fr)}
 }
 @media(max-width:560px){
  .panel{padding:20px}

@@ -74,7 +74,7 @@ async function check(page,role,width,view){
   const visible=el=>!!(el.getBoundingClientRect().width&&el.getBoundingClientRect().height)&&getComputedStyle(el).display!=='none'&&!el.closest('[hidden]');
   const value=(selector,key)=>{const el=[...document.querySelectorAll(selector)].find(visible);return el?getComputedStyle(el)[key]:null;};
   const overflow=[...document.querySelectorAll('.panel,.hero,.record,.campaign-card,.section-head,.guide,.detail-grid,.form-grid,.status-grid,.search-grid,.topbar')].filter(visible).filter(el=>!el.classList.contains('audit-wrap')&&el.scrollWidth>el.clientWidth+2).map(el=>({tag:el.tagName,class:el.className,client:el.clientWidth,scroll:el.scrollWidth}));
-  return {rootOverflow:document.documentElement.scrollWidth>innerWidth+2,overflow,body:getComputedStyle(document.body).fontSize,family:getComputedStyle(document.body).fontFamily,values:value('input,select,textarea','fontSize'),guide:value('.guide b','fontSize'),help:value('.field-help','fontSize'),navVisible:visible(document.querySelector('#menu')),hiddenBroken:[...document.querySelectorAll('[hidden]')].some(el=>getComputedStyle(el).display!=='none'),formColumns:value('.form-grid','gridTemplateColumns')};
+  return {rootOverflow:document.documentElement.scrollWidth>innerWidth+2,overflow,body:getComputedStyle(document.body).fontSize,family:getComputedStyle(document.body).fontFamily,values:value('input,select,textarea','fontSize'),guide:value('.guide b','fontSize'),help:value('.field-help','fontSize'),navVisible:visible(document.querySelector('#menu')),hiddenBroken:[...document.querySelectorAll('[hidden]')].some(el=>getComputedStyle(el).display!=='none'),formColumns:value('.form-grid','gridTemplateColumns'),minimumRecordFieldWidth:Math.min(...[...document.querySelectorAll('#editor input:not([type="hidden"]),#editor select,#editor textarea')].filter(visible).map(el=>el.getBoundingClientRect().width))};
  });
  if((['OPERATOR','ADMINISTRATOR'].includes(role)&&[320,390,901,1440].includes(width))||data.rootOverflow||data.overflow.length)await page.screenshot({path:resolve(output,role+'-'+view+'-'+width+'.png'),fullPage:true});
  assert.equal(data.rootOverflow,false,JSON.stringify({role,width,view,...data}));
@@ -84,6 +84,10 @@ async function check(page,role,width,view){
  if(data.guide)assert.equal(data.guide,'12px');
  if(data.help)assert.equal(data.help,'14px');
  assert.equal(data.navVisible,width<=900);assert.equal(data.hiddenBroken,false);
- if(view==='work')assert.equal(data.formColumns.split(' ').length,width<=560?1:2);
+ if(view==='work'){
+  assert.ok(data.minimumRecordFieldWidth>=160,'Record fields must remain usable at 16px');
+  assert.equal(data.formColumns.split(' ').length<=2,true);
+  if(width<=560)assert.equal(data.formColumns.split(' ').length,1);
+ }
  results.push({role,width,view,...data});
 }
