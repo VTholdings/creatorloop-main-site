@@ -42,9 +42,9 @@ try{
   await page.evaluate(()=>document.fonts.ready);
   for(const width of widths){
    await page.setViewportSize({width,height:1000});
-   await page.evaluate(()=>show('home'));
+   await navigate(page,'home',width);
    await check(page,role,width,'home');
-   await page.evaluate(()=>show('work'));
+   await navigate(page,'work',width);
    await page.locator('#work-view [data-record="CR-200"]').click();
    await page.locator('#creator-form').waitFor({state:'visible'});
    await check(page,role,width,'work');
@@ -52,7 +52,7 @@ try{
    assert.equal(disabled,role!=='ADMINISTRATOR','Compensation control role lock');
    assert.equal(await page.locator('#creator-form [name="rightsStatus"]').isDisabled(),role!=='ADMINISTRATOR','Rights control role lock');
    if(role==='QA_REVIEWER')assert.equal(await page.locator('#creator-form [name="creatorName"]').isDisabled(),true);
-   await page.evaluate(()=>show('campaigns'));
+   await navigate(page,'campaigns',width);
    await page.locator('#campaigns-view [data-campaign="CMP-100"]').click();
    await page.locator('#campaign-detail .detail-grid').waitFor({state:'visible'});
    await check(page,role,width,'campaigns');
@@ -64,6 +64,11 @@ try{
 }catch(e){
  await writeFile(resolve(output,'results.json'),JSON.stringify({result:'FAIL',error:e.message,checks:results},null,2));throw e;
 }finally{await browser?.close();await new Promise(r=>server.close(r));db.close();}
+async function navigate(page,view,width){
+ if(width<=900)await page.locator('#menu').click();
+ await page.locator('.nav-button[data-view="'+view+'"]').click();
+ await page.locator('#'+view+'-view').waitFor({state:'visible'});
+}
 async function check(page,role,width,view){
  const data=await page.evaluate(()=>{
   const visible=el=>!!(el.getBoundingClientRect().width&&el.getBoundingClientRect().height)&&getComputedStyle(el).display!=='none'&&!el.closest('[hidden]');
