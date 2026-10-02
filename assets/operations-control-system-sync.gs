@@ -65,7 +65,8 @@ function buildCreatorLoopSnapshot_() {
     campaigns: campaignRows_(),
     creators: creatorRows_(primaryCampaign),
     assignments: assignments,
-    creatives: creativeRows_()
+    creatives: creativeRows_(),
+    operationalRecords: operationalRows_(primaryCampaign)
   };
 }
 
@@ -275,6 +276,12 @@ function applyConsoleChange_(change) {
     });
     return;
   }
+  if(change.entity_type==='DECISION' && change.action==='UPSERT') {
+    const allowed=['Type','Severity','Status','Related ID','Date Opened','Decision Needed / Blocker','Recommendation','Evidence Link','Notes'];
+    const values={};allowed.forEach(function(key){if(payload.fields && key in payload.fields)values[key]=payload.fields[key];});
+    if(values.Status!=='In Progress')throw new Error('An escalation cannot approve or resolve a decision');
+    upsertMappedRow_('DECISIONS & BLOCKERS','Record ID',payload.id,values);return;
+  }
   throw new Error("Unsupported Console change: " + change.entity_type);
 }
 
@@ -328,7 +335,7 @@ function upsertMappedRow_(sheetName,idHeader,id,values) {
     target.setDataValidations(template.getDataValidations());
     table.sheet.getRange(rowNumber,idColumn + 1).setValue(id);
   }
-  const formulaHeaders = ["Product Scope","Platform","ID Integrity","Attributed Revenue ($)","Commission ($)","Total Creator Cost ($)","Last Updated"];
+  const formulaHeaders = ["Product Scope","Platform","ID Integrity","Attributed Revenue ($)","Commission ($)","Total Creator Cost ($)","Last Updated","Owner"];
   formulaHeaders.forEach((header) => {
     const column = table.headers.indexOf(header);
     if (column < 0 || writable.includes(header)) return;
@@ -340,3 +347,19 @@ function upsertMappedRow_(sheetName,idHeader,id,values) {
   writes.forEach((write) => write.cell.setValue(write.value));
 }
 
+
+// Read-only operational queues. Exact source headers; formulas are never exported back.
+function operationalRows_(primaryCampaign) {
+  const specs=[['LAUNCH CONTROL','Launch ID'],['DECISIONS & BLOCKERS','Record ID'],['RETARGETING','Audience ID'],['DATA INTAKE','Import Batch'],['CREATOR PERFORMANCE','Creator ID']];
+  const records=[];
+  specs.forEach(function(spec) {
+    const table=rowsByHeader_(spec[0]);
+    table.rows.forEach(function(values) {
+      const row=objectFromRow_(table.headers,values),id=row[spec[1]];
+      const campaign=row['Campaign ID']||primaryCampaign[row['Creator ID']]||primaryCampaign[row['Related ID']]||(/^CMP-\d+$/.test(row['Related ID']||'')?row['Related ID']:null);
+      if(!id||!campaign)return; // No guessed campaign, global economics or ambiguous routing.
+      records.push({tab:spec[0],recordId:id,campaignId:campaign,creatorId:row['Creator ID']||null,fields:row,sourceUpdatedAt:new Date().toISOString()});
+    });
+  });
+  return records;
+}

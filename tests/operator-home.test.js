@@ -39,7 +39,7 @@ test('Home names unavailable queues and approval limits; login identity and task
   assert.equal(elements.get('#operator-login').textContent,'person@example.com');
   const home=elements.get('#home-view').innerHTML;
   assert.match(home,/No actionable creator records/);
-  assert.match(home,/Submissions are not connected/);
+  assert.match(home,/Submissions require a verified source/);
   assert.match(home,/QA PASS is not Owner Approval/);
   assert.match(home,/isolated operator training campaign has not been established/);
   assert.doesNotMatch(home,/Ready to launch/);

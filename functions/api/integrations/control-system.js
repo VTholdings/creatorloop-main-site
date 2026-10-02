@@ -1,3 +1,4 @@
+import { SOURCE_FIELDS } from '../operator-workflows.js';
 const json = (body, status = 200) => new Response(JSON.stringify(body), {
   status,
   headers: { "Content-Type": "application/json", "Cache-Control": "no-store" }
@@ -23,6 +24,7 @@ async function verify(request, secret, rawBody = "") {
 }
 
 export async function onRequest(context) {
+  if(context.env.CONSOLE_ENVIRONMENT==='TRAINING')return json({error:'Training environment has no production synchronization'},403);
   if (!context.env.OPERATIONS_DB) return json({ error: "Database unavailable" }, 503);
   const rawBody = context.request.method === "POST" ? await context.request.text() : "";
   if (!(await verify(context.request, context.env.CONTROL_SYSTEM_SYNC_SECRET, rawBody))) {
@@ -44,13 +46,16 @@ export async function onRequest(context) {
 }
 
 async function exportPending(db) {
+  let source=[];
+  try {source=(await db.prepare("SELECT id,idempotency_key,entity_type,entity_id,action,payload_json,created_at FROM console_source_outbox WHERE status IN ('PENDING','FAILED','EXPORTED') ORDER BY created_at LIMIT 100").all()).results;}catch{}
   const rows = await db.prepare("SELECT id,idempotency_key,entity_type,entity_id,action,payload_json,created_at FROM control_system_outbox WHERE status IN ('PENDING','FAILED','EXPORTED') ORDER BY created_at,rowid LIMIT 100").all();
   if (rows.results.length) {
     await db.batch(rows.results.map((row) =>
       db.prepare("UPDATE control_system_outbox SET status='EXPORTED',attempt_count=attempt_count+1,exported_at=CURRENT_TIMESTAMP,last_error=NULL WHERE id=?").bind(row.id)
     ));
   }
-  return json({ changes: rows.results.map((row) => ({ ...row, payload: JSON.parse(row.payload_json) })) });
+  if(source.length)await db.batch(source.map(row=>db.prepare("UPDATE console_source_outbox SET status='EXPORTED',attempt_count=attempt_count+1,exported_at=CURRENT_TIMESTAMP,last_error=NULL WHERE id=?").bind(row.id)));
+  return json({ changes: [...rows.results,...source].map((row) => ({ ...row, payload: JSON.parse(row.payload_json) })) });
 }
 
 async function acknowledge(db, payload) {
@@ -59,6 +64,9 @@ async function acknowledge(db, payload) {
   await db.batch(ids.map((id) =>
     db.prepare("UPDATE control_system_outbox SET status='ACKNOWLEDGED',acknowledged_at=CURRENT_TIMESTAMP,last_error=NULL WHERE id=? AND status IN ('EXPORTED','PENDING')").bind(id)
   ));
+  let sourceReady=false;
+  try {sourceReady=Boolean(await db.prepare("SELECT version FROM schema_migrations WHERE version='0004_operator_permissions'").first());}catch{}
+  if(sourceReady)await db.batch(ids.map(id=>db.prepare("UPDATE console_source_outbox SET status='ACKED',acknowledged_at=CURRENT_TIMESTAMP,last_error=NULL WHERE id=? AND status IN ('PENDING','EXPORTED')").bind(id)));
   return json({ acknowledged: ids.length });
 }
 
@@ -69,7 +77,7 @@ async function importSnapshot(db, payload) {
   const existing = await db.prepare("SELECT status FROM control_system_imports WHERE event_id=?").bind(eventId).first();
   if (existing) return json({ eventId, status: existing.status, replay: true });
   const digest = hex(await crypto.subtle.digest("SHA-256", encoder.encode(JSON.stringify(payload))));
-  const collections = ["campaigns","creators","assignments","creatives"];
+  const collections = ["campaigns","creators","assignments","creatives","operationalRecords"];
   const count = collections.reduce((sum, key) => sum + (Array.isArray(payload[key]) ? payload[key].length : 0), 0);
   await db.prepare("INSERT INTO control_system_imports (event_id,source_version,payload_hash,record_count,status) VALUES (?,?,?,?,?)")
     .bind(eventId,sourceVersion,digest,count,"PROCESSING").run();
@@ -79,6 +87,13 @@ async function importSnapshot(db, payload) {
     for (const row of payload.creators || []) statements.push(upsertCreator(db,row,sourceVersion));
     for (const row of payload.assignments || []) statements.push(upsertAssignment(db,row,sourceVersion));
     for (const row of payload.creatives || []) statements.push(upsertCreative(db,row,sourceVersion));
+    for (const row of payload.operationalRecords || []) {
+      if(!SOURCE_FIELDS[row.tab] || !row.recordId || !row.campaignId || !row.fields || typeof row.fields!=='object' || Array.isArray(row.fields))throw new Error('Invalid established operational source record');
+      const fields=Object.fromEntries(Object.entries(row.fields).filter(([key])=>SOURCE_FIELDS[row.tab].includes(key)));
+      statements.push(db.prepare(`INSERT INTO console_source_records(tab,record_id,campaign_id,creator_id,fields_json,source_version,source_updated_at) VALUES(?,?,?,?,?,?,?)
+        ON CONFLICT(tab,record_id) DO UPDATE SET campaign_id=excluded.campaign_id,creator_id=excluded.creator_id,fields_json=excluded.fields_json,source_version=excluded.source_version,source_updated_at=excluded.source_updated_at
+        WHERE excluded.source_updated_at>=console_source_records.source_updated_at`).bind(row.tab,row.recordId,row.campaignId,row.creatorId||null,JSON.stringify(fields),sourceVersion,row.sourceUpdatedAt||new Date().toISOString()));
+    }
     if (statements.length) await db.batch(statements);
     await db.prepare("UPDATE control_system_imports SET status='APPLIED',applied_at=CURRENT_TIMESTAMP WHERE event_id=?").bind(eventId).run();
     return json({ eventId, status: "APPLIED", records: count });
@@ -113,4 +128,3 @@ const upsertCreative = (db,row,version) => db.prepare(`INSERT INTO creatives
   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
   ON CONFLICT(id) DO UPDATE SET creative_name=excluded.creative_name,creator_id=excluded.creator_id,campaign_id=excluded.campaign_id,product=excluded.product,angle=excluded.angle,format=excluded.format,platform=excluded.platform,rights_status=excluded.rights_status,approval_status=excluded.approval_status,destination_url=excluded.destination_url,evidence_link=excluded.evidence_link,last_updated=excluded.last_updated,sync_status='SYNCED',source_updated_at=excluded.source_updated_at,source_version=excluded.source_version
   WHERE ${newer} AND NOT EXISTS (SELECT 1 FROM control_system_outbox o WHERE o.entity_type='CREATIVE' AND o.entity_id=excluded.id AND o.status IN ('PENDING','EXPORTED','FAILED'))`).bind(row.id,row.creativeName,row.creatorId,row.campaignId,row.product,row.angle||null,row.format,row.platform,row.rightsStatus,row.approvalStatus,row.destinationUrl||null,row.evidenceLink||null,row.createdDate||null,row.sourceUpdatedAt||new Date().toISOString(),"SYNCED",row.sourceUpdatedAt||new Date().toISOString(),version);
-
