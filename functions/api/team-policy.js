@@ -32,8 +32,10 @@ export function guardedDatabase(db,user) {
  prepare(sql){return db.prepare(sql);},
  async batch(statements){
   const id=crypto.randomUUID();
+  const checks=user.commitChecks||[];
+  const expectedVersion=checks.length?'CASE WHEN '+checks.map(check=>'('+check.sql+')').join(' AND ')+' THEN ? ELSE -1 END':'?';
   const results=await db.batch([
-   db.prepare('INSERT INTO console_mutation_guards(id,operator_id,expected_role,expected_version) VALUES(?,?,?,?)').bind(id,user.id,user.role,user.teamProfile?.version||0),
+   db.prepare('INSERT INTO console_mutation_guards(id,operator_id,expected_role,expected_version) VALUES(?,?,?,'+expectedVersion+')').bind(id,user.id,user.role,...checks.flatMap(check=>check.values),user.teamProfile?.version||0),
    ...statements,db.prepare('DELETE FROM console_mutation_guards WHERE id=?').bind(id)
   ]);
   return results.slice(1,-1);

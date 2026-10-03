@@ -50,3 +50,5 @@ Locally signed RSA JWT tests pass through the actual middleware and Console API.
 - Operator Readiness Certified: not certified. Local signed source round-trip coverage now preserves pending escalations through import, export, acknowledgement and reimport. Hosted bridge evidence, actual source mapping/connections, operational queues, training deployment/isolation, OPS VIEW and employee handoff remain separate gates.
 
 Keep the pull request draft. No production merge or deployment is authorized by these local tests.
+
+Controlled editing is staged in the same draft; see [controlled-record-editing.md](controlled-record-editing.md). Its local View/Edit/Review/Save, before/after audit, current-scope/decision guards and narrow campaign Notes synchronization tests do not replace hosted acceptance. Include the updated bound bridge in the eventual controlled rollout; no live workbook installation is performed during draft development.

@@ -55,9 +55,11 @@ const equivalent=(a,b)=>String(a??'')===String(b??'') || (a!==null && b!==null &
 export async function authorizeFields(db,user,type,body,current=null) {
   if(!FactualRoles.has(user.role))return 'This role may not change operational facts';
   const keys=type==='CREATOR'?creatorKeys:assignmentKeys;
-  const known=new Set([...Object.keys(keys),'campaignId','creatorId','environment','version','authorizationId']);
+  const known=new Set([...Object.keys(keys),'campaignId','creatorId','environment','version','authorizationId','saveIntent']);
   if(Object.keys(body).some(key=>!known.has(key)))return 'Unrecognized or restricted operational fields were supplied';
+  if(body.saveIntent!==undefined&&body.saveIntent!=='REVIEWED_RECORD_EDIT')return 'Unsupported save intent';
   const baseline=current|| (type==='CREATOR'?{compensation_model:'N/A',rights_status:'Not Reviewed',creator_status:'Not Started',product_focus:''}:{fixed_content_fee:0,commission_rate:0,attribution_window_days:30,paid_usage_rights:'Pending',evidence_status:'Planned',status:'Not Started'});
+  if(!current&&type==='CREATOR')baseline.product_focus=body.productFocus;
   if(!current && user.role!=='ADMINISTRATOR' && type==='CREATOR') {
     body.compensationModel ??= 'N/A';body.rightsStatus ??='Not Reviewed';body.creatorStatus ??='Not Started';
     // Selecting an assigned approved campaign's Product Focus is factual processing, not a new offer.
@@ -76,12 +78,13 @@ export async function authorizeFields(db,user,type,body,current=null) {
     }
   }
   const needs=changed.filter(k=>controlled[type].has(k)||(k==='evidenceLink' && current?.rights_status==='Paid Usage Approved'));
-  if(needs.length && user.role!=='ADMINISTRATOR') {
+  if(needs.length && (user.role!=='ADMINISTRATOR'||user.teamGovernance||body.saveIntent==='REVIEWED_RECORD_EDIT')) {
     let decision=null;
     try { decision=await db.prepare('SELECT * FROM console_authorizations WHERE id=? AND entity_type=? AND entity_id=? AND campaign_id=? AND revoked_at IS NULL AND (expires_at IS NULL OR datetime(expires_at)>CURRENT_TIMESTAMP)').bind(body.authorizationId||'',type,current?.id||'NEW',body.campaignId).first(); } catch {}
     const approved=decision?JSON.parse(decision.values_json):{};
-    const canRecord=user.role==='OPERATIONS' || (user.role==='OPERATOR' && needs.every(k=>['startDate','contentDue'].includes(k)));
+    const canRecord=['ADMINISTRATOR','OPERATIONS'].includes(user.role) || (user.role==='OPERATOR' && needs.every(k=>['startDate','contentDue'].includes(k)));
     if(!canRecord || !needs.every(k=>k in approved && equivalent(body[k],approved[k])))return 'Authorized decision required for '+needs.map(k=>FIELD_NAMES[k]).join(', ');
+    (user.commitChecks||=[]).push({sql:"EXISTS (SELECT 1 FROM console_authorizations WHERE id=? AND values_json=? AND revoked_at IS NULL AND (expires_at IS NULL OR datetime(expires_at)>CURRENT_TIMESTAMP))",values:[decision.id,decision.values_json]});
   }
   // Merge only known fields; protects partial factual updates and rejects changes to locked identities.
   for(const [key,column] of Object.entries(keys))if(!(key in body) && column in baseline)body[key]=baseline[column];

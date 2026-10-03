@@ -53,9 +53,9 @@ test('authorization reference is a role-limited Console control, not a source fi
   for(const role of ['OPERATOR','OPERATIONS','QA_REVIEWER','APPROVAL_AUTHORITY','ADMINISTRATOR']) {
     const {context}=await approvalContext(role);
     const assignment=runInNewContext("approvalReference('ASSIGNMENT')",context);
-    assert.equal(assignment.includes('name="authorizationId"'),['OPERATOR','OPERATIONS'].includes(role));
+    assert.equal(assignment.includes('name="authorizationId"'),['OPERATOR','OPERATIONS','ADMINISTRATOR'].includes(role));
     const creator=runInNewContext("approvalReference('CREATOR')",context);
-    assert.equal(creator.includes('name="authorizationId"'),role==='OPERATIONS');
+    assert.equal(creator.includes('name="authorizationId"'),['OPERATIONS','ADMINISTRATOR'].includes(role));
     if(assignment)assert.match(assignment,/server checks this record, the exact values and the decision validity/);
   }
 });

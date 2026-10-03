@@ -29,6 +29,76 @@ const notice = (message,error = false) => {
   setTimeout(() => { element.hidden = true; },6000);
 };
 
+const recordEditors=new Set();
+function formValues(form) {return Object.fromEntries([...form.querySelectorAll('input[name],select[name],textarea[name]')].map(c=>[c.name,c.value]));}
+function changedValues(before,after) {return Object.fromEntries(Object.entries(after).filter(([key,value])=>String(value??'')!==String(before[key]??'')));}
+function leavePendingEdits() {
+ const pending=[...recordEditors].filter(editor=>editor.form.isConnected&&editor.dirty);
+ if(!pending.length)return true;
+ if(pending.some(editor=>editor.saving)){notice('Wait for the reviewed save to finish before leaving this record.',true);return false;}
+ if(!window.confirm('Discard unsaved record changes and continue?'))return false;
+ pending.forEach(editor=>editor.discard());return true;
+}
+if(typeof window!=='undefined')window.addEventListener('beforeunload',event=>{
+ if([...recordEditors].some(editor=>editor.form.isConnected&&editor.dirty)){event.preventDefault();event.returnValue='';}
+});
+function bindSafeSave(form,{existing=true,canEdit=true,save,onSaved,governed=[]}) {
+ if(!form||form.dataset.safeBound)return;
+ for(const editor of recordEditors)if(!editor.form.isConnected)recordEditors.delete(editor);
+ form.dataset.safeBound='true';
+ canEdit=canEdit&&state.dashboard?.system?.governedEditingReady!==false;
+ const baseline=formValues(form),inputs=[...form.querySelectorAll('input[name],select[name],textarea[name]')];
+ const permissions=new Map(inputs.map(c=>[c,c.disabled]));
+ const submit=form.querySelector('[type="submit"]');
+ form.insertAdjacentHTML('beforeend','<div class="safe-save-controls"><p class="edit-state" role="status" aria-live="polite"></p><button type="button" class="action secondary" data-safe-edit>Edit</button><button type="button" class="action secondary" data-safe-discard>Cancel / Discard</button><button type="button" class="action secondary" data-safe-escalate>Request approval / Escalate</button></div><section class="save-review panel" hidden aria-label="Review pending changes"></section>');
+ const status=form.querySelector('.edit-state'),edit=form.querySelector('[data-safe-edit]'),discard=form.querySelector('[data-safe-discard]'),review=form.querySelector('.save-review');
+ let mode=existing?'VIEW':'EDIT',reviewed=null;
+ const editor={form,dirty:false,discard(){if(mode==='SAVING')return;inputs.forEach(c=>{c.value=baseline[c.name];});reviewed=null;mode=existing?'VIEW':'EDIT';paint();}};
+ recordEditors.add(editor);
+ function paint() {
+  form.dataset.safeMode=mode;
+  editor.saving=mode==='SAVING';
+  inputs.forEach(c=>{c.disabled=permissions.get(c);});
+  if(form.id==='creator-form'||form.classList.contains('assignment-form'))applyRoleControls();
+  else inputs.forEach(c=>{c.disabled=permissions.get(c);});
+  const changes=changedValues(baseline,formValues(form));editor.dirty=Object.keys(changes).length>0;
+  inputs.forEach(c=>{if(mode!=='EDIT')c.disabled=true;c.classList.toggle('modified-field',c.name in changes);const label=c.closest('label');if(label){label.classList.toggle('modified-label',c.name in changes);let marker=label.querySelector('.modified-marker');if(!marker){marker=document.createElement('span');marker.className='modified-marker';marker.textContent='Modified — unsaved';label.append(marker);}marker.hidden=!(c.name in changes);}});
+  status.textContent=mode==='SAVED'?'Changes saved. Refresh the record before editing again.':mode==='SAVING'?'Saving reviewed changes…':mode==='REVIEW'?'Review pending changes. Nothing has been saved.':editor.dirty?'Unsaved changes — review and save, or discard.':mode==='VIEW'?'View only. Choose Edit to prepare changes.':'Editing locally. Changes take effect only after review and Save.';
+  edit.hidden=mode!=='VIEW';edit.disabled=!canEdit;discard.hidden=['VIEW','SAVED'].includes(mode);discard.disabled=mode==='SAVING';
+  form.querySelector('[data-safe-escalate]').disabled=mode==='SAVING';
+  submit.textContent='Save changes';submit.hidden=mode!=='EDIT';submit.disabled=!canEdit||(existing&&!editor.dirty);
+  review.hidden=mode!=='REVIEW';
+ }
+ edit.addEventListener('click',()=>{if(!canEdit)return;mode='EDIT';paint();});
+ discard.addEventListener('click',()=>editor.discard());
+ form.querySelector('[data-safe-escalate]').addEventListener('click',()=>{show('home');$('#escalation-form')?.closest('details')?.setAttribute('open','');$('#escalation-form [name="description"]')?.focus();notice('Record the requested change and evidence in DECISIONS & BLOCKERS. This does not apply or approve the change.');});
+ for(const event of ['input','change'])form.addEventListener(event,()=>{if(mode==='EDIT')paint();});
+ form.addEventListener('submit',event=>{
+  event.preventDefault();if(mode!=='EDIT'||!canEdit||!form.reportValidity())return;
+  const values=formValues(form),changes=changedValues(baseline,values);
+  if(existing&&!Object.keys(changes).length)return;
+  if(existing&&Object.keys(changes).every(key=>key==='authorizationId')){notice('Choose a record change to review. An approval reference alone does not change the record.');return;}
+  if(inputs.some(c=>c.disabled&&c.name in changes)){notice('A modified field is now locked. Discard that change or request approval through escalation.',true);return;}
+  const enabled=Object.fromEntries(inputs.filter(c=>!c.disabled).map(c=>[c.name,c.value]));
+  reviewed=existing?Object.fromEntries(Object.entries(changes).filter(([key])=>key in enabled)):enabled;
+  if(enabled.authorizationId?.trim())reviewed.authorizationId=enabled.authorizationId.trim();
+  const consequential=Object.keys(changes).some(key=>governed.includes(key));
+  review.innerHTML='<h3>Review pending changes</h3><p>Check each value before committing. Permissions, scope, record version and approvals are checked again by the server.</p><table><thead><tr><th>Field</th><th>Before</th><th>After</th></tr></thead><tbody>'+Object.entries(existing?changes:enabled).map(([key,value])=>'<tr><th>'+esc(inputs.find(c=>c.name===key)?.closest('label')?.childNodes[0]?.textContent?.trim()||key)+'</th><td>'+esc(existing?baseline[key]:'New record')+'</td><td>'+esc(value)+'</td></tr>').join('')+'</tbody></table>'+(consequential?'<label><input type="checkbox" data-safe-confirm> I verified the separate approval or authority required for these governed values. This confirmation does not grant approval.</label>':'')+'<div class="form-actions"><button type="button" class="action" data-safe-commit>Confirm and save changes</button><button type="button" class="action secondary" data-safe-back>Back to editing</button></div>';
+  mode='REVIEW';paint();
+  review.querySelector('[data-safe-back]').addEventListener('click',()=>{mode='EDIT';reviewed=null;paint();});
+  review.querySelector('[data-safe-commit]').addEventListener('click',async()=>{
+   if(mode!=='REVIEW')return;
+   if(consequential&&!review.querySelector('[data-safe-confirm]').checked){notice('Confirm the required approval evidence before saving.',true);return;}
+   const payload={...reviewed};mode='SAVING';paint();review.querySelector('[data-safe-commit]').disabled=true;
+   try{await save(payload);}
+   catch(error){mode='EDIT';reviewed=null;paint();notice(error.message,true);return;}
+   Object.assign(baseline,payload);inputs.forEach(c=>{c.value=baseline[c.name];});mode='SAVED';paint();
+   try{await onSaved?.();}catch{notice('Changes were saved, but the view could not refresh. Reopen the record before editing again.',true);}
+  });
+ });
+ paint();return editor;
+}
+
 async function start() {
   try {
     const identity=(await api('me')).user;
@@ -50,6 +120,7 @@ async function start() {
 }
 
 async function loadCampaign(id) {
+  if(!leavePendingEdits())return false;
   state.dashboard = await api("dashboard?campaignId=" + encodeURIComponent(id));
   state.creators = (await api("creators?campaignId=" + encodeURIComponent(id))).creators;
   state.assignments = (await api("campaigns/" + encodeURIComponent(id))).assignments || [];
@@ -190,6 +261,7 @@ function detail(label,value,type) {
 }
 
 async function openCampaign(id) {
+  if(!leavePendingEdits())return;
   state.currentCampaign = await api("campaigns/" + encodeURIComponent(id));
   const campaign = state.currentCampaign.campaign;
   const creators = state.currentCampaign.creators;
@@ -208,6 +280,11 @@ async function openCampaign(id) {
     '<div class="related-grid"><div><b>' + creators.length + '</b><span>Creators</span></div><div><b>' + assignments.length +
     '</b><span>Assignments</span></div><div><b>' + creatives.length + '</b><span>Creatives</span></div></div>' +
     '<button class="action secondary" data-open-work="' + esc(campaign.id) + '">Open campaign work</button>';
+  if(state.currentCampaign.editing?.canEdit){
+    $('#campaign-detail').insertAdjacentHTML('beforeend','<form id="campaign-edit-form"><h3>Operational campaign Notes</h3><p>Generated name, routing, Product Scope, budgets and approval controls stay locked. Request governed changes through approval/escalation.</p><label>Notes <textarea name="notes" maxlength="10000">'+esc(state.currentCampaign.editing.notes)+'</textarea></label><button class="action" type="submit">Save changes</button></form>');
+    const revision=state.currentCampaign.editing.revision;
+    bindSafeSave($('#campaign-edit-form'),{save:body=>api('campaigns/'+campaign.id,{method:'PATCH',body:JSON.stringify({...body,revision})}),onSaved:async()=>{notice('Campaign Notes saved and queued for synchronization.');await openCampaign(campaign.id);}});
+  }
 }
 
 function renderWork() {
@@ -296,11 +373,12 @@ function qaPanel(creator) {
     '<div class="check"><strong>' + esc(review.result) + '</strong> · ' + 'Current reviewer role: ' + esc(review.reviewer_role) + ' · ' + esc(review.created_at) + '<br>' + esc(review.notes || "") + '</div>'
   ).join("");
   return '<div class="section-head"><div><h2>QA gate</h2><p>Evidence plus an authorized decision.</p></div></div><div class="checklist">' + checks + '</div>' +
-    (creator.workflow_status === "AWAITING_QA" && canReview ? '<label>QA notes <textarea id="qa-notes" placeholder="Required for HOLD or CORRECTION REQUIRED"></textarea></label><div class="qa-actions"><button class="pass" data-qa="PASS">PASS</button><button class="hold" data-qa="HOLD">HOLD</button><button class="correction" data-qa="CORRECTION_REQUIRED">CORRECTION REQUIRED</button></div>' : "") +
+    (creator.workflow_status === "AWAITING_QA" && canReview ? '<form id="qa-form"><label>QA result <select name="result" required><option value="">Choose QA result</option><option>PASS</option><option>HOLD</option><option>CORRECTION_REQUIRED</option></select></label><label>QA notes <textarea name="notes" placeholder="Required for HOLD or CORRECTION REQUIRED"></textarea></label><button type="submit" class="action">Save changes</button><p>QA does not grant Owner Approval or authorize launch.</p></form>' : "") +
     (history ? '<h3>QA history</h3><div class="checklist">' + history + '</div>' : "");
 }
 
 async function openRecord(id) {
+  if(!leavePendingEdits())return;
   let record = await api("creators/" + encodeURIComponent(id));
   if (record.creator.campaign_id && record.creator.campaign_id !== state.dashboard.campaign.id) {
     await loadCampaign(record.creator.campaign_id);
@@ -317,6 +395,10 @@ async function openRecord(id) {
 }
 
 function lockEditorIfMigrationPending() {
+  if(state.dashboard.system.governedEditingReady===false){
+    const editor=$('#editor');editor.insertAdjacentHTML('afterbegin','<p class="notice error persistent">Editing is temporarily unavailable. Contact the Administrator.</p>');
+    editor.querySelectorAll('input,select,textarea,button').forEach(control=>{control.disabled=true;});return;
+  }
   if (state.dashboard.system.schemaReady) {
     if (state.current && !state.current.creator.campaign_id) {
       const form = $("#creator-form");
@@ -334,28 +416,13 @@ function lockEditorIfMigrationPending() {
 function bindCreatorForm(creator = {}) {
   applyRoleControls();
   bindApprovalReference($("#creator-form"));
-  $("#creator-form").addEventListener("submit",async (event) => {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const submit = form.querySelector('[type="submit"]');
-    if (submit.disabled) return;
-    submit.disabled=true;
-    const body = Object.fromEntries(new FormData(form));
-    try {
-      if (creator.id) {
-        body.version = creator.version;
-        await api("creators/" + creator.id,{ method: "PATCH",body: JSON.stringify(body) });
-      } else {
-        await api("creators",{ method: "POST",body: JSON.stringify(body) });
-      }
-      notice("Saved, attributed, and queued for Control System synchronization.");
-      await reload("work");
-    } catch (error) {
-      submit.disabled = false;
-      notice(error.message,true);
-    }
-  });
+  bindSafeSave($("#creator-form"),{existing:Boolean(creator.id),canEdit:!!state.dashboard.user.capabilities?.captureFacts,
+    governed:['creatorStatus','compensationModel','rightsStatus','productFocus','evidenceLink'],
+    save:body=>api(creator.id?"creators/"+creator.id:"creators",{method:creator.id?"PATCH":"POST",body:JSON.stringify({...body,saveIntent:'REVIEWED_RECORD_EDIT',...(creator.id?{version:creator.version}:{})})}),
+    onSaved:async()=>{notice("Saved, attributed, and queued for Control System synchronization.");await reload("work");}});
   $("#submit-qa")?.addEventListener("click",async () => {
+    if([...recordEditors].some(e=>e.form.isConnected&&e.dirty)){notice("Save or discard local changes before sending to QA.",true);return;}
+    if(!window.confirm("Send the saved record to QA and lock factual editing?"))return;
     try {
       await api("creators/" + creator.id,{ method: "PATCH",body: JSON.stringify({ action: "AWAITING_QA",version: creator.version }) });
       notice("Sent to QA. The record is now locked.");
@@ -363,16 +430,13 @@ function bindCreatorForm(creator = {}) {
     } catch (error) { notice(error.message,true); }
   });
   $("#new-assignment")?.addEventListener("click",() => {
+    if(!leavePendingEdits())return;
     $("#assignment-new").innerHTML = assignmentForm();
     bindAssignments();
   });
-  document.querySelectorAll("[data-qa]").forEach((button) => button.addEventListener("click",async () => {
-    try {
-      await api("qa/" + creator.id,{ method: "POST",body: JSON.stringify({ result: button.dataset.qa,notes: $("#qa-notes").value,version: creator.version }) });
-      notice("QA result saved: " + button.dataset.qa.replaceAll("_"," "));
-      await reload("work");
-    } catch (error) { notice(error.message,true); }
-  }));
+  if($('#qa-form'))bindSafeSave($('#qa-form'),{governed:['result'],
+    save:body=>api('qa/'+creator.id,{method:'POST',body:JSON.stringify({...body,saveIntent:'REVIEWED_RECORD_EDIT',version:creator.version})}),
+    onSaved:async()=>{notice('QA review recorded. This does not authorize launch.');await reload('work');}});
 }
 
 function bindAssignments() {
@@ -381,22 +445,16 @@ function bindAssignments() {
     if (form.dataset.bound) return;
     form.dataset.bound = "true";
     bindApprovalReference(form);
-    form.addEventListener("submit",async (event) => {
-      event.preventDefault();
-      const body = Object.fromEntries(new FormData(form));
-      const id = form.dataset.assignmentId;
-      if (!body.campaignId) body.campaignId = state.current.creator.campaign_id;
-      if (id) body.version = Number(form.dataset.version);
-      try {
-        await api(id ? "assignments/" + id : "assignments",{ method: id ? "PATCH" : "POST",body: JSON.stringify(body) });
-        notice("Assignment saved and queued for synchronization.");
-        await openRecord(state.current.creator.id);
-      } catch (error) { notice(error.message,true); }
-    });
+    const id=form.dataset.assignmentId;
+    bindSafeSave(form,{existing:Boolean(id),canEdit:!!state.dashboard.user.capabilities?.captureFacts,
+      governed:['status','startDate','contentDue','fixedContentFee','commissionRate','attributionWindowDays','paidUsageRights','evidenceStatus','signedRightsEvidenceLink'],
+      save:body=>api(id?"assignments/"+id:"assignments",{method:id?"PATCH":"POST",body:JSON.stringify({...body,saveIntent:'REVIEWED_RECORD_EDIT',campaignId:body.campaignId||state.current.creator.campaign_id,...(id?{version:Number(form.dataset.version)}:{})})}),
+      onSaved:async()=>{notice("Assignment saved and queued for synchronization.");await openRecord(state.current.creator.id);}});
   });
 }
 
 async function creatorSearch() {
+  if(!leavePendingEdits())return;
   const search = new URLSearchParams({
     campaignId: state.dashboard.campaign.id,
     q: $("#creator-search").value.trim(),
@@ -409,6 +467,7 @@ async function creatorSearch() {
 }
 
 async function combinedSearch(term) {
+  if(!leavePendingEdits())return;
   const results = await Promise.all([
     api("campaigns?q=" + encodeURIComponent(term)),
     api("creators?q=" + encodeURIComponent(term))
@@ -433,7 +492,7 @@ function editAuditCorrection(eventId) {
 }
 
 async function reload(view) {
-  await loadCampaign(state.dashboard.campaign.id);
+  if(await loadCampaign(state.dashboard.campaign.id)===false)return;
   renderAll();
   show(view);
 }
@@ -466,11 +525,13 @@ document.addEventListener("click",async (event) => {
     if (campaign) await openCampaign(campaign.dataset.campaign);
     const openWork = event.target.closest("[data-open-work]");
     if (openWork) {
+      if(!leavePendingEdits())return;
       await loadCampaign(openWork.dataset.openWork);
       renderAll();
       show("work");
     }
     if (event.target.id === "new-creator") {
+      if(!leavePendingEdits())return;
       $("#editor").innerHTML = creatorForm();
       lockEditorIfMigrationPending();
       bindCreatorForm();
@@ -488,7 +549,7 @@ $("#menu").addEventListener("click",() => $(".sidebar").classList.toggle("open")
 // This reference is a Console authorization ID, not a new source workbook field.
 function approvalReference(type) {
   const role=state.dashboard.user?.role;
-  if(role!=='OPERATIONS' && !(role==='OPERATOR' && type==='ASSIGNMENT'))return '';
+  if(!['ADMINISTRATOR','OPERATIONS'].includes(role) && !(role==='OPERATOR' && type==='ASSIGNMENT'))return '';
   const purpose=role==='OPERATOR'?'Start Date and Content Due':'the exact approved values';
   return '<label>Authorization reference <input name="authorizationId" autocomplete="off" placeholder="Reference supplied by the authorized approver"><span class="field-help">APPROVAL · Enter the recorded decision reference to capture '+purpose+'. The server checks this record, the exact values and the decision validity when you save. This reference does not grant approval authority.</span></label>';
 }
@@ -500,26 +561,29 @@ function applyRoleControls() {
   const capture=!!user.capabilities?.captureFacts;
   const form=$('#creator-form');
   if(form) {
-    const referenced=user.role==='OPERATIONS' && Boolean(form.querySelector('[name="authorizationId"]')?.value.trim());
+    const referenced=['ADMINISTRATOR','OPERATIONS'].includes(user.role) && Boolean(form.querySelector('[name="authorizationId"]')?.value.trim());
     form.querySelectorAll('input,select,textarea').forEach(control=>{
       if(!capture)control.disabled=true;
-      else if(!owner && ['compensationModel','rightsStatus','productFocus'].includes(control.name))control.disabled=!referenced;
+      else if(['compensationModel','rightsStatus','productFocus'].includes(control.name))control.disabled=!referenced;
       else if(!owner && control.name==='creatorStatus')control.disabled=true;
+      else if(control.name==='evidenceLink'&&state.current?.creator?.rights_status==='Paid Usage Approved')control.disabled=!referenced;
       if(!state.current && !owner && control.name==='compensationModel')control.value='N/A';
       if(!state.current && !owner && control.name==='rightsStatus')control.value='Not Reviewed';
       if(!state.current && !owner && control.name==='creatorStatus')control.value='Not Started';
       if(!state.current && control.name==='productFocus' && capture)control.disabled=false;
     });
+    if(form.dataset.safeMode&&form.dataset.safeMode!=='EDIT')form.querySelectorAll('input,select,textarea').forEach(control=>{control.disabled=true;});
     form.querySelectorAll('button').forEach(control=>{if(!capture)control.disabled=true;});
   }
   document.querySelectorAll('.assignment-form').forEach(form=>{
     const referenced=Boolean(form.querySelector('[name="authorizationId"]')?.value.trim());
-    const approved=['startDate','contentDue',...(user.role==='OPERATIONS'?['fixedContentFee','commissionRate','attributionWindowDays','paidUsageRights','evidenceStatus','signedRightsEvidenceLink']:[])];
+    const approved=['startDate','contentDue',...(['ADMINISTRATOR','OPERATIONS'].includes(user.role)?['fixedContentFee','commissionRate','attributionWindowDays','paidUsageRights','evidenceStatus','signedRightsEvidenceLink']:[])];
     form.querySelectorAll('input,select,textarea').forEach(control=>{
       if(!capture)control.disabled=true;
-      else if(!owner && approved.includes(control.name))control.disabled=!referenced;
+      else if(approved.includes(control.name))control.disabled=!referenced;
       else if(!owner && !['notes','creatorId','campaignId','authorizationId'].includes(control.name))control.disabled=true;
     });
+    if(form.dataset.safeMode&&form.dataset.safeMode!=='EDIT')form.querySelectorAll('input,select,textarea').forEach(control=>{control.disabled=true;});
     form.querySelectorAll('button').forEach(control=>{if(!capture)control.disabled=true;});
   });
   const newAssignment=$('#new-assignment');if(newAssignment)newAssignment.hidden=!capture;
