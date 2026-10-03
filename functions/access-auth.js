@@ -1,5 +1,6 @@
 let cachedKeys;
 let cachedAt = 0;
+let cachedTeam;
 
 const decode = (part) => JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(part.replace(/-/g,"+").replace(/_/g,"/").padEnd(Math.ceil(part.length/4)*4,"=")),c=>c.charCodeAt(0))));
 const bytes = (part) => Uint8Array.from(atob(part.replace(/-/g,"+").replace(/_/g,"/").padEnd(Math.ceil(part.length/4)*4,"=")),c=>c.charCodeAt(0));
@@ -16,7 +17,7 @@ export async function verifyAccessIdentity(request, environment, now = Math.floo
     const header=decode(parts[0]); const payload=decode(parts[1]);
     if (header.alg!=="RS256" || !header.kid) return {ok:false,status:401};
     if (payload.iss!==`https://${team}.cloudflareaccess.com` || !(Array.isArray(payload.aud)?payload.aud:[payload.aud]).includes(audience)) return {ok:false,status:401};
-    if (!payload.exp || payload.exp<now || payload.nbf&&payload.nbf>now || !payload.email) return {ok:false,status:401};
+    if (!payload.exp || payload.exp<now || payload.nbf&&payload.nbf>now || !payload.email || (payload.iat!==undefined&&(!Number.isFinite(payload.iat)||payload.iat>now))) return {ok:false,status:401};
     const keys=await accessKeys(team);
     const jwk=keys.find(key=>key.kid===header.kid);
     if (!jwk) return {ok:false,status:401};
@@ -27,8 +28,8 @@ export async function verifyAccessIdentity(request, environment, now = Math.floo
 }
 
 async function accessKeys(team) {
-  if (cachedKeys && Date.now()-cachedAt<3600000) return cachedKeys;
+  if (cachedKeys && cachedTeam===team && Date.now()-cachedAt<3600000) return cachedKeys;
   const response=await fetch(`https://${team}.cloudflareaccess.com/cdn-cgi/access/certs`);
   if (!response.ok) throw new Error("Access certificates unavailable");
-  const body=await response.json(); cachedKeys=body.keys||[]; cachedAt=Date.now(); return cachedKeys;
+  const body=await response.json(); cachedKeys=body.keys||[]; cachedAt=Date.now(); cachedTeam=team; return cachedKeys;
 }
