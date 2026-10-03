@@ -69,6 +69,7 @@ function renderChrome() {
   $("#operator-login").textContent = user.loginIdentity || "Login identity unavailable";
   $("#campaign-name").textContent = campaignLabel(campaign);
   document.querySelectorAll(".admin-only").forEach((element) => { element.hidden = !user.canViewAudit; });
+  document.querySelectorAll(".team-only").forEach((element) => { element.hidden = !user.canManageTeam; });
 }
 
 function total() {
@@ -412,7 +413,7 @@ async function renderAudit() {
   if (!state.dashboard.user.canViewAudit) return;
   const events = (await api("audit?campaignId=" + encodeURIComponent(state.dashboard.campaign.id))).events;
   $("#audit-view").innerHTML = '<div class="section-head"><div><h2>Audit trail</h2><p>Administrator / Project Owner only.</p></div></div><div class="panel audit-wrap"><table class="audit-table"><thead><tr><th>WHEN</th><th>OPERATOR</th><th>ACTION</th><th>RECORD</th><th>CHANGE</th></tr></thead><tbody>' +
-    events.map((event) => '<tr><td>' + esc(event.created_at) + '</td><td>' + esc(event.operator_name) + '<br>' + esc(event.operator_role) + '</td><td>' + esc(event.action) + '</td><td>' + esc(event.object_id) + '</td><td>' + esc(event.previous_value || "—") + ' → ' + esc(event.new_value || "—") + '</td></tr>').join("") +
+    events.map((event) => '<tr><td>' + esc(event.created_at) + '</td><td>' + esc(event.operator_name) + '<br>Current role: ' + esc(event.operator_role) + '</td><td>' + esc(event.action) + '</td><td>' + esc(event.object_id) + '</td><td>' + esc(event.previous_value || "—") + ' → ' + esc(event.new_value || "—") + '</td></tr>').join("") +
     '</tbody></table></div>';
 }
 
@@ -424,11 +425,13 @@ async function reload(view) {
 
 function show(view) {
   if (view === "audit" && !state.dashboard.user.canViewAudit) return;
+  if (view === "team" && !state.dashboard.user.canManageTeam) return;
   document.querySelectorAll(".view").forEach((element) => { element.hidden = true; });
   const target = $("#" + view + "-view");
   if (target) target.hidden = false;
   document.querySelectorAll(".nav-button").forEach((button) => button.classList.toggle("active",button.dataset.view === view));
   if (view === "audit") renderAudit().catch((error) => notice(error.message,true));
+  if (view === "team") renderTeam().catch((error) => notice(error.message,true));
   $(".sidebar").classList.remove("open");
 }
 
@@ -523,5 +526,60 @@ function bindEscalationForm() {
     try {await api('escalations',{method:'POST',body:JSON.stringify({...Object.fromEntries(new FormData(form)),campaignId:state.dashboard.campaign.id,eventId})});notice('Escalation recorded; source synchronization is pending.');await reload('home');}
     catch(error){notice(error.message,true);button.disabled=false;}
   });
+}
+function teamScope(person) {
+  if(person.ownerReserved)return 'Owner / Administrator';
+  const grants=person.scope.map(grant=>grant.campaign_id+' / '+(grant.record_id==='*'?'All assigned campaign records':grant.record_id));
+  const assigned=person.assignedRecords.map(record=>record.campaign_id+' / '+record.id+' (record assignment)');
+  return [...new Set([...grants,...assigned])].join('; ') || 'No active record scope';
+}
+function teamRows(users) {
+  return users.map(person=>'<tr><td>'+esc(person.fullName)+'</td><td>'+esc(person.email)+(person.retiredIdentity?'<br><strong>Retired identity · history preserved</strong>':'')+'</td><td>'+esc(person.role)+'</td><td>'+esc(teamScope(person))+'</td><td>'+esc(person.profile?.training_status||'Not recorded')+'</td><td>'+esc(person.profile?.lifecycle_status==='PENDING'?'Pending · inactive':person.accessStatus)+'</td><td>'+esc(person.lastAccess||'No recorded access')+'</td><td><button class="action secondary" data-team-person="'+esc(person.id)+'">View</button></td></tr>').join('');
+}
+function addTeamForm(data) {
+  if(!data.metadataReady)return '<div class="notice error persistent">Team directory migration is pending. The existing directory remains read-only.</div>';
+  return '<details class="panel"><summary>Add User</summary><form id="add-team-form"><div class="form-grid">'+
+    '<label>Full name <input name="fullName" required maxlength="150" autocomplete="name"></label>'+
+    '<label>Individual email address <input name="email" type="email" required maxlength="254" autocomplete="email"></label>'+
+    '<label>Approved role <select name="role">'+optionList(data.approvedRoles,'OPERATOR')+'</select><span class="field-help">Administrator is reserved for the Owner.</span></label>'+
+    '<label>Employment status <select name="employmentStatus"><option value="PENDING_START">Pending start</option><option value="EMPLOYED">Employed</option></select></label>'+
+    '<label>Proposed scope <select name="scopeKind"><option value="none">No scope yet</option><option value="campaign">Entire selected campaign</option><option value="records">Selected Creator IDs</option></select></label>'+
+    '<label>Campaign ID <select name="campaignId"><option value="">Select a campaign</option>'+data.campaigns.map(campaign=>'<option value="'+esc(campaign.id)+'">'+esc(campaignLabel(campaign))+'</option>').join('')+'</select></label>'+
+    '<label>Creator IDs <input name="recordIds" placeholder="CR-100, CR-101"><span class="field-help">For selected records only. Each Creator ID must belong to the chosen Campaign ID.</span></label>'+
+    '<label>Training status <input disabled value="Not Started"></label>'+
+    '</div><p>Saving creates an inactive individual identity and proposed scope. It does not authorize login or grant campaign access. Training certification and activation require the verified provisioning rollout.</p><button class="action" type="submit">Save inactive user</button></form></details>';
+}
+async function renderTeam() {
+  if(!state.dashboard.user.canManageTeam)return;
+  const data=await api('team');
+  $('#team-view').innerHTML='<div class="section-head"><div><span class="eyebrow">Administration</span><h2>Team &amp; Access</h2><p>Individual identities · login at <a href="https://ops.creatorloop.net">ops.creatorloop.net</a></p></div></div>'+
+    '<div class="panel"><p>'+esc(data.notice)+'</p><p>Historical identities remain in the directory. Deactivation is not deletion. Training status is unverified unless explicitly recorded.</p></div>'+addTeamForm(data)+
+    '<div class="panel audit-wrap"><table class="audit-table team-table"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Scope</th><th>Training Status</th><th>Access Status</th><th>Last Access</th><th>Actions</th></tr></thead><tbody>'+teamRows(data.users)+'</tbody></table></div><section id="team-detail"></section>';
+  $('#team-view').querySelectorAll('[data-team-person]').forEach(button=>button.addEventListener('click',()=>viewTeamPerson(button.dataset.teamPerson).catch(error=>notice(error.message,true))));
+  const form=$('#add-team-form');
+  form?.addEventListener('submit',async event=>{
+    event.preventDefault();const button=form.querySelector('button[type="submit"]');if(button.disabled)return;
+    const fields=Object.fromEntries(new FormData(form));
+    const ids=fields.scopeKind==='records'?fields.recordIds.split(',').map(id=>id.trim()).filter(Boolean):['*'];
+    if(fields.scopeKind!=='none'&&(!fields.campaignId||!ids.length)){notice('Choose the Campaign ID and required Creator IDs',true);return;}
+    const scopes=fields.scopeKind==='none'?[]:ids.map(recordId=>({campaignId:fields.campaignId,recordId}));
+    button.disabled=true;
+    try {const result=await api('team',{method:'POST',body:JSON.stringify({action:'addPending',fullName:fields.fullName,email:fields.email,role:fields.role,employmentStatus:fields.employmentStatus,scopes})});notice(result.notice);await renderTeam();}
+    catch(error){notice(error.message,true);button.disabled=false;}
+  });
+}
+async function viewTeamPerson(id) {
+  const data=await api('team/'+encodeURIComponent(id));
+  $('#team-detail').innerHTML=teamPersonDetails(data);
+  $('#team-detail').scrollIntoView({block:'nearest'});
+}
+function teamPersonDetails({person,events,historyNotice}) {
+  const proposed=person.profile?JSON.parse(person.profile.proposed_scope_json):[];
+  return '<div class="panel"><h2>'+esc(person.fullName)+'</h2><p>'+esc(person.email)+' · '+esc(person.role)+'</p>'+
+    '<p>Current scope: '+esc(teamScope(person))+'</p><p>Employment status: '+esc(person.profile?.employment_status||'Not recorded')+'</p>'+
+    '<p>Proposed scope: '+esc(proposed.map(scope=>scope.campaignId+' / '+scope.recordId).join('; ')||'None')+'</p>'+
+    '<p>Delegated approvals: '+esc(person.delegations.map(delegation=>delegation.campaign_id+' / '+delegation.field_key+' / expires '+delegation.expires_at).join('; ')||'None')+'</p>'+
+    '<p>'+esc(historyNotice)+'</p>'+events.map(event=>'<div class="record-section"><strong>'+esc(event.action)+'</strong><p>'+esc(event.created_at)+' · '+esc(event.actor_name)+' · '+esc(event.actor_email)+' · Role at action: '+esc(event.actor_role)+'</p></div>').join('')+
+    '<p>Activate, Deactivate, Change Role and Edit Scope will become available after the provisioning architecture is approved and verified.</p></div>';
 }
 start();

@@ -1,5 +1,6 @@
 import { capabilities, scoped, scopedRows, project, authorizeFields } from '../console-policy.js';
 import { operationalQueues, administerAccess, authorizeDecision, escalate } from '../operator-workflows.js';
+import { canManageTeam, teamAccess } from '../team-access.js';
 import {
   PLATFORMS, CREATOR_STATUSES, COMPENSATION, RIGHTS, PRODUCT_FOCUS, AUDIT_ROLES, nextCreatorId, nextEntityId, normalizeCreatorIdentity,
   qaChecklist, QA_ROLES, transitionAllowed, validateAssignment, validateEnrollment
@@ -18,6 +19,7 @@ const safeUser = (user) => ({
   loginIdentity: user.login_email,
   lastActivityAt: user.last_activity_at,
   canViewAudit: AUDIT_ROLES.has(user.role),
+  canManageTeam: canManageTeam(user),
   capabilities: capabilities(user)
 });
 
@@ -64,6 +66,7 @@ async function dispatchRequest(context) {
   if (!user) return json({ error: "Authorized operator account required" }, 403);
   const parts = pathParts(context);
   try {
+    if (parts[0] === 'team') return await teamAccess(context,user);
     if (parts[0] === 'access') return administerAccess(context,user);
     if (parts[0] === 'authorizations') return authorizeDecision(context,user);
     if (parts[0] === 'escalations' && context.request.method==='POST') return escalate(context,user);
