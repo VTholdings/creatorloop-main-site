@@ -8,7 +8,7 @@ Only the current active Owner / Administrator can prepare requests or record sig
 
 `REGISTRY_VERIFIED` no longer enables training access or activation. The application requires a current individual ADMIT receipt, appropriate lifecycle/certification/scope, and a fresh validated Access session whose `sub` matches the receipt's individual subject. Existing unprofiled legacy identities and Owner access are preserved; adding a managed profile cannot inherit old assignment fallback as an admission grant.
 
-Permission changes continue to advance the session epoch. Suspension, deactivation, role changes and ending active training access create a revocation request atomically while denying Console access. Edits during pending revocation refresh the request/version. An old ADMIT receipt cannot authorize reactivation while the latest request is REVOKE. A valid REVOKE receipt confirms evidence only; it never activates a person. New admission must follow.
+Permission changes continue to advance the session epoch. Suspension, deactivation and role changes cancel pending or already evidenced admission even while the Console account is inactive. Ending active training access create a revocation request atomically while denying Console access. Edits during pending revocation refresh the request/version. An old ADMIT receipt cannot authorize reactivation while the latest request is REVOKE. A valid REVOKE receipt confirms evidence only; it never activates a person. New admission must follow.
 
 Every managed write rechecks the current admission request/receipt and expiry inside the existing transaction guard. Activation and training admission also recheck the target receipt at commit. Rejected/stale receipt writes leave no partial grants, audit or state.
 
@@ -22,7 +22,7 @@ Configure each environment independently during the held, reviewed rollout:
 - `PEER_ACCESS_AUD`, `PEER_DATABASE_ID`, `PEER_DEPLOYMENT_ID`: independently verified other-environment identities. Each must differ from this environment's value.
 - `ADMISSION_VERIFIER_KEYS`: JSON array of approved RSA public JWKs with unique `kid`, at least 2048-bit modulus and no private key components.
 
-Training Console requests also fail closed before account lookup when the distinct pins and verifier configuration are missing. These pins make configuration failures fail closed. They cannot prove actual bindings or Cloudflare policies; corroborate those live. Removing a signer key denies its admission receipts. Do not configure a signing private key or Cloudflare API token in the Console. Do not add production sync credentials to training; the training integration route rejects all imports/exports even if a secret is mistakenly bound.
+Training Console requests also fail closed before account lookup when the distinct pins and verifier configuration are missing. These pins make configuration failures fail closed. They cannot prove actual bindings or Cloudflare policies; corroborate those live. Removing a signer key or rotating its RSA material under the same key ID denies its admission receipts, including at transaction commit. Do not configure a signing private key or Cloudflare API token in the Console. Do not add production sync credentials to training; the training integration route rejects all imports/exports even if a secret is mistakenly bound.
 
 ## Signed envelope contract
 

@@ -45,6 +45,7 @@ def check_database(db):
 def rehearse(backup):
     raw = pathlib.Path(backup).read_bytes()
     db = sqlite3.connect(':memory:')
+    db.set_authorizer(lambda action,a,b,c,d: sqlite3.SQLITE_DENY if action in (sqlite3.SQLITE_ATTACH,sqlite3.SQLITE_DETACH) else sqlite3.SQLITE_OK)
     db.executescript(raw.decode('utf8'))
     db.execute('PRAGMA foreign_keys=ON')
     check_database(db)

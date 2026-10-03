@@ -44,7 +44,7 @@ Use distinct individual accounts. Record the result and audit event for each sce
 ## Administrator: change or end access
 
 1. Record each role, scope, visibility, authority or employment change with a reason. Old sessions must be rejected after a permission change.
-2. Choose **Suspend** or **Deactivate** when work must stop. Console access ends immediately. Historical identity, assignments and attribution stay in place.
+2. Choose **Suspend** or **Deactivate** when work must stop. Console access ends immediately. Historical identity, assignments and attribution stay in place. Pending admission is cancelled even if the person never activated.
 3. Check **Cloudflare session revocation**. `PENDING_VERIFICATION` means edge revocation still needs evidence. It does not mean Cloudflare tokens are already gone.
 4. Complete the current individual revocation request through the approved executor. Record its signed removal/session proof. If personnel state changes while work is pending, use the latest request and version.
 5. To reactivate, complete pending revocation first. Verify certification, scope, employment and a new individual admission receipt. Do not reactivate by editing database values or enabling a deployment switch.

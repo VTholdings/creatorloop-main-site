@@ -23,3 +23,19 @@ test('executor fences a superseded request before operations and after provider 
  const after=ports();let reads=0;after.currentRequest=async()=>++reads===1?request:{...request,id:'NEW'};await assert.rejects(executeEdgeRequest(after),/changed/);assert.deepEqual(after.actions,[['admit',request.id]]);
  const retry=ports();const a=await executeEdgeRequest(retry),b=await executeEdgeRequest(retry);assert.equal(a.payload,b.payload);
 });
+
+test('provider ports cannot mutate the selected person or inject secret fields into the signed evidence',async()=>{
+ const p=ports();p.provider.ensureApprovedIndividualAdmission=async r=>{r.email='unapproved@example.com';};
+ await assert.rejects(executeEdgeRequest(p),TypeError);assert.deepEqual(p.actions,[]);
+ const projected=ports({apiToken:'FICTIONAL-SECRET',jwt:'FICTIONAL-SESSION'});
+ const result=await executeEdgeRequest(projected);assert.doesNotMatch(Buffer.from(result.payload,'base64url').toString(),/FICTIONAL-SECRET|FICTIONAL-SESSION|apiToken|jwt/);
+ assert.equal(request.email,'fictional@example.com');
+});
+test('a request superseded during signing produces no usable result, and malformed evidence cannot reach signing',async()=>{
+ const p=ports();let reads=0;p.currentRequest=async()=>++reads<3?request:{...request,requestVersion:3};
+ await assert.rejects(executeEdgeRequest(p),/changed/);
+ for(const bad of [{subject:{}},{policyId:[]},{subject:''}]){
+  const f=ports(bad);await assert.rejects(executeEdgeRequest(f),/incomplete/);assert.equal(f.actions.some(a=>a[0]==='sign'),false);
+ }
+ const invalid=ports();invalid.sign=async()=>({keyId:'k',signature:'not a signature'});await assert.rejects(executeEdgeRequest(invalid),/signer/);
+});

@@ -39,7 +39,7 @@ export async function teamAccess({env,request,params},user) {
       const events=ready?(await db.prepare('SELECT * FROM console_team_events WHERE target_operator_id=? ORDER BY created_at,id').bind(person.id).all()).results:[];
       return json({person,events,edge:ready?await edgeState(db,person.id):null,historyNotice:'Earlier operational audit events remain preserved. Earlier role-at-action values are not asserted by this directory.'});
     }
-    const provisioningQueue=[];if(ready)for(const person of users){const state=await edgeState(db,person.id);if(state.request)provisioningQueue.push({operatorId:person.id,email:person.email,...state,status:state.receipt?(state.receipt.operation==='ADMIT'&&state.receipt.expiresAt<=Math.floor(Date.now()/1000)?'EXPIRED':'EVIDENCE_RECORDED'):'PENDING_EXTERNAL_EXECUTION'});}
+    const provisioningQueue=[];if(ready)for(const person of users){const state=await edgeState(db,person.id);if(state.request)provisioningQueue.push({operatorId:person.id,email:person.email,...state,status:state.receipt?(state.receipt.operation==='ADMIT'&&state.receipt.expiresAt<=Math.floor(Date.now()/1000)?'EXPIRED':state.receipt.operation==='ADMIT'&&!validAdmission(state,{id:person.id,login_email:person.email},env)?'ADMISSION_NOT_CURRENT':'EVIDENCE_RECORDED'):'PENDING_EXTERNAL_EXECUTION'});}
     return json({users,provisioningQueue,approvedRoles:TEAM_ROLES,metadataReady:ready,activationAvailable:Boolean(admissionConfiguration(env)),environment:environmentName(env),roleCatalog:ROLE_CATALOG,visibilityCategories:VISIBILITY,exportCategories:EXPORTS,authorityFields:[...new Set(Object.values(AUTHORIZATION_FIELDS).flat())],
       campaigns:(await db.prepare('SELECT id,name FROM campaigns ORDER BY id').all()).results,
       loginUrl:'https://ops.creatorloop.net',notice:'New users start invited and inactive. Production activation requires separate certification and verified admission. Suspension and deactivation immediately block Console access; edge revocation is tracked separately.'});
@@ -144,7 +144,7 @@ async function manageUser({env,db},actor,body) {
   status='ACTIVE';p.lifecycle_status='ACTIVE';permissionChange=true;
  } else if(['suspend','deactivate'].includes(body.action)) {
   status=body.action==='suspend'?'SUSPENDED':'DISABLED';p.lifecycle_status=body.action==='suspend'?'SUSPENDED':'INACTIVE';
-  p.edge_revocation_status=target.account_status==='ACTIVE'?'PENDING_VERIFICATION':p.edge_revocation_status;
+  p.edge_revocation_status=target.account_status==='ACTIVE'||edge.request?.operation==='ADMIT'?'PENDING_VERIFICATION':p.edge_revocation_status;
   nextDelegations=[];p.export_permissions_json='[]';permissionChange=true;
  } else if(body.action==='changeRole') {
   if(!TEAM_ROLES.includes(body.role))return json({error:'Choose an approved employee role; Owner authority is reserved'},422);
@@ -152,7 +152,7 @@ async function manageUser({env,db},actor,body) {
   if(body.role==='TECHNICIAN'&&(!['TRAINING','PRODUCTION_SUPPORT','INFRASTRUCTURE_ADMIN'].includes(level)||(level==='TRAINING'&&p.environment!=='TRAINING')))return json({error:'Technical level must match the authorized environment'},422);
   role=body.role;p.technical_level=level;p.certified_role=null;p.training_status='IN_PROGRESS';p.lifecycle_status='TRAINING';status='DISABLED';
   p.visibility_json=JSON.stringify(defaultVisibility(role));p.export_permissions_json='[]';p.system_scope_json='[]';nextDelegations=[];permissionChange=true;
-  if(target.account_status==='ACTIVE')p.edge_revocation_status='PENDING_VERIFICATION';
+  if(target.account_status==='ACTIVE'||edge.request?.operation==='ADMIT')p.edge_revocation_status='PENDING_VERIFICATION';
  } else if(body.action==='editScope') {
   if(!Array.isArray(body.scopes)||body.scopes.length>100||!Array.isArray(body.systems||[]))return json({error:'Choose explicit record and system scope'},422);
   nextScope=[];

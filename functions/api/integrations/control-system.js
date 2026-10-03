@@ -24,6 +24,7 @@ async function verify(request, secret, rawBody = "") {
 }
 
 export async function onRequest(context) {
+  if(context.env.CONSOLE_ENVIRONMENT!==undefined&&!['TRAINING','PRODUCTION'].includes(context.env.CONSOLE_ENVIRONMENT))return json({error:'Invalid Console environment'},503);
   if(context.env.CONSOLE_ENVIRONMENT==='TRAINING')return json({error:'Training environment has no production synchronization'},403);
   if (!context.env.OPERATIONS_DB) return json({ error: "Database unavailable" }, 503);
   const rawBody = context.request.method === "POST" ? await context.request.text() : "";

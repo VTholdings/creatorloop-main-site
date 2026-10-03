@@ -128,3 +128,30 @@ test('training rejects missing or shared environment pins before any Console rea
  assert.equal((await req(f,'team',{action:'requestAdmission',operatorId:f.person.id,version:1,reason:'Blocked'})).status,503);
  assert.equal(f.db.prepare("SELECT count(*) n FROM console_team_events WHERE action='EDGE_ADMISSION_REQUEST'").get().n,0);
 });
+
+test('suspension, deactivation and role changes cancel inactive or unfinished admission and require fresh removal evidence',async()=>{
+ for(const action of ['suspend','deactivate','changeRole'])for(const received of [false,true]){
+  const f=await setup();await change(f,f.person,'requestAdmission');
+  const stale=await envelope(f,f.person);if(received)assert.equal((await change(f,f.person,'recordEdgeReceipt',{receipt:stale})).status,200);
+  assert.equal((await change(f,f.person,action,action==='changeRole'?{role:'QA_REVIEWER'}:{})).status,200);
+  const edge=await edgeState(f.env.OPERATIONS_DB,f.person.id);
+  assert.equal(edge.request.operation,'REVOKE');assert.equal(edge.receipt,null);
+  assert.equal((await change(f,f.person,'requestAdmission')).status,409);
+  assert.equal((await change(f,f.person,'recordEdgeReceipt',{receipt:stale})).status,422);
+  assert.equal((await req(f,'me',null,f.person.email)).status,403);
+  await revoke(f,f.person,change);assert.equal((await change(f,f.person,'requestAdmission')).status,200);
+ }
+});
+test('rotating RSA material under the same key ID invalidates old receipts for sessions and activation',async()=>{
+ const f=await setup();await certified(f);await admit(f,f.person,change);await change(f,f.person,'activate');
+ const original=f.env.ADMISSION_VERIFIER_KEYS;
+ const pair=await crypto.subtle.generateKey({name:'RSASSA-PKCS1-v1_5',modulusLength:2048,publicExponent:new Uint8Array([1,0,1]),hash:'SHA-256'},true,['sign','verify']);
+ f.env.ADMISSION_VERIFIER_KEYS=JSON.stringify([{...await crypto.subtle.exportKey('jwk',pair.publicKey),kid:'fictional-executor'}]);
+ assert.equal((await req(f,'me',null,f.person.email)).status,403);
+ // Test the actual SQL commit predicate independently of the earlier request check.
+ const {admissionCommitCheck}=await import('../functions/api/admission.js');
+ const target=f.db.prepare('SELECT * FROM operators WHERE id=?').get(f.person.id);
+ const check=admissionCommitCheck(target,f.env);
+ assert.equal(f.db.prepare('SELECT '+check.sql+' ok').get(...check.values).ok,0);
+ f.env.ADMISSION_VERIFIER_KEYS=original;assert.equal((await req(f,'me',null,f.person.email)).status,200);
+});

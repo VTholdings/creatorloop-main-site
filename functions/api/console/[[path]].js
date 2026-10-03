@@ -82,6 +82,7 @@ async function optionalRows(db, sql, values = []) {
 
 async function dispatchRequest(context) {
   if (!context.env.OPERATIONS_DB) return json({ error: "Operations database is not configured" }, 503);
+  if(context.env.CONSOLE_ENVIRONMENT!==undefined&&!['TRAINING','PRODUCTION'].includes(context.env.CONSOLE_ENVIRONMENT))return json({error:'Invalid Console environment'},503);
   if(context.env.CONSOLE_ENVIRONMENT==='TRAINING'&&!admissionConfiguration(context.env))return json({error:'Verified isolated training configuration is pending'},503);
   if (context.request.method !== "GET" && !sameOrigin(context.request)) return json({ error: "Origin rejected" }, 403);
   const user = await actor(context);

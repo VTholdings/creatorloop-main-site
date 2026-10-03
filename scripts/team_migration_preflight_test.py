@@ -68,6 +68,13 @@ class PreflightTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'trigger drift'):
             self.run_backup()
 
+    def test_backup_cannot_attach_or_write_external_databases(self):
+        external = pathlib.Path(self.temp.name) / 'external.db'
+        self.backup.write_text("ATTACH DATABASE '" + str(external) + "' AS other;CREATE TABLE other.leak(value TEXT);")
+        with self.assertRaisesRegex(sqlite3.DatabaseError, 'not authorized'):
+            preflight.rehearse(self.backup)
+        self.assertFalse(external.exists())
+
     def test_identity_column_drift_is_blocked(self):
         self.db.execute('ALTER TABLE operators ADD COLUMN unexpected TEXT')
         with self.assertRaisesRegex(ValueError, 'table-copy order'):

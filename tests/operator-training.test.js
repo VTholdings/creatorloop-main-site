@@ -23,3 +23,16 @@ test('training cannot export or import production sync even with a mistakenly co
   const r=await onRequest({env,request:new Request('https://ops.creatorloop.net/api/integrations/control-system',{method,...(method==='POST'?{body:JSON.stringify({mode:'import',eventId:'DO-NOT-IMPORT'})}:{})})});assert.equal(r.status,403);
  }
 });
+
+test('invalid explicit environment cannot fall back to production reads, edits or signed synchronization',async()=>{
+ const {onRequest}=await import('../functions/api/integrations/control-system.js');
+ const {db,env}=await fixture();
+ try{for(const name of ['',null,'training','TRAIINING']){
+  env.CONSOLE_ENVIRONMENT=name;
+  assert.equal((await call(env,'ADMINISTRATOR','GET','dashboard')).status,503);
+  assert.equal((await call(env,'OPERATOR','PATCH','creators/CR-200',{version:1,notes:'blocked'})).status,503);
+  for(const method of ['GET','POST']){
+   const r=await onRequest({env,request:new Request('https://ops.creatorloop.net/api/integrations/control-system',{method,...(method==='POST'?{body:'{}'}:{})})});assert.equal(r.status,503);
+  }
+ }assert.notEqual(db.prepare("SELECT notes FROM creator_enrollments WHERE id='CR-200'").get().notes,'blocked');}finally{db.close();}
+});
