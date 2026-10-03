@@ -67,9 +67,9 @@ async function dispatchRequest(context) {
   const parts = pathParts(context);
   try {
     if (parts[0] === 'team') return await teamAccess(context,user);
-    if (parts[0] === 'access') return administerAccess(context,user);
-    if (parts[0] === 'authorizations') return authorizeDecision(context,user);
-    if (parts[0] === 'escalations' && context.request.method==='POST') return escalate(context,user);
+    if (parts[0] === 'access') return await administerAccess(context,user);
+    if (parts[0] === 'authorizations') return await authorizeDecision(context,user);
+    if (parts[0] === 'escalations' && context.request.method==='POST') return await escalate(context,user);
     if (parts[0] === 'queues' && context.request.method === 'GET') return operationalQueues(context,user);
     if (context.request.method === "GET" && parts[0] === "me") return json({ user: safeUser(user) });
     if (context.request.method === "GET" && parts[0] === "dashboard") return dashboard(context, user);
@@ -350,7 +350,12 @@ async function reviewCreator(context, user, id) {
 async function audit({ env, request }, user) {
   if (!AUDIT_ROLES.has(user.role)) return json({ error: "Administrator authority required" }, 403);
   const campaignId = params(request).get("campaignId") || "CMP-100";
-  const events = await env.OPERATIONS_DB.prepare("SELECT a.*,o.display_name operator_name,o.role operator_role FROM audit_events a JOIN operators o ON o.id=a.operator_id WHERE a.campaign_id=? ORDER BY a.created_at DESC LIMIT 200").bind(campaignId).all();
+  const db=env.OPERATIONS_DB;
+  const snapshots=await db.prepare("SELECT version FROM schema_migrations WHERE version='0006_audit_history'").first();
+  const query=snapshots
+    ? "SELECT a.*,o.display_name operator_name,o.role operator_role,s.actor_name,s.actor_email,s.actor_role role_at_action,s.scope_json scope_at_action,s.authority_json authority_at_action FROM audit_events a JOIN operators o ON o.id=a.operator_id LEFT JOIN console_audit_actor_snapshots s ON s.event_id=a.id WHERE a.campaign_id=? ORDER BY a.created_at DESC LIMIT 200"
+    : "SELECT a.*,o.display_name operator_name,o.role operator_role,NULL role_at_action FROM audit_events a JOIN operators o ON o.id=a.operator_id WHERE a.campaign_id=? ORDER BY a.created_at DESC LIMIT 200";
+  const events=await db.prepare(query).bind(campaignId).all();
   return json({ events: events.results });
 }
 

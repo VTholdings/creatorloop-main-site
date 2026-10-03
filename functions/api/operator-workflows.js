@@ -53,39 +53,10 @@ export async function operationalQueues({env,request},user) {
  ];
  return json({campaignId,stages,sourceSystem:'PNB Acquisition & Launch Control System',sourceVersion:records[0]?.source_version||null,missingSources:stages.filter(stage=>!byTab(stage.tab).length).map(stage=>stage.tab),notice:'QA status does not authorize compensation, paid usage, launch or Owner Approval.'});
 }
-export async function administerAccess({env,request},user) {
+export async function administerAccess({request},user) {
  if(user.role!=='ADMINISTRATOR')return json({error:'Administrator authority required'},403);
  if(request.method!=='POST')return json({error:'Method not allowed'},405);
- const body=await request.json(),db=env.OPERATIONS_DB;
- if(!['grant','provision','disable','delegate'].includes(body.action))return json({error:'Choose a supported administration action'},422);
- const campaign=await db.prepare('SELECT id FROM campaigns WHERE id=?').bind(body.campaignId||'').first();
- if(!campaign)return json({error:'Choose an existing Campaign ID'},422);
- let target=body.operatorId?await db.prepare('SELECT * FROM operators WHERE id=?').bind(body.operatorId).first():null;
- if(body.action==='provision') {
-  const email=String(body.email||'').trim().toLowerCase();
-  if(email==='support@creatorloop.net'||!/^\S+@\S+\.\S+$/.test(email)||/[\[\]]/.test(email))return json({error:'An individual authorized email is required; support@creatorloop.net is not a human login'},422);
-  if(!['OPERATOR','QA_REVIEWER','OPERATIONS','APPROVAL_AUTHORITY','ADMINISTRATOR'].includes(body.role))return json({error:'Choose an approved role'},422);
-  const existing=await db.prepare('SELECT id FROM operators WHERE login_email=?').bind(email).first();
-  if(existing)return json({error:'Identity already exists; historical identity is not rewritten'},409);
-  const id='OP-'+crypto.randomUUID();
-  await db.prepare('INSERT INTO operators(id,login_email,display_name,role,account_status) VALUES(?,?,?,?,?)').bind(id,email,String(body.displayName||email),body.role,'ACTIVE').run();
-  target=await db.prepare('SELECT * FROM operators WHERE id=?').bind(id).first();
- }
- if(!target)return json({error:'Operator not found'},404);
- if(body.action==='disable') {
-  if(target.id===user.id)return json({error:'Do not disable the current administrator'},409);
-  if(target.login_email==='support@creatorloop.net' && (!user.last_activity_at || user.login_email==='support@creatorloop.net'))return json({error:'Verify the individual Owner sign-in before disabling support access'},409);
-  await db.prepare("UPDATE operators SET account_status='DISABLED' WHERE id=?").bind(target.id).run();
- } else if(body.action==='delegate') {
-  if(target.role!=='APPROVAL_AUTHORITY'||!Object.values(AUTHORIZATION_FIELDS).flat().includes(body.fieldKey)||!body.expiresAt||new Date(body.expiresAt)<=new Date())return json({error:'An explicit limited delegation with a future expiry is required'},422);
-  await db.prepare('INSERT INTO console_approval_delegations(operator_id,campaign_id,field_key,delegated_by,expires_at) VALUES(?,?,?,?,?) ON CONFLICT(operator_id,campaign_id,field_key) DO UPDATE SET delegated_by=excluded.delegated_by,expires_at=excluded.expires_at').bind(target.id,body.campaignId,body.fieldKey,user.id,new Date(body.expiresAt).toISOString()).run();
- } else if(body.action==='grant') {
-  const id=body.recordId||'*';
-  if(id!=='*' && !await db.prepare('SELECT id FROM creator_enrollments WHERE id=? AND campaign_id=?').bind(id,body.campaignId).first())return json({error:'Choose an existing assigned Creator ID'},422);
-  await db.prepare('INSERT OR IGNORE INTO console_access_grants(operator_id,campaign_id,record_id,granted_by) VALUES(?,?,?,?)').bind(target.id,body.campaignId,id,user.id).run();
- }
- await db.prepare('INSERT INTO audit_events(id,operator_id,campaign_id,action,object_type,object_id,new_value) VALUES(?,?,?,?,?,?,?)').bind('AUD-'+crypto.randomUUID(),user.id,body.campaignId,'ACCESS_'+body.action.toUpperCase(),'Operator',target.id,body.action==='disable'?'DISABLED':JSON.stringify({role:target.role,recordId:body.recordId||null,fieldKey:body.fieldKey||null})).run();
- return json({id:target.id,status:'Recorded'});
+ return json({error:'This personnel route is retired. Use Administration → Team & Access.',replacement:'/api/console/team'},410);
 }
 export async function authorizeDecision({env,request},user) {
  if(!['ADMINISTRATOR','APPROVAL_AUTHORITY'].includes(user.role))return json({error:'Explicit business approval authority required'},403);

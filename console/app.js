@@ -413,7 +413,7 @@ async function renderAudit() {
   if (!state.dashboard.user.canViewAudit) return;
   const events = (await api("audit?campaignId=" + encodeURIComponent(state.dashboard.campaign.id))).events;
   $("#audit-view").innerHTML = '<div class="section-head"><div><h2>Audit trail</h2><p>Administrator / Project Owner only.</p></div></div><div class="panel audit-wrap"><table class="audit-table"><thead><tr><th>WHEN</th><th>OPERATOR</th><th>ACTION</th><th>RECORD</th><th>CHANGE</th></tr></thead><tbody>' +
-    events.map((event) => '<tr><td>' + esc(event.created_at) + '</td><td>' + esc(event.operator_name) + '<br>Current role: ' + esc(event.operator_role) + '</td><td>' + esc(event.action) + '</td><td>' + esc(event.object_id) + '</td><td>' + esc(event.previous_value || "—") + ' → ' + esc(event.new_value || "—") + '</td></tr>').join("") +
+    events.map((event) => '<tr><td>' + esc(event.created_at) + '</td><td>' + esc(event.actor_name || event.operator_name) + '<br>Role at action: ' + esc(event.role_at_action || 'Not recorded') + '<br>Current role: ' + esc(event.operator_role) + '</td><td>' + esc(event.action) + '</td><td>' + esc(event.object_id) + '</td><td>' + esc(event.previous_value || "—") + ' → ' + esc(event.new_value || "—") + '</td></tr>').join("") +
     '</tbody></table></div>';
 }
 
