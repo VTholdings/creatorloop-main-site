@@ -1,3 +1,4 @@
+import {verifier,envelope} from './helpers/admission-fixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
@@ -15,7 +16,7 @@ test('individually signed lifecycle uses middleware, rejects stale and future se
   Object.assign(f.env,{CLOUDFLARE_ACCESS_TEAM_DOMAIN:'signed-lifecycle',CLOUDFLARE_ACCESS_AUD:'production-fixture',HUMAN_PROVISIONING_MODE:'REGISTRY_VERIFIED'});
   const {privateKey,publicKey}=generateKeyPairSync('rsa',{modulusLength:2048});
   globalThis.fetch=async()=>new Response(JSON.stringify({keys:[{...publicKey.export({format:'jwk'}),kid:'fixture'}]}));
-  const token=(email,iat=now/1000,aud='production-fixture')=>{const h=encode({alg:'RS256',kid:'fixture'}),p=encode({iss:'https://signed-lifecycle.cloudflareaccess.com',aud,email,iat,exp:now/1000+3600});return h+'.'+p+'.'+sign('RSA-SHA256',Buffer.from(h+'.'+p),privateKey).toString('base64url');};
+  const token=(email,iat=now/1000,aud='production-fixture')=>{const h=encode({alg:'RS256',kid:'fixture'}),p=encode({iss:'https://signed-lifecycle.cloudflareaccess.com',aud,email,sub:'fictional-subject',iat,exp:now/1000+3600});return h+'.'+p+'.'+sign('RSA-SHA256',Buffer.from(h+'.'+p),privateKey).toString('base64url');};
   async function call(email,method,path,body,jwt){now+=2000;const context={env:f.env,data:{},params:{path:path.split('/')},request:new Request('https://ops.creatorloop.net/api/console/'+path,{method,headers:{'Cf-Access-Jwt-Assertion':jwt||token(email),Origin:'https://ops.creatorloop.net','Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)})};const response=await middleware({...context,next:()=>consoleRequest(context)});return {status:response.status,body:await response.text()};}
   const owner='team@creatorloop.net',email='signed.individual@example.com';
   const added=await call(owner,'POST','team',{action:'addPending',fullName:'Fictional Individual',email,role:'OPERATOR',employmentStatus:'EMPLOYED',scopes:[{campaignId:'CMP-100',recordId:'CR-200'}]});assert.equal(added.status,201);const id=JSON.parse(added.body).id;
@@ -24,6 +25,9 @@ test('individually signed lifecycle uses middleware, rejects stale and future se
   assert.equal((await change('startTraining')).status,200);
   assert.equal((await change('certify',{attestation:true,evidenceLink:'https://example.com/fictional-training'})).status,200);
   assert.equal((await call(email,'GET','me')).status,403);
+  await verifier(f);f.env.CLOUDFLARE_ACCESS_AUD='production-fixture';
+  assert.equal((await change('requestAdmission')).status,200);
+  assert.equal((await change('recordEdgeReceipt',{receipt:await envelope(f,{id,email})})).status,200);
   assert.equal((await change('activate')).status,200);
   assert.equal((await call(email,'GET','creators/CR-200')).status,200);
   assert.equal((await call(email,'GET','creators/CR-202')).status,403);

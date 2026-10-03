@@ -1,3 +1,4 @@
+import {edgeState,validAdmission,admissionCommitCheck} from './admission.js';
 // Console personnel concepts; never substitute these for source workbook fields.
 export const OWNER_EMAIL='team@creatorloop.net';
 export const ROLE_CATALOG=Object.freeze({
@@ -15,7 +16,7 @@ export const defaultVisibility=role=>['OPERATOR','OPERATIONS','APPROVAL_AUTHORIT
 export const visibility=user=>user.teamProfile?JSON.parse(user.teamProfile.visibility_json):defaultVisibility(user.role);
 export const canViewAudit=user=>user.role==='ADMINISTRATOR'||visibility(user).includes('audit_history');
 export const canExport=(user,dataset)=>canManageTeam(user)||Boolean(user.teamProfile&&JSON.parse(user.teamProfile.export_permissions_json).includes(dataset));
-export async function loadMembership(db,user,env,issuedAt) {
+export async function loadMembership(db,user,env,issuedAt,subject) {
  let ready;try{ready=await db.prepare("SELECT version FROM schema_migrations WHERE version='0007_team_governance'").first();}catch{return user;}
  if(!ready)return user;
  user.teamGovernance=true;
@@ -23,6 +24,11 @@ export async function loadMembership(db,user,env,issuedAt) {
  const p=user.teamProfile;
  if(p&&(p.environment!==environmentName(env)||!['TRAINING','ACTIVE'].includes(p.lifecycle_status)))return null;
  if(p&&p.auth_not_before>0&&(!Number.isFinite(issuedAt)||issuedAt<p.auth_not_before))return {reauthenticate:true};
+ if(p&&p.managed_scope&&!(user.login_email===OWNER_EMAIL&&user.role==='ADMINISTRATOR')){
+  const edge=await edgeState(db,user.id);
+  if(!validAdmission(edge,user,env)||typeof subject!=='string'||subject!==edge.receipt.subject)return null;
+  user.admissionCheck=admissionCommitCheck(user,env);
+ }
  return user;
 }
 export const canDiagnose=user=>user.role==='ADMINISTRATOR'||Boolean(user.role==='TECHNICIAN'&&user.teamProfile&&JSON.parse(user.teamProfile.system_scope_json).includes('console_diagnostics'));
@@ -32,7 +38,7 @@ export function guardedDatabase(db,user) {
  prepare(sql){return db.prepare(sql);},
  async batch(statements){
   const id=crypto.randomUUID();
-  const checks=user.commitChecks||[];
+  const checks=[...(user.commitChecks||[]),...(user.admissionCheck?[user.admissionCheck]:[])];
   const expectedVersion=checks.length?'CASE WHEN '+checks.map(check=>'('+check.sql+')').join(' AND ')+' THEN ? ELSE -1 END':'?';
   const results=await db.batch([
    db.prepare('INSERT INTO console_mutation_guards(id,operator_id,expected_role,expected_version) VALUES(?,?,?,'+expectedVersion+')').bind(id,user.id,user.role,...checks.flatMap(check=>check.values),user.teamProfile?.version||0),

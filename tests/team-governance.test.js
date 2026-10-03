@@ -1,3 +1,4 @@
+import {admit,revoke,verifier} from './helpers/admission-fixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
@@ -15,10 +16,11 @@ async function setup() {
 // These fixtures simulate validated middleware context, not live Cloudflare admission.
 async function request(f,method,path,body,email='team@creatorloop.net',issuedAt) {
  const p=f.db.prepare('SELECT p.auth_not_before FROM console_team_profiles p JOIN operators o ON o.id=p.operator_id WHERE o.login_email=?').get(email);
- const response=await onRequest({env:f.env,data:{loginEmail:email,accessIssuedAt:issuedAt??Math.max(Math.floor(Date.now()/1000),p?.auth_not_before||0)},params:{path:path.split('?')[0].split('/')},request:new Request('https://ops.creatorloop.net/api/console/'+path,{method,headers:method==='GET'?{}:{Origin:'https://ops.creatorloop.net','Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)})});
+ const response=await onRequest({env:f.env,data:{accessSubject:'fictional-subject',loginEmail:email,accessIssuedAt:issuedAt??Math.max(Math.floor(Date.now()/1000),p?.auth_not_before||0)},params:{path:path.split('?')[0].split('/')},request:new Request('https://ops.creatorloop.net/api/console/'+path,{method,headers:method==='GET'?{}:{Origin:'https://ops.creatorloop.net','Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)})});
  return {status:response.status,body:await response.json(),headers:response.headers};
 }
 async function add(f,role='OPERATOR',scopes=[{campaignId:'CMP-100',recordId:'CR-200'}]) {
+ if(f.env.CONSOLE_ENVIRONMENT==='TRAINING')await verifier(f,'TRAINING');
  const email=role.toLowerCase()+'.person@example.com';
  const result=await request(f,'POST','team',{action:'addPending',fullName:'Fictional '+role,email,role,employmentStatus:'EMPLOYED',scopes,...(role==='TECHNICIAN'?{technicalLevel:f.env.CONSOLE_ENVIRONMENT==='TRAINING'?'TRAINING':'PRODUCTION_SUPPORT'}:{})});
  assert.equal(result.status,201,JSON.stringify(result.body));return {id:result.body.id,email};
@@ -30,7 +32,7 @@ async function change(f,person,action,extra={}) {
 async function activate(f,person) {
  assert.equal((await change(f,person,'startTraining')).status,200);
  assert.equal((await change(f,person,'certify',{attestation:true,evidenceLink:'https://example.com/fictional-certification'})).status,200);
- f.env.HUMAN_PROVISIONING_MODE='REGISTRY_VERIFIED'; // Test configuration only; never production evidence.
+ await admit(f,person,change);
  assert.equal((await change(f,person,'activate')).status,200);
 }
 test('expanded role migration preserves all original rows and foreign keys, including attributed history',async()=>{
@@ -59,7 +61,7 @@ test('training and certification do not confer production access; activation req
  assert.equal((await change(f,person,'certify',{attestation:true,evidenceLink:'https://example.com/evidence'})).status,200);
  assert.equal((await request(f,'GET','me',undefined,person.email)).status,403);
  assert.equal((await change(f,person,'activate')).status,503);
- f.env.HUMAN_PROVISIONING_MODE='REGISTRY_VERIFIED';
+ await admit(f,person,change);
  assert.equal((await change(f,person,'activate')).status,200);
  assert.equal((await request(f,'GET','me',undefined,person.email,0)).body.code,'REAUTHENTICATE');
  assert.equal((await request(f,'GET','creators/CR-200',undefined,person.email)).status,200);
@@ -70,6 +72,7 @@ test('suspension and deactivation block active sessions while preserving notes, 
  const before=f.db.prepare("SELECT * FROM creator_enrollments WHERE id='CR-200'").get();
  assert.equal((await change(f,person,'suspend')).status,200);
  assert.equal((await request(f,'GET','creators/CR-200',undefined,person.email)).status,403);
+ await revoke(f,person,change);await admit(f,person,change);
  assert.equal((await change(f,person,'activate')).status,200);
  assert.equal((await change(f,person,'deactivate')).status,200);
  assert.equal((await request(f,'GET','me',undefined,person.email)).status,403);
@@ -92,7 +95,7 @@ test('role changes require recertification and clear authority without rewriting
  const audit=f.db.prepare("SELECT * FROM audit_events WHERE operator_id=? AND object_id='CR-200'").get(person.id);
  assert.equal((await change(f,person,'changeRole',{role:'OPERATIONS_MANAGER'})).status,200);
  assert.equal((await request(f,'GET','me',undefined,person.email)).status,403);
- assert.equal((await change(f,person,'activate')).status,422);
+ assert.equal((await change(f,person,'activate')).status,503);
  assert.equal(f.db.prepare('SELECT actor_role FROM console_audit_actor_snapshots WHERE event_id=?').get(audit.id).actor_role,'OPERATOR');
  assert.equal(f.db.prepare('SELECT role FROM operators WHERE id=?').get(person.id).role,'OPERATIONS_MANAGER');
 });
@@ -178,7 +181,7 @@ test('training admission is environment-bound and does not authorize production,
  const f=await setup();f.env.CONSOLE_ENVIRONMENT='TRAINING';
  const person=await add(f,'TECHNICIAN');
  assert.equal((await change(f,person,'startTraining')).status,503);
- f.env.HUMAN_PROVISIONING_MODE='REGISTRY_VERIFIED';assert.equal((await change(f,person,'startTraining')).status,200);
+ await admit(f,person,change);assert.equal((await change(f,person,'startTraining')).status,200);
  assert.equal((await request(f,'GET','me',undefined,person.email)).status,200);
  f.env.CONSOLE_ENVIRONMENT='PRODUCTION';assert.equal((await request(f,'GET','me',undefined,person.email)).status,403);
 });
@@ -251,7 +254,7 @@ test('expiry timestamps are compared as instants and cannot extend authority thr
 });
 test('employment status changes are attributable and do not silently confer or restore access',async()=>{
  const f=await setup(),person=await add(f);assert.equal((await change(f,person,'editEmployment',{employmentStatus:'PENDING_START'})).status,200);
- assert.equal((await change(f,person,'startTraining')).status,200);assert.equal((await change(f,person,'certify',{attestation:true,evidenceLink:'https://example.com/evidence'})).status,200);f.env.HUMAN_PROVISIONING_MODE='REGISTRY_VERIFIED';
+ assert.equal((await change(f,person,'startTraining')).status,200);assert.equal((await change(f,person,'certify',{attestation:true,evidenceLink:'https://example.com/evidence'})).status,200);await admit(f,person,change);
  assert.equal((await change(f,person,'activate')).status,422);assert.equal((await change(f,person,'editEmployment',{employmentStatus:'EMPLOYED'})).status,200);assert.equal((await request(f,'GET','me',undefined,person.email)).status,403);assert.equal((await change(f,person,'activate')).status,200);
  assert.equal((await change(f,person,'editEmployment',{employmentStatus:'PENDING_START'})).status,422);
  const event=f.db.prepare("SELECT * FROM console_team_events WHERE target_operator_id=? AND action='TEAM_EDITEMPLOYMENT' ORDER BY created_at,id").all(person.id);assert.equal(event.length,2);assert.ok(event.every(e=>e.previous_state_json&&e.new_state_json));
@@ -259,7 +262,7 @@ test('employment status changes are attributable and do not silently confer or r
 test('all Technician levels deny self-granted authority, audit/report destruction and unauthorized exports',async()=>{
  for(const level of ['TRAINING','PRODUCTION_SUPPORT','INFRASTRUCTURE_ADMIN']){
   const f=await setup();if(level==='TRAINING')f.env.CONSOLE_ENVIRONMENT='TRAINING';
-  const person=await add(f,'TECHNICIAN');assert.equal((await change(f,person,'changeRole',{role:'TECHNICIAN',technicalLevel:level})).status,200);assert.equal((await change(f,person,'certify',{attestation:true,evidenceLink:'https://example.com/fictional-certification'})).status,200);f.env.HUMAN_PROVISIONING_MODE='REGISTRY_VERIFIED';assert.equal((await change(f,person,'activate')).status,200);
+  const person=await add(f,'TECHNICIAN');assert.equal((await change(f,person,'changeRole',{role:'TECHNICIAN',technicalLevel:level})).status,200);assert.equal((await change(f,person,'certify',{attestation:true,evidenceLink:'https://example.com/fictional-certification'})).status,200);await admit(f,person,change);assert.equal((await change(f,person,'activate')).status,200);
   for(const action of ['activate','changeRole','editScope','manageAuthority','visibility'])assert.equal((await request(f,'POST','team',{action,operatorId:person.id,version:1,reason:'Prohibited self grant',role:'ADMINISTRATOR',scopes:[{campaignId:'CMP-200',recordId:'*'}]},person.email)).status,403,level+'.'+action);
   assert.equal((await request(f,'GET','audit?campaignId=CMP-100',undefined,person.email)).status,403);
   assert.equal((await request(f,'POST','exports',{dataset:'creators',campaignId:'CMP-100'},person.email)).status,403);

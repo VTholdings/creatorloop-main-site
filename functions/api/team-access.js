@@ -2,6 +2,7 @@
 // Human admission is a separate, verified gate; never mutate Cloudflare policies here.
 import { OWNER_EMAIL, TEAM_ROLES, ROLE_CATALOG, VISIBILITY, EXPORTS, canManageTeam, environmentName, defaultVisibility } from './team-policy.js';
 import { AUTHORIZATION_FIELDS } from './console-policy.js';
+import {admissionConfiguration,edgeState,validAdmission,verifyReceipt,admissionCommitCheck} from './admission.js';
 export { TEAM_ROLES,canManageTeam };
 const json = (body,status=200) => new Response(JSON.stringify(body),{
   status,headers:{'Content-Type':'application/json','Cache-Control':'no-store'}
@@ -36,9 +37,10 @@ export async function teamAccess({env,request,params},user) {
       const person=users.find(person=>person.id===parts[1]);
       if(!person)return json({error:'User not found'},404);
       const events=ready?(await db.prepare('SELECT * FROM console_team_events WHERE target_operator_id=? ORDER BY created_at,id').bind(person.id).all()).results:[];
-      return json({person,events,historyNotice:'Earlier operational audit events remain preserved. Earlier role-at-action values are not asserted by this directory.'});
+      return json({person,events,edge:ready?await edgeState(db,person.id):null,historyNotice:'Earlier operational audit events remain preserved. Earlier role-at-action values are not asserted by this directory.'});
     }
-    return json({users,approvedRoles:TEAM_ROLES,metadataReady:ready,activationAvailable:env.HUMAN_PROVISIONING_MODE==='REGISTRY_VERIFIED',environment:environmentName(env),roleCatalog:ROLE_CATALOG,visibilityCategories:VISIBILITY,exportCategories:EXPORTS,authorityFields:[...new Set(Object.values(AUTHORIZATION_FIELDS).flat())],
+    const provisioningQueue=[];if(ready)for(const person of users){const state=await edgeState(db,person.id);if(state.request)provisioningQueue.push({operatorId:person.id,email:person.email,...state,status:state.receipt?(state.receipt.operation==='ADMIT'&&state.receipt.expiresAt<=Math.floor(Date.now()/1000)?'EXPIRED':'EVIDENCE_RECORDED'):'PENDING_EXTERNAL_EXECUTION'});}
+    return json({users,provisioningQueue,approvedRoles:TEAM_ROLES,metadataReady:ready,activationAvailable:Boolean(admissionConfiguration(env)),environment:environmentName(env),roleCatalog:ROLE_CATALOG,visibilityCategories:VISIBILITY,exportCategories:EXPORTS,authorityFields:[...new Set(Object.values(AUTHORIZATION_FIELDS).flat())],
       campaigns:(await db.prepare('SELECT id,name FROM campaigns ORDER BY id').all()).results,
       loginUrl:'https://ops.creatorloop.net',notice:'New users start invited and inactive. Production activation requires separate certification and verified admission. Suspension and deactivation immediately block Console access; edge revocation is tracked separately.'});
   }
@@ -88,7 +90,7 @@ export async function teamAccess({env,request,params},user) {
 }
 
 async function manageUser({env,db},actor,body) {
- const actions={editEmployment:['employmentStatus'],startTraining:[],certify:['evidenceLink','attestation'],activate:[],suspend:[],deactivate:[],changeRole:['role','technicalLevel'],editScope:['scopes','systems'],manageAuthority:['delegations'],visibility:['categories','exports']};
+ const actions={requestAdmission:[],requestRevocation:[],recordEdgeReceipt:['receipt'],editEmployment:['employmentStatus'],startTraining:[],certify:['evidenceLink','attestation'],activate:[],suspend:[],deactivate:[],changeRole:['role','technicalLevel'],editScope:['scopes','systems'],manageAuthority:['delegations'],visibility:['categories','exports']};
  if(!body||typeof body!=='object'||Array.isArray(body)||!actions[body.action])return json({error:'Choose a supported Team action'},422);
  const keys=new Set(['action','operatorId','version','reason',...actions[body.action]]);
  if(Object.keys(body).some(k=>!keys.has(k))||!Number.isInteger(body.version)||body.version<0||typeof body.reason!=='string'||!body.reason.trim()||body.reason.length>2000)return json({error:'A current version and reason are required; restricted fields cannot be supplied'},422);
@@ -104,6 +106,19 @@ async function manageUser({env,db},actor,body) {
  if(p.environment!==environmentName(env))return json({error:'Manage this identity in its authorized environment'},403);
  let role=target.role,status=target.account_status,nextScope=scopes,nextDelegations=person.delegations.map(d=>({campaignId:d.campaign_id,fieldKey:d.field_key,expiresAt:d.expires_at}));
  let permissionChange=false;
+ const edge=await edgeState(db,target.id);let edgeOperation=null,receipt=null;
+ if(body.action==='requestAdmission'){
+  if(!admissionConfiguration(env))return json({error:'Isolated admission verifier configuration is pending'},503);
+  if(status==='ACTIVE')return json({error:'Suspend access before requesting a replacement admission'},409);
+  if(p.edge_revocation_status==='PENDING_VERIFICATION')return json({error:'Complete the pending individual edge revocation first'},409);
+  edgeOperation='ADMIT';
+ }else if(body.action==='requestRevocation'){
+  status='SUSPENDED';p.lifecycle_status='SUSPENDED';p.edge_revocation_status='PENDING_VERIFICATION';nextDelegations=[];p.export_permissions_json='[]';permissionChange=true;edgeOperation='REVOKE';
+ }else if(body.action==='recordEdgeReceipt'){
+  if(edge.receipt)return json({error:'This request already has an immutable receipt'},409);
+  try{receipt=await verifyReceipt(body.receipt,edge.request,target,env,body.version);}catch(e){return json({error:e.message},422);}
+  if(receipt.operation==='REVOKE')p.edge_revocation_status='VERIFIED';
+ }
  if(body.action==='editEmployment'){
   if(!['PENDING_START','EMPLOYED'].includes(body.employmentStatus))return json({error:'Choose an approved employment status'},422);
   if(target.account_status==='ACTIVE'&&body.employmentStatus==='PENDING_START')return json({error:'Suspend active access before returning employment to pending start'},422);
@@ -112,8 +127,8 @@ async function manageUser({env,db},actor,body) {
   if(!['INVITED','PENDING','INACTIVE','SUSPENDED'].includes(p.lifecycle_status))return json({error:'This lifecycle state cannot enter training'},409);
   p.lifecycle_status='TRAINING';p.training_status='IN_PROGRESS';p.certified_role=null;
   if(p.environment==='TRAINING') {
-   if(env.HUMAN_PROVISIONING_MODE!=='REGISTRY_VERIFIED')return json({error:'Hosted training admission has not been verified'},503);
-   status='ACTIVE';
+   if(!validAdmission(edge,target,env))return json({error:'Current individual training admission receipt required'},503);
+   (actor.commitChecks||=[]).push(admissionCommitCheck(target,env));status='ACTIVE';
   }else status='DISABLED';
   permissionChange=true;
  } else if(body.action==='certify') {
@@ -121,10 +136,11 @@ async function manageUser({env,db},actor,body) {
   if(p.lifecycle_status!=='TRAINING'||!evidence||body.attestation!==true)return json({error:'Verify role-specific training and provide certification evidence while the user is in Training'},422);
   p.training_status='CERTIFIED';p.certified_role=role;p.certification_evidence=body.evidenceLink;p.lifecycle_status='CERTIFIED';status='DISABLED';permissionChange=true;
  } else if(body.action==='activate') {
-  if(env.HUMAN_PROVISIONING_MODE!=='REGISTRY_VERIFIED')return json({error:'Individual Cloudflare admission must be verified before activation'},503);
+  if(!validAdmission(edge,target,env))return json({error:'Current individual Cloudflare admission receipt required'},503);
   if(p.employment_status!=='EMPLOYED')return json({error:'Confirmed employment is required for operational activation'},422);
   if(p.training_status!=='CERTIFIED'||p.certified_role!==role||!p.certification_evidence||!['CERTIFIED','SUSPENDED','INACTIVE','TRAINING'].includes(p.lifecycle_status)||(!scopes.length&&!(role==='TECHNICIAN'&&JSON.parse(p.system_scope_json).includes('console_diagnostics'))))return json({error:'Current-role certification evidence and explicit record/system scope are required'},422);
   if(role==='TECHNICIAN'&&p.technical_level==='TRAINING'&&p.environment!=='TRAINING')return json({error:'Technician — Training cannot access production'},403);
+  (actor.commitChecks||=[]).push(admissionCommitCheck(target,env));
   status='ACTIVE';p.lifecycle_status='ACTIVE';permissionChange=true;
  } else if(['suspend','deactivate'].includes(body.action)) {
   status=body.action==='suspend'?'SUSPENDED':'DISABLED';p.lifecycle_status=body.action==='suspend'?'SUSPENDED':'INACTIVE';
@@ -164,7 +180,8 @@ async function manageUser({env,db},actor,body) {
   p.visibility_json=JSON.stringify([...new Set(body.categories)]);p.export_permissions_json=JSON.stringify([...new Set(body.exports)]);permissionChange=true;
  }
  const mutation=crypto.randomUUID(),newVersion=body.version+1;
- if(permissionChange){p.auth_not_before=Math.floor(Date.now()/1000)+1;if(target.account_status==='ACTIVE')p.edge_revocation_status='PENDING_VERIFICATION';}
+ if(permissionChange){p.auth_not_before=Math.floor(Date.now()/1000)+1;if(target.account_status==='ACTIVE'&&status!=='ACTIVE'){p.edge_revocation_status='PENDING_VERIFICATION';edgeOperation='REVOKE';}}
+ if(!edgeOperation&&!receipt&&p.edge_revocation_status==='PENDING_VERIFICATION')edgeOperation='REVOKE';
  const after={role,accessStatus:status,profile:{...p,version:newVersion,proposed_scope_json:JSON.stringify(nextScope)},scope:status==='ACTIVE'?nextScope:[],delegations:nextDelegations,reason:body.reason.trim()};
  const exists="EXISTS (SELECT 1 FROM console_team_profiles WHERE operator_id=? AND last_mutation_id=?)";
  const statements=[];
@@ -177,7 +194,9 @@ async function manageUser({env,db},actor,body) {
  statements.push(db.prepare('DELETE FROM console_approval_delegations WHERE operator_id=? AND '+exists).bind(target.id,target.id,mutation));
  for(const d of nextDelegations)statements.push(db.prepare('INSERT INTO console_approval_delegations(operator_id,campaign_id,field_key,delegated_by,expires_at) SELECT ?,?,?,?,? WHERE '+exists).bind(target.id,d.campaignId,d.fieldKey,actor.id,d.expiresAt,target.id,mutation));
  statements.push(db.prepare('INSERT INTO console_team_events(id,target_operator_id,actor_operator_id,actor_email,actor_name,actor_role,action,previous_state_json,new_state_json) SELECT ?,?,?,?,?,?,?,?,? WHERE '+exists).bind('TEAM-'+crypto.randomUUID(),target.id,actor.id,actor.login_email,actor.display_name,actor.role,'TEAM_'+body.action.toUpperCase(),JSON.stringify(person),JSON.stringify(after),target.id,mutation));
+ if(edgeOperation){const id='EDGE-'+crypto.randomUUID();statements.push(db.prepare('INSERT INTO console_team_events(id,target_operator_id,actor_operator_id,actor_email,actor_name,actor_role,action,new_state_json) SELECT ?,?,?,?,?,?,?,? WHERE '+exists).bind(id,target.id,actor.id,actor.login_email,actor.display_name,actor.role,edgeOperation==='ADMIT'?'EDGE_ADMISSION_REQUEST':'EDGE_REVOCATION_REQUEST',JSON.stringify({operation:edgeOperation,operatorId:target.id,email:target.login_email,environment:p.environment,audience:env.CLOUDFLARE_ACCESS_AUD||null,databaseId:env.CONSOLE_DATABASE_ID||null,deploymentId:env.CONSOLE_DEPLOYMENT_ID||null,requestVersion:newVersion,requestedAt:Math.floor(Date.now()/1000),reason:body.reason.trim()}),target.id,mutation));}
+ if(receipt)statements.push(db.prepare('INSERT INTO console_team_events(id,target_operator_id,actor_operator_id,actor_email,actor_name,actor_role,action,new_state_json) SELECT ?,?,?,?,?,?,?,? WHERE '+exists).bind('RECEIPT-'+crypto.randomUUID(),target.id,actor.id,actor.login_email,actor.display_name,actor.role,'EDGE_RECEIPT',JSON.stringify(receipt),target.id,mutation));
  const result=await db.batch(statements);
  if(!result[updateIndex].meta.changes)return json({error:'User changed. Refresh before continuing.'},409);
- return json({id:target.id,version:newVersion,accessStatus:status,lifecycleStatus:p.lifecycle_status,edgeRevocationStatus:p.edge_revocation_status,notice:status==='ACTIVE'?'Application access recorded. A fresh individual Access session is required.':'Application state recorded. History is preserved. Any pending Cloudflare session revocation remains a separate verification gate.'});
+ return json({id:target.id,version:newVersion,accessStatus:status,lifecycleStatus:p.lifecycle_status,edgeRevocationStatus:p.edge_revocation_status,...(edgeOperation||receipt?{edge:await edgeState(db,target.id)}:{}),notice:status==='ACTIVE'?'Application access recorded. A fresh individual Access session is required.':'Application state recorded. History is preserved. Any pending Cloudflare session revocation remains a separate verification gate.'});
 }

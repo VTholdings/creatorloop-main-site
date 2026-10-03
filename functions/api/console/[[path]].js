@@ -1,3 +1,5 @@
+import {admissionConfiguration} from '../admission.js';
+import {readiness} from '../readiness.js';
 import { capabilities, scoped, scopedRows, project, authorizeFields } from '../console-policy.js';
 import { operationalQueues, administerAccess, authorizeDecision, escalate } from '../operator-workflows.js';
 import { canManageTeam, teamAccess } from '../team-access.js';
@@ -50,7 +52,7 @@ async function actor(context) {
     user = await context.env.OPERATIONS_DB.prepare("SELECT * FROM operators WHERE id = ?").bind(id).first();
   }
   if (!user || user.account_status !== "ACTIVE") return null;
-  const member=await loadMembership(context.env.OPERATIONS_DB,user,context.env,context.data.accessIssuedAt);
+  const member=await loadMembership(context.env.OPERATIONS_DB,user,context.env,context.data.accessIssuedAt,context.data.accessSubject);
   if(member?.reauthenticate){context.data.reauthenticate=true;return null;}
   if(!member)return null;
   await context.env.OPERATIONS_DB.prepare("UPDATE operators SET last_activity_at=CURRENT_TIMESTAMP WHERE id=?").bind(user.id).run();
@@ -80,6 +82,7 @@ async function optionalRows(db, sql, values = []) {
 
 async function dispatchRequest(context) {
   if (!context.env.OPERATIONS_DB) return json({ error: "Operations database is not configured" }, 503);
+  if(context.env.CONSOLE_ENVIRONMENT==='TRAINING'&&!admissionConfiguration(context.env))return json({error:'Verified isolated training configuration is pending'},503);
   if (context.request.method !== "GET" && !sameOrigin(context.request)) return json({ error: "Origin rejected" }, 403);
   const user = await actor(context);
   if (!user) return json({ error: "Authorized operator account required" }, 403);
@@ -109,6 +112,7 @@ async function dispatchRequest(context) {
       if(context.request.method==='POST')return await finalizeReport(context,user);
       return json({error:'Finalized reports cannot be overwritten or deleted'},405);
     }
+    if(parts[0]==='readiness'&&parts.length===1&&context.request.method==='GET')return await readiness(context,user);
     if (parts[0] === 'team') return await teamAccess(context,user);
     if (parts[0] === 'exports') return await exportDataset(context,user);
     if (parts[0] === 'audit' && parts[1] === 'corrections') return await correctAudit(context,user);
@@ -160,7 +164,7 @@ async function dashboard({ env, request }, user) {
       training: env.CONSOLE_ENVIRONMENT === 'TRAINING',
       controlSystem: "PNB Acquisition & Launch Control System",
       systemOfRecord: env.CONSOLE_ENVIRONMENT === 'TRAINING' ? 'Isolated training database — fictional records' : 'Google Sheets',
-      syncConfigured: Boolean(env.CONTROL_SYSTEM_SYNC_SECRET)
+      syncConfigured: env.CONSOLE_ENVIRONMENT !== 'TRAINING' && Boolean(env.CONTROL_SYSTEM_SYNC_SECRET)
     }
   });
 }
@@ -416,7 +420,7 @@ async function systemStatus({ env }, user) {
     : { results: [] };
   return json({
     schemaReady: ready,
-    syncConfigured: Boolean(env.CONTROL_SYSTEM_SYNC_SECRET),
+    syncConfigured: env.CONSOLE_ENVIRONMENT !== 'TRAINING' && Boolean(env.CONTROL_SYSTEM_SYNC_SECRET),
     sourceSystem: "PNB Acquisition & Launch Control System",
     outbound: Object.fromEntries(counts.results.map((row) => [row.status,row.count]))
   });

@@ -1,10 +1,11 @@
+import {verifier} from '../tests/helpers/admission-fixture.js';
 // Isolated API training fixture; never opens a production DB or external connection.
 // Run from the repository root: node training/walkthrough.mjs
 import assert from 'node:assert/strict';
 import {fixture,call} from '../tests/helpers/operator-fixture.js';
 import {onRequest as signedSync} from '../functions/api/integrations/control-system.js';
 export async function walkthrough() {
- const {db,env}=await fixture();env.CONSOLE_ENVIRONMENT='TRAINING';
+ const {db,env}=await fixture();await verifier({env},'TRAINING');
  const steps=[];
  const source=(tab,id,fields,creatorId='CR-200')=>db.prepare('INSERT INTO console_source_records(tab,record_id,campaign_id,creator_id,fields_json,source_version,source_updated_at) VALUES(?,?,?,?,?,?,?)').run(tab,id,'CMP-100',creatorId,JSON.stringify(fields),'TRAINING-FIXTURE',new Date().toISOString());
  try{

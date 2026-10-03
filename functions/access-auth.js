@@ -23,7 +23,7 @@ export async function verifyAccessIdentity(request, environment, now = Math.floo
     if (!jwk) return {ok:false,status:401};
     const key=await crypto.subtle.importKey("jwk",jwk,{name:"RSASSA-PKCS1-v1_5",hash:"SHA-256"},false,["verify"]);
     const valid=await crypto.subtle.verify("RSASSA-PKCS1-v1_5",key,bytes(parts[2]),new TextEncoder().encode(`${parts[0]}.${parts[1]}`));
-    return valid ? {ok:true,email:String(payload.email).trim().toLowerCase(),...(Number.isFinite(payload.iat)?{issuedAt:payload.iat}:{})} : {ok:false,status:401};
+    return valid ? {ok:true,email:String(payload.email).trim().toLowerCase(),...(typeof payload.sub==='string'&&payload.sub?{subject:payload.sub}:{}),...(Number.isFinite(payload.iat)?{issuedAt:payload.iat}:{})} : {ok:false,status:401};
   } catch { return {ok:false,status:401}; }
 }
 

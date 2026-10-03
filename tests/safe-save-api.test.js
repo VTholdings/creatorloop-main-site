@@ -1,3 +1,4 @@
+import {admittedFixture} from './helpers/admission-fixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
@@ -11,6 +12,7 @@ async function setup(){
  f.db.prepare('INSERT INTO operators(id,login_email,display_name,role,account_status) VALUES(?,?,?,?,?)').run('OP-MARKETING_CAMPAIGN_MANAGER','marketing_campaign_manager@example.com','Fictional manager','MARKETING_CAMPAIGN_MANAGER','ACTIVE');
  f.db.prepare("INSERT INTO console_team_profiles(operator_id,employment_status,training_status,lifecycle_status,updated_by,visibility_json) VALUES(?,'EMPLOYED','CERTIFIED','ACTIVE','OP-ADMINISTRATOR',?)").run('OP-MARKETING_CAMPAIGN_MANAGER',JSON.stringify(['financial_economics']));
  f.db.prepare("INSERT INTO console_access_grants(operator_id,campaign_id,record_id,granted_by) VALUES(?,'CMP-100','*','OP-ADMINISTRATOR')").run('OP-MARKETING_CAMPAIGN_MANAGER');
+ await admittedFixture(f,{id:'OP-MARKETING_CAMPAIGN_MANAGER',email:'marketing_campaign_manager@example.com'});
  return f;
 }
 async function revision(f,role='MARKETING_CAMPAIGN_MANAGER'){return (await call(f.env,role,'GET','campaigns/CMP-100')).body.editing.revision;}

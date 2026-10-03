@@ -10,9 +10,9 @@ Finalized Console reports are immutable snapshots in the existing audit ledger. 
 
 ## Admission blocker
 
-`HUMAN_PROVISIONING_MODE=REGISTRY_VERIFIED` is a deployment switch. It is not an individual admission receipt, automatic policy provisioning, or proof that an employee authenticated. Leave it unset outside isolated tests until a reviewed admission mechanism and the environment's Access policy have passed live acceptance. The current implementation does not yet store and verify per-person admission receipts or complete per-person edge-session revocation. Those requirements remain open. Do not enable operational activation merely to make the UI demonstration pass.
+Individual admission requests and signed receipts are implemented in the existing immutable Team ledger. A deployment switch cannot replace an individual receipt. See [admission-execution.md](admission-execution.md) for the protocol, public configuration, portable executor, external provider dependency and exact live boundary. Suspension/deactivation immediately denies Console access and queues individual edge revocation; acknowledgement requires signed policy/session evidence. Reactivation needs new admission. None of the local fixtures establish live Cloudflare admission or revocation.
 
-The optional evaluator and broker experiments preserved on the local recovery branch are not part of this release. Installing a new Access admission mechanism is a consequential security configuration change requiring review and authenticated platform access. Preserve existing Owner admission and integration service policies. Do not ask the Owner to repeat previously completed authorization when the current environment lacks the authenticated administrative session.
+The Console never holds Cloudflare credentials or signing private keys. The reviewed provider ports must be wired in the secure external execution environment after actual policy, identity-provider and individual revocation behavior are corroborated. Preserve existing Owner and integration service policies. No broker or evaluator experiment is installed by this PR.
 
 ## Migration preparation
 
@@ -45,10 +45,12 @@ Locally signed RSA JWT tests pass through the actual middleware and Console API.
 ## Certification separation
 
 - Infrastructure Production Certified: preserve the prior certification; revalidate deployed SHA/configuration independently before release.
-- Team & Access Architecture: application implementation tested; individual admission provisioning remains incomplete.
+- Team & Access Architecture: application and signed individual receipt/provisioning orchestration locally verified; actual provider wiring and live admission remain external gates.
 - Team & Access Live Lifecycle Test: pending hosted individual acceptance.
 - Operator Readiness Certified: not certified. Local signed source round-trip coverage now preserves pending escalations through import, export, acknowledgement and reimport. Hosted bridge evidence, actual source mapping/connections, operational queues, training deployment/isolation, OPS VIEW and employee handoff remain separate gates.
 
 Keep the pull request draft. No production merge or deployment is authorized by these local tests.
 
 Controlled editing is staged in the same draft; see [controlled-record-editing.md](controlled-record-editing.md). Its local View/Edit/Review/Save, before/after audit, current-scope/decision guards and narrow campaign Notes synchronization tests do not replace hosted acceptance. Include the updated bound bridge in the eventual controlled rollout; no live workbook installation is performed during draft development.
+
+Owner application readiness is available at `GET /api/console/readiness`; it never reports live acceptance or Production certification as complete. Use the [employee/operator handoff](employee-operator-handoff.md) and [backup/retention release preparation](backup-retention-release.md) for controlled acceptance.
