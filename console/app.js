@@ -31,15 +31,21 @@ const notice = (message,error = false) => {
 
 async function start() {
   try {
+    const identity=(await api('me')).user;
     state.campaigns = (await api("campaigns")).campaigns;
     const initial = state.campaigns.find((campaign) => campaign.id === "CMP-100") || state.campaigns[0];
-    if (!initial) throw new Error("No campaign records are available");
+    if (!initial && identity.canDiagnose) {
+      state.dashboard={user:identity,campaign:{id:'',name:'Technical workspace'}};
+      renderChrome();$('#loading').hidden=true;$('#app').hidden=false;show('diagnostics');return;
+    }
+    if (!initial) throw new Error("No assigned workspace records are available. Contact the Administrator.");
     await loadCampaign(initial.id);
     renderAll();
     $("#loading").hidden = true;
     $("#app").hidden = false;
+    if(identity.role==='TECHNICIAN'&&identity.canDiagnose)show('diagnostics');
   } catch (error) {
-    $("#loading").innerHTML = '<div class="loop-mark">∞</div><h1>Access locked</h1><p>' + esc(error.message) + '</p>';
+    $("#loading").innerHTML = '<div class="loop-mark">∞</div><h1>Access locked</h1><p>' + esc(error.message) + '</p>'+(error.body?.code==='REAUTHENTICATE'?'<p><a href="/cdn-cgi/access/logout">Sign out, then return to ops.creatorloop.net</a></p>':'');
   }
 }
 
@@ -69,7 +75,9 @@ function renderChrome() {
   $("#operator-login").textContent = user.loginIdentity || "Login identity unavailable";
   $("#campaign-name").textContent = campaignLabel(campaign);
   document.querySelectorAll(".admin-only").forEach((element) => { element.hidden = !user.canViewAudit; });
+  document.querySelectorAll(".reports-only").forEach((element) => { element.hidden = !user.canViewReports; });
   document.querySelectorAll(".team-only").forEach((element) => { element.hidden = !user.canManageTeam; });
+  document.querySelectorAll(".diagnostics-only").forEach((element) => { element.hidden = !user.canDiagnose; });
 }
 
 function total() {
@@ -285,7 +293,7 @@ function qaPanel(creator) {
     '<div class="check ' + (value ? "ok" : "no") + '">' + (value ? "✓" : "✕") + " " + esc(key === "productCampaignFocus" ? "Product Focus" : key.replace(/([A-Z])/g," $1")) + '</div>'
   ).join("");
   const history = (state.current.reviews || []).map((review) =>
-    '<div class="check"><strong>' + esc(review.result) + '</strong> · ' + esc(review.reviewer_role) + ' · ' + esc(review.created_at) + '<br>' + esc(review.notes || "") + '</div>'
+    '<div class="check"><strong>' + esc(review.result) + '</strong> · ' + 'Current reviewer role: ' + esc(review.reviewer_role) + ' · ' + esc(review.created_at) + '<br>' + esc(review.notes || "") + '</div>'
   ).join("");
   return '<div class="section-head"><div><h2>QA gate</h2><p>Evidence plus an authorized decision.</p></div></div><div class="checklist">' + checks + '</div>' +
     (creator.workflow_status === "AWAITING_QA" && canReview ? '<label>QA notes <textarea id="qa-notes" placeholder="Required for HOLD or CORRECTION REQUIRED"></textarea></label><div class="qa-actions"><button class="pass" data-qa="PASS">PASS</button><button class="hold" data-qa="HOLD">HOLD</button><button class="correction" data-qa="CORRECTION_REQUIRED">CORRECTION REQUIRED</button></div>' : "") +
@@ -412,9 +420,16 @@ async function combinedSearch(term) {
 async function renderAudit() {
   if (!state.dashboard.user.canViewAudit) return;
   const events = (await api("audit?campaignId=" + encodeURIComponent(state.dashboard.campaign.id))).events;
-  $("#audit-view").innerHTML = '<div class="section-head"><div><h2>Audit trail</h2><p>Administrator / Project Owner only.</p></div></div><div class="panel audit-wrap"><table class="audit-table"><thead><tr><th>WHEN</th><th>OPERATOR</th><th>ACTION</th><th>RECORD</th><th>CHANGE</th></tr></thead><tbody>' +
-    events.map((event) => '<tr><td>' + esc(event.created_at) + '</td><td>' + esc(event.actor_name || event.operator_name) + '<br>Role at action: ' + esc(event.role_at_action || 'Not recorded') + '<br>Current role: ' + esc(event.operator_role) + '</td><td>' + esc(event.action) + '</td><td>' + esc(event.object_id) + '</td><td>' + esc(event.previous_value || "—") + ' → ' + esc(event.new_value || "—") + '</td></tr>').join("") +
-    '</tbody></table></div>';
+  $("#audit-view").innerHTML = '<div class="section-head"><div><h2>Audit trail</h2><p>Authorized audit visibility in assigned scope. Corrections preserve original events.</p></div></div><div class="panel audit-wrap"><table class="audit-table"><thead><tr><th>WHEN</th><th>OPERATOR</th><th>ACTION</th><th>RECORD</th><th>CHANGE</th></tr></thead><tbody>' +
+    events.map((event) => '<tr><td>' + esc(event.created_at) + '</td><td>' + esc(event.operator_name) + '<br>'+(event.role_at_event?'Role at event: ':'Current role: ') + esc(event.operator_role) + '</td><td>' + esc(event.action) + '</td><td>' + esc(event.object_id) + '</td><td>' + esc(event.previous_value || "—") + ' → ' + esc(event.new_value || "—") + (state.dashboard.user.canManageTeam?'<br><button class="action secondary" data-correct-event="'+esc(event.id)+'">Append correction</button>':'') + '</td></tr>').join("") +
+    '</tbody></table></div><section id="audit-correction-editor"></section>';
+  $('#audit-view').querySelectorAll('[data-correct-event]').forEach(button=>button.addEventListener('click',()=>editAuditCorrection(button.dataset.correctEvent)));
+}
+function editAuditCorrection(eventId) {
+  if(!state.dashboard.user.canManageTeam)return;
+  $('#audit-correction-editor').innerHTML='<form id="audit-correction-form" class="panel"><h3>Append an audit correction</h3><p>Original event: '+esc(eventId)+'</p><label>Correction <textarea name="correction" required maxlength="4000"></textarea></label><label>Reason <textarea name="reason" required maxlength="2000"></textarea></label><button class="action" type="submit">Append correction</button></form>';
+  const form=$('#audit-correction-form');
+  form.addEventListener('submit',async event=>{event.preventDefault();const button=form.querySelector('button');if(button.disabled)return;button.disabled=true;try{await api('audit/corrections',{method:'POST',body:JSON.stringify({eventId,...Object.fromEntries(new FormData(form))})});notice('Correction appended; original event preserved.');await renderAudit();}catch(e){notice(e.message,true);button.disabled=false;}});
 }
 
 async function reload(view) {
@@ -425,13 +440,17 @@ async function reload(view) {
 
 function show(view) {
   if (view === "audit" && !state.dashboard.user.canViewAudit) return;
+  if (view === "reports" && !state.dashboard.user.canViewReports) return;
   if (view === "team" && !state.dashboard.user.canManageTeam) return;
+  if (view === "diagnostics" && !state.dashboard.user.canDiagnose) return;
   document.querySelectorAll(".view").forEach((element) => { element.hidden = true; });
   const target = $("#" + view + "-view");
   if (target) target.hidden = false;
   document.querySelectorAll(".nav-button").forEach((button) => button.classList.toggle("active",button.dataset.view === view));
   if (view === "audit") renderAudit().catch((error) => notice(error.message,true));
+  if (view === "reports") renderReports().catch((error) => notice(error.message,true));
   if (view === "team") renderTeam().catch((error) => notice(error.message,true));
+  if (view === "diagnostics") renderDiagnostics().catch((error) => notice(error.message,true));
   $(".sidebar").classList.remove("open");
 }
 
@@ -506,7 +525,7 @@ function applyRoleControls() {
   const newAssignment=$('#new-assignment');if(newAssignment)newAssignment.hidden=!capture;
 }
 function escalationForm() {
-  if(!state.dashboard.user.capabilities?.captureFacts)return '';
+  if(!state.dashboard.user.capabilities?.captureFacts&&!['OPERATIONS_MANAGER','MARKETING_CAMPAIGN_MANAGER'].includes(state.dashboard.user.role))return '';
   const types=['Owner Access','Money/Spend','Tracking','Shipping','Product','Creator Rights','Creative','Inventory','Checkout','Data Missing','Other'];
   return '<details class="panel"><summary>Record an escalation</summary><form id="escalation-form"><label>Type <select name="type">'+optionList(types,'Other')+'</select></label><label>Severity <select name="severity">'+optionList(['Green','Yellow','Red','Blue','Gray'],'Yellow')+'</select></label><label>Decision Needed / Blocker <textarea name="description" required></textarea></label><label>Recommendation <textarea name="recommendation"></textarea></label><label>Evidence Link <input type="url" name="evidenceLink" required></label><button class="action" type="submit">Send to DECISIONS &amp; BLOCKERS</button></form><p>This records an issue; it does not approve, resolve or authorize spending.</p></details>';
 }
@@ -529,33 +548,42 @@ function bindEscalationForm() {
 }
 function teamScope(person) {
   if(person.ownerReserved)return 'Owner / Administrator';
-  const grants=person.scope.map(grant=>grant.campaign_id+' / '+(grant.record_id==='*'?'All assigned campaign records':grant.record_id));
-  const assigned=person.assignedRecords.map(record=>record.campaign_id+' / '+record.id+' (record assignment)');
-  return [...new Set([...grants,...assigned])].join('; ') || 'No active record scope';
+  if(person.accessStatus!=='ACTIVE')return 'Inactive — no operational access';
+  const grants=person.scope.map(g=>g.campaign_id+' / '+(g.record_id==='*'?'All campaign records':g.record_id));
+  const assigned=person.profile?.managed_scope?[]:person.assignedRecords.map(r=>r.campaign_id+' / '+r.id+' (record assignment)');
+  return [...new Set([...grants,...assigned])].join('; ')||'No active record scope';
+}
+function roleChoices(meta,current) {
+  return meta.approvedRoles.map(role=>'<option value="'+esc(role)+'" '+(role===current?'selected':'')+'>'+esc(meta.roleCatalog?.[role]||role)+'</option>').join('');
 }
 function teamRows(users) {
-  return users.map(person=>'<tr><td>'+esc(person.fullName)+'</td><td>'+esc(person.email)+(person.retiredIdentity?'<br><strong>Retired identity · history preserved</strong>':'')+'</td><td>'+esc(person.role)+'</td><td>'+esc(teamScope(person))+'</td><td>'+esc(person.profile?.training_status||'Not recorded')+'</td><td>'+esc(person.profile?.lifecycle_status==='PENDING'?'Pending · inactive':person.accessStatus)+'</td><td>'+esc(person.lastAccess||'No recorded access')+'</td><td><button class="action secondary" data-team-person="'+esc(person.id)+'">View</button></td></tr>').join('');
+  return users.map(person=>'<tr><td>'+esc(person.fullName)+'</td><td>'+esc(person.email)+(person.retiredIdentity?'<br><strong>Retired identity · history preserved</strong>':'')+'</td><td>'+esc(state.teamMeta?.roleCatalog?.[person.role]||person.role)+'</td><td>'+esc(teamScope(person))+'</td><td>'+esc(person.profile?.environment||state.teamMeta?.environment||'Not recorded')+'</td><td>'+esc(person.profile?.training_status||'Not recorded')+'</td><td>'+esc(['PENDING','INVITED'].includes(person.profile?.lifecycle_status)?'Invited · inactive':person.profile?.lifecycle_status||person.accessStatus)+'</td><td>'+esc(person.lastAccess||'No recorded access')+'</td><td><button class="action secondary" data-team-person="'+esc(person.id)+'">View</button></td></tr>').join('');
+}
+function technicalChoices(current) {
+  return [['TRAINING','Technician — Training'],['PRODUCTION_SUPPORT','Technician — Production Support'],['INFRASTRUCTURE_ADMIN','Technician — Infrastructure Admin']].map(([key,label])=>'<option value="'+key+'" '+(key===current?'selected':'')+'>'+label+'</option>').join('');
 }
 function addTeamForm(data) {
-  if(!data.metadataReady)return '<div class="notice error persistent">Team directory migration is pending. The existing directory remains read-only.</div>';
+  if(!data.metadataReady)return '<div class="notice error persistent">Team governance migration is pending. The existing directory remains read-only.</div>';
   return '<details class="panel"><summary>Add User</summary><form id="add-team-form"><div class="form-grid">'+
     '<label>Full name <input name="fullName" required maxlength="150" autocomplete="name"></label>'+
     '<label>Individual email address <input name="email" type="email" required maxlength="254" autocomplete="email"></label>'+
-    '<label>Approved role <select name="role">'+optionList(data.approvedRoles,'OPERATOR')+'</select><span class="field-help">Administrator is reserved for the Owner.</span></label>'+
+    '<label>Approved role <select name="role">'+roleChoices(data,'OPERATOR')+'</select><span class="field-help">Administrator is reserved for the Owner.</span></label>'+
     '<label>Employment status <select name="employmentStatus"><option value="PENDING_START">Pending start</option><option value="EMPLOYED">Employed</option></select></label>'+
     '<label>Proposed scope <select name="scopeKind"><option value="none">No scope yet</option><option value="campaign">Entire selected campaign</option><option value="records">Selected Creator IDs</option></select></label>'+
-    '<label>Campaign ID <select name="campaignId"><option value="">Select a campaign</option>'+data.campaigns.map(campaign=>'<option value="'+esc(campaign.id)+'">'+esc(campaignLabel(campaign))+'</option>').join('')+'</select></label>'+
-    '<label>Creator IDs <input name="recordIds" placeholder="CR-100, CR-101"><span class="field-help">For selected records only. Each Creator ID must belong to the chosen Campaign ID.</span></label>'+
-    '<label>Training status <input disabled value="Not Started"></label>'+
-    '</div><p>Saving creates an inactive individual identity and proposed scope. It does not authorize login or grant campaign access. Training certification and activation require the verified provisioning rollout.</p><button class="action" type="submit">Save inactive user</button></form></details>';
+    '<label>Campaign ID <select name="campaignId"><option value="">Select a campaign</option>'+data.campaigns.map(c=>'<option value="'+esc(c.id)+'">'+esc(campaignLabel(c))+'</option>').join('')+'</select></label>'+
+    '<label>Creator IDs <input name="recordIds" placeholder="CR-100, CR-101"><span class="field-help">Each Creator ID must belong to the chosen Campaign ID.</span></label>'+
+    '<label>Technical level <select name="technicalLevel">'+technicalChoices(data.environment==='TRAINING'?'TRAINING':'PRODUCTION_SUPPORT')+'</select><span class="field-help">Used only for Technician. This designation does not grant infrastructure administration.</span></label>'+
+    '<label>Environment <input disabled value="'+esc(data.environment)+'"></label><label>Training status <input disabled value="Not Started"></label>'+
+    '</div><p>Saving creates an invited, inactive individual identity and proposed scope. Training certification and production activation are separate, attributable actions.</p><button class="action" type="submit">Save inactive user</button></form></details>';
 }
 async function renderTeam() {
   if(!state.dashboard.user.canManageTeam)return;
-  const data=await api('team');
+  const data=await api('team');state.teamMeta=data;
   $('#team-view').innerHTML='<div class="section-head"><div><span class="eyebrow">Administration</span><h2>Team &amp; Access</h2><p>Individual identities · login at <a href="https://ops.creatorloop.net">ops.creatorloop.net</a></p></div></div>'+
-    '<div class="panel"><p>'+esc(data.notice)+'</p><p>Historical identities remain in the directory. Deactivation is not deletion. Training status is unverified unless explicitly recorded.</p></div>'+addTeamForm(data)+
-    '<div class="panel audit-wrap"><table class="audit-table team-table"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Scope</th><th>Training Status</th><th>Access Status</th><th>Last Access</th><th>Actions</th></tr></thead><tbody>'+teamRows(data.users)+'</tbody></table></div><section id="team-detail"></section>';
-  $('#team-view').querySelectorAll('[data-team-person]').forEach(button=>button.addEventListener('click',()=>viewTeamPerson(button.dataset.teamPerson).catch(error=>notice(error.message,true))));
+    '<div class="panel"><p>'+esc(data.notice)+'</p><p>Historical identities remain identifiable. Deactivation is not deletion. Training certification never automatically grants production access.</p>'+ (data.metadataReady?'<button class="action secondary" id="export-personnel">Download personnel directory</button>':'')+'</div>'+addTeamForm(data)+
+    '<div class="panel audit-wrap"><table class="audit-table team-table"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Scope</th><th>Environment</th><th>Training Status</th><th>Access Status</th><th>Last Access</th><th>Actions</th></tr></thead><tbody>'+teamRows(data.users)+'</tbody></table></div><section id="team-detail"></section>';
+  $('#team-view').querySelectorAll('[data-team-person]').forEach(button=>button.addEventListener('click',()=>viewTeamPerson(button.dataset.teamPerson).catch(e=>notice(e.message,true))));
+  $('#export-personnel')?.addEventListener('click',()=>downloadDataset('personnel').catch(e=>notice(e.message,true)));
   const form=$('#add-team-form');
   form?.addEventListener('submit',async event=>{
     event.preventDefault();const button=form.querySelector('button[type="submit"]');if(button.disabled)return;
@@ -564,22 +592,89 @@ async function renderTeam() {
     if(fields.scopeKind!=='none'&&(!fields.campaignId||!ids.length)){notice('Choose the Campaign ID and required Creator IDs',true);return;}
     const scopes=fields.scopeKind==='none'?[]:ids.map(recordId=>({campaignId:fields.campaignId,recordId}));
     button.disabled=true;
-    try {const result=await api('team',{method:'POST',body:JSON.stringify({action:'addPending',fullName:fields.fullName,email:fields.email,role:fields.role,employmentStatus:fields.employmentStatus,scopes})});notice(result.notice);await renderTeam();}
-    catch(error){notice(error.message,true);button.disabled=false;}
+    try {const result=await api('team',{method:'POST',body:JSON.stringify({action:'addPending',fullName:fields.fullName,email:fields.email,role:fields.role,employmentStatus:fields.employmentStatus,technicalLevel:fields.role==='TECHNICIAN'?fields.technicalLevel:null,scopes})});notice(result.notice);await renderTeam();}
+    catch(e){notice(e.message,true);button.disabled=false;}
   });
 }
 async function viewTeamPerson(id) {
-  const data=await api('team/'+encodeURIComponent(id));
+  const data=await api('team/'+encodeURIComponent(id));state.teamPerson=data.person;
   $('#team-detail').innerHTML=teamPersonDetails(data);
+  $('#team-detail').querySelectorAll('[data-team-action]').forEach(button=>button.addEventListener('click',()=>editTeamAction(button.dataset.teamAction)));
   $('#team-detail').scrollIntoView({block:'nearest'});
 }
 function teamPersonDetails({person,events,historyNotice}) {
   const proposed=person.profile?JSON.parse(person.profile.proposed_scope_json):[];
-  return '<div class="panel"><h2>'+esc(person.fullName)+'</h2><p>'+esc(person.email)+' · '+esc(person.role)+'</p>'+
-    '<p>Current scope: '+esc(teamScope(person))+'</p><p>Employment status: '+esc(person.profile?.employment_status||'Not recorded')+'</p>'+
-    '<p>Proposed scope: '+esc(proposed.map(scope=>scope.campaignId+' / '+scope.recordId).join('; ')||'None')+'</p>'+
-    '<p>Delegated approvals: '+esc(person.delegations.map(delegation=>delegation.campaign_id+' / '+delegation.field_key+' / expires '+delegation.expires_at).join('; ')||'None')+'</p>'+
-    '<p>'+esc(historyNotice)+'</p>'+events.map(event=>'<div class="record-section"><strong>'+esc(event.action)+'</strong><p>'+esc(event.created_at)+' · '+esc(event.actor_name)+' · '+esc(event.actor_email)+' · Role at action: '+esc(event.actor_role)+'</p></div>').join('')+
-    '<p>Activate, Deactivate, Change Role and Edit Scope will become available after the provisioning architecture is approved and verified.</p></div>';
+  const writable=state.teamMeta?.metadataReady&&!person.ownerReserved&&!person.retiredIdentity&&person.role!=='ADMINISTRATOR';
+  const actions=writable?'<div class="qa-actions">'+['editEmployment','editScope','changeRole','manageAuthority','visibility','startTraining','certify','activate','suspend','deactivate'].map(action=>'<button class="action secondary" data-team-action="'+action+'" '+(action==='activate'&&!state.teamMeta.activationAvailable?'disabled title="Individual admission rollout is not verified"':'')+'>'+({editEmployment:'Employment Status',editScope:'Edit Scope',changeRole:'Change Role',manageAuthority:'Manage Authority',visibility:'Visibility & Exports',startTraining:'Start Training',certify:'Record Certification',activate:'Activate',suspend:'Suspend',deactivate:'Deactivate'}[action])+'</button>').join('')+'</div>':'';
+  return '<div class="panel"><h2>'+esc(person.fullName)+'</h2><p>'+esc(person.email)+' · '+esc(person.role)+'</p>'+actions+
+    '<p>Current scope: '+esc(teamScope(person))+'</p><p>Environment: '+esc(person.profile?.environment||state.teamMeta?.environment||'Not recorded')+' · Employment status: '+esc(person.profile?.employment_status||'Not recorded')+'</p>'+
+    '<p>Proposed scope: '+esc(proposed.map(s=>s.campaignId+' / '+s.recordId).join('; ')||'None')+'</p>'+
+    '<p>Cloudflare session revocation: '+esc(person.profile?.edge_revocation_status||'Not recorded')+'</p>'+
+    '<p>Delegated approvals: '+esc(person.delegations.map(d=>d.campaign_id+' / '+authorityLabel(d.field_key)+' / expires '+d.expires_at).join('; ')||'None')+'</p>'+
+    '<p>Record attribution is preserved separately from access grants.</p><p>'+esc(historyNotice)+'</p>'+events.map(event=>'<div class="record-section"><strong>'+esc(event.action)+'</strong><p>'+esc(event.created_at)+' · '+esc(event.actor_name)+' · '+esc(event.actor_email)+' · Role at action: '+esc(event.actor_role)+'</p><details><summary>Recorded change</summary><pre>'+esc(event.previous_state_json||'No previous state')+' → '+esc(event.new_state_json)+'</pre></details></div>').join('')+'<section id="team-action-editor"></section></div>';
 }
+function authorityLabel(key) {
+  return {compensationModel:'Compensation Model',rightsStatus:'Rights Status',productFocus:'Product Focus',evidenceLink:'Evidence Link',fixedContentFee:'Fixed Content Fee ($)',commissionRate:'Commission %',attributionWindowDays:'Attribution Window (Days)',paidUsageRights:'Paid Usage Rights',evidenceStatus:'Evidence Status',signedRightsEvidenceLink:'Signed Rights Evidence Link',startDate:'Start Date',contentDue:'Content Due'}[key]||key;
+}
+function teamActionFields(action,person,meta) {
+  const p=person.profile,scopes=p?JSON.parse(p.proposed_scope_json):[...person.scope.map(g=>({campaignId:g.campaign_id,recordId:g.record_id})),...person.assignedRecords.map(r=>({campaignId:r.campaign_id,recordId:r.id}))];
+  if(action==='editEmployment')return '<label>Employment status <select name="employmentStatus"><option value="PENDING_START" '+(p?.employment_status==='PENDING_START'?'selected':'')+'>Pending start</option><option value="EMPLOYED" '+(p?.employment_status==='EMPLOYED'?'selected':'')+'>Employed</option></select></label><p>Employment status does not grant access. Suspend access before returning an active person to pending start.</p>';
+  if(action==='changeRole')return '<p>Changing role pauses access and clears certification, authority and sensitive visibility. Review training and explicitly activate afterward.</p><label>Approved role <select name="role">'+roleChoices(meta,person.role)+'</select></label><label>Technical level <select name="technicalLevel">'+technicalChoices(p?.technical_level||'TRAINING')+'</select></label>';
+  if(action==='editScope')return '<label>Campaign ID, Creator ID <textarea name="scopes" rows="5">'+esc(scopes.map(s=>s.campaignId+','+s.recordId).join('\n'))+'</textarea><span class="field-help">One assignment per line. Use * only when authorizing the entire campaign. Empty scope revokes all record access.</span></label>'+(person.role==='TECHNICIAN'?'<label><input type="checkbox" name="diagnostics" '+(JSON.parse(p?.system_scope_json||'[]').includes('console_diagnostics')?'checked':'')+'> Console diagnostics only</label>':'');
+  if(action==='visibility')return '<fieldset><legend>Read visibility — does not grant business approval</legend>'+meta.visibilityCategories.map(c=>'<label><input type="checkbox" name="view_'+c+'" '+(JSON.parse(p?.visibility_json||'[]').includes(c)?'checked':'')+'> '+esc({creator_pii:'Creator identity, contact and evidence',creator_compensation:'Approved creator compensation terms',financial_economics:'Financial/economic information in assigned campaigns',audit_history:'Audit history in assigned scope',finalized_reports:'Finalized Console reports in assigned scope'}[c])+'</label>').join('')+'</fieldset><fieldset><legend>Separate download authorization</legend>'+meta.exportCategories.map(c=>'<label><input type="checkbox" name="export_'+c+'" '+(JSON.parse(p?.export_permissions_json||'[]').includes(c)?'checked':'')+'> '+esc(c)+'</label>').join('')+'</fieldset>';
+  if(action==='manageAuthority')return '<p>Explicit field/campaign approval only. Owner Approval, launch, budget/spend and consequential exception authority are not granted by this control.</p>'+[...person.delegations,{}].map((d,i)=>'<div class="nested-panel"><label>Campaign ID <select name="delegation_'+i+'_campaignId"><option value="">No delegation</option>'+meta.campaigns.map(c=>'<option value="'+esc(c.id)+'" '+(c.id===d.campaign_id?'selected':'')+'>'+esc(campaignLabel(c))+'</option>').join('')+'</select></label><label>Approval field <select name="delegation_'+i+'_fieldKey">'+meta.authorityFields.map(f=>'<option value="'+esc(f)+'" '+(f===d.field_key?'selected':'')+'>'+esc(authorityLabel(f))+'</option>').join('')+'</select></label><label>Expires (UTC) <input step="1" name="delegation_'+i+'_expiresAt" type="datetime-local" value="'+esc(d.expires_at?new Date(d.expires_at).toISOString().slice(0,19):'')+'"></label><label><input type="checkbox" name="delegation_'+i+'_remove"> Remove this delegation</label></div>').join('');
+  if(action==='certify')return '<p>Certification records the Owner’s verification. It does not activate production access. Use evidence from the isolated sandbox and the person’s approved role procedure.</p><label>Certification evidence <input name="evidenceLink" type="url" required></label><label><input type="checkbox" name="attestation" required> I verified this individual’s role-specific training and required scenarios.</label>';
+  if(action==='startTraining')return '<p>'+(meta.environment==='TRAINING'?'Hosted sandbox access requires verified individual admission.':'This records training status only. Actual practice must occur in the isolated hosted sandbox; production access remains disabled.')+'</p>';
+  if(action==='activate')return '<p>Activation requires verified individual admission, current-role certification and explicit scope. It grants only this environment’s approved access.</p>';
+  return '<p>Future Console access will be blocked. Historical activity remains preserved. Any Cloudflare token revocation is tracked separately and must be verified.</p>';
+}
+function editTeamAction(action) {
+  const person=state.teamPerson,meta=state.teamMeta;
+  $('#team-action-editor').innerHTML='<form id="team-action-form"><h3>'+esc(action.replace(/([A-Z])/g,' $1'))+'</h3>'+teamActionFields(action,person,meta)+'<label>Reason <textarea name="reason" required maxlength="2000"></textarea></label><button class="action" type="submit">Record authorized change</button></form>';
+  const form=$('#team-action-form');
+  form.addEventListener('submit',async event=>{
+    event.preventDefault();const button=form.querySelector('button[type="submit"]');if(button.disabled)return;
+    try {
+    const fields=Object.fromEntries(new FormData(form));
+    const body={action,operatorId:person.id,version:person.profile?.version||0,reason:fields.reason};
+    if(action==='editEmployment')body.employmentStatus=fields.employmentStatus;
+    if(action==='changeRole'){body.role=fields.role;body.technicalLevel=fields.role==='TECHNICIAN'?fields.technicalLevel:null;}
+    if(action==='editScope'){body.scopes=fields.scopes.split('\n').map(line=>line.trim()).filter(Boolean).map(line=>{const [campaignId,recordId,...rest]=line.split(',').map(s=>s.trim());if(!campaignId||!recordId||rest.length)throw new Error('Use one Campaign ID, Creator ID assignment per line');return {campaignId,recordId};});body.systems=fields.diagnostics?['console_diagnostics']:[];}
+    if(action==='visibility'){body.categories=meta.visibilityCategories.filter(c=>fields['view_'+c]);body.exports=meta.exportCategories.filter(c=>fields['export_'+c]);}
+    if(action==='manageAuthority'){body.delegations=[];for(let i=0;i<=person.delegations.length;i++){const campaignId=fields['delegation_'+i+'_campaignId'];if(campaignId&&!fields['delegation_'+i+'_remove']){const date=new Date(fields['delegation_'+i+'_expiresAt']+'Z');if(!Number.isFinite(date.getTime())){notice('Choose a future delegation expiry',true);return;}body.delegations.push({campaignId,fieldKey:fields['delegation_'+i+'_fieldKey'],expiresAt:date.toISOString()});}}}
+    if(action==='certify'){body.evidenceLink=fields.evidenceLink;body.attestation=!!fields.attestation;}
+    button.disabled=true;
+    const result=await api('team',{method:'POST',body:JSON.stringify(body)});notice(result.notice);await renderTeam();await viewTeamPerson(person.id);}
+    catch(e){notice(e.message,true);button.disabled=false;}
+  });
+}
+async function downloadDataset(dataset) {
+  const response=await fetch('/api/console/exports',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({dataset,...(dataset==='personnel'?{}:{campaignId:state.dashboard.campaign.id})})});
+  if(!response.ok){const body=await response.json();throw new Error(body.error||'Export denied');}
+  const url=URL.createObjectURL(await response.blob()),link=document.createElement('a');link.href=url;link.download='creatorloop-'+dataset+'.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);notice('Authorized download recorded in audit history.');
+}
+async function renderDiagnostics() {
+  if(!state.dashboard.user.canDiagnose)return;
+  const data=await api('diagnostics');$('#diagnostics-view').innerHTML='<div class="panel"><h2>Technical diagnostics</h2><p>Environment: '+esc(data.environment)+'</p><p>Operational schema: '+(data.schemaReady?'Ready':'Pending')+'</p><p>'+esc(data.notice)+'</p></div>';
+}
+
+
+function reportSnapshot(records,dataset) {
+  const fields=dataset==='creators'?{id:'Creator ID',creator_name:'Creator Name',primary_platform:'Primary Platform',handle:'Handle',contact:'Email / Contact',creator_status:'Status',product_focus:'Product Focus',rights_status:'Rights Status'}:{id:'Campaign ID',name:'Campaign Name',platform:'Platform',status:'Status',product_scope:'Product Scope',cash_budget:'Cash Budget ($)'};
+  const keys=Object.keys(fields).filter(key=>records.some(row=>key in row));
+  return '<div class="audit-wrap"><table class="audit-table"><thead><tr>'+keys.map(key=>'<th>'+esc(fields[key])+'</th>').join('')+'</tr></thead><tbody>'+records.map(row=>'<tr>'+keys.map(key=>'<td>'+esc(row[key]??'—')+'</td>').join('')+'</tr>').join('')+'</tbody></table></div>';
+}
+async function renderReports() {
+  const user=state.dashboard.user;if(!user.canViewReports)return;
+  const reports=(await api('reports?campaignId='+encodeURIComponent(state.dashboard.campaign.id))).reports;
+  const latest=reports.filter(report=>!reports.some(other=>other.reportId===report.reportId&&other.version>report.version));
+  $('#reports-view').innerHTML='<div class="section-head"><div><h2>Finalized reports</h2><p>Every version is preserved. Viewing and downloading follow your current permissions.</p></div>'+(user.exportDatasets.includes('reports')?'<button class="action secondary" id="report-download">Download authorized reports</button>':'')+'</div>'+
+    (user.canManageTeam?'<form id="finalize-report-form" class="panel"><h3>Finalize a Console snapshot</h3><label>Report <select name="reportId"><option value="">New report</option>'+latest.map(r=>'<option value="'+esc(r.reportId)+'">'+esc(r.title)+' · version '+r.version+'</option>').join('')+'</select></label><label>Records <select name="dataset"><option value="creators">🗺️CREATORS</option><option value="campaigns">CAMPAIGNS</option></select></label><label>Title <input name="title" required maxlength="160"></label><label>Reason <textarea name="reason" required maxlength="2000"></textarea></label><button type="submit" class="action">Finalize version</button><p>This saves a historical Console snapshot. External reports remain governed in their own source systems.</p></form>':'')+
+    (reports.map(report=>'<article class="panel"><h3>'+esc(report.title)+' · version '+report.version+'</h3><p>'+esc(report.finalizedAt)+' · '+esc(report.finalizedBy)+' · Role at event: '+esc(report.roleAtEvent)+'</p><p>'+esc(report.reason)+'</p><details><summary>'+report.records.length+' authorized records</summary>'+reportSnapshot(report.records,report.dataset)+'</details></article>').join('')||'<div class="panel">No finalized Console reports for this campaign.</div>');
+  $('#report-download')?.addEventListener('click',()=>downloadDataset('reports').catch(error=>notice(error.message,true)));
+  const form=$('#finalize-report-form');if(!form)return;
+  form.querySelector('[name="reportId"]').addEventListener('change',event=>{const report=latest.find(r=>r.reportId===event.target.value);if(report){form.querySelector('[name="dataset"]').value=report.dataset;form.querySelector('[name="title"]').value=report.title;}form.querySelector('[name="dataset"]').disabled=!!report;});
+  form.addEventListener('submit',async event=>{event.preventDefault();const button=form.querySelector('button');if(button.disabled)return;button.disabled=true;try{const fields=Object.fromEntries(new FormData(form)),previous=latest.find(r=>r.reportId===fields.reportId);await api('reports',{method:'POST',body:JSON.stringify({campaignId:state.dashboard.campaign.id,reportId:fields.reportId||undefined,dataset:previous?.dataset||fields.dataset,title:fields.title,reason:fields.reason,expectedVersion:previous?.version||0})});notice('Report version finalized. Prior versions remain preserved.');await renderReports();}catch(error){notice(error.message,true);button.disabled=false;}});
+}
+
 start();

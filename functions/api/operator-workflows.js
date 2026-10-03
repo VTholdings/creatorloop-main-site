@@ -1,9 +1,10 @@
 import { scoped, AUTHORIZATION_FIELDS, FactualRoles } from './console-policy.js';
 import { nextEntityId } from './console-core.js';
+import { visibility } from './team-policy.js';
 const json=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{'Content-Type':'application/json','Cache-Control':'no-store'}});
 const http=value=>{try{return ['https:','http:'].includes(new URL(value).protocol);}catch{return false;}};
 export async function escalate({env,request},user) {
- if(!FactualRoles.has(user.role))return json({error:'This role cannot capture an escalation'},403);
+ if(!FactualRoles.has(user.role)&&!['OPERATIONS_MANAGER','MARKETING_CAMPAIGN_MANAGER'].includes(user.role))return json({error:'This role cannot capture an escalation'},403);
  const body=await request.json(),db=env.OPERATIONS_DB;
  if(!await scoped(db,user,body.campaignId,body.creatorId||null))return json({error:'Assigned record access required'},403);
  const types=['Owner Access','Money/Spend','Tracking','Shipping','Product','Creator Rights','Creative','Inventory','Checkout','Data Missing','Other'];
@@ -41,7 +42,9 @@ export async function operationalQueues({env,request},user) {
    const fields=JSON.parse(row.fields_json);
    const creatorId=row.creator_id||fields['Creator ID']||(/^CR-\d+$/.test(fields['Related ID']||'')?fields['Related ID']:null);
    if(creatorId && !await scoped(env.OPERATIONS_DB,user,campaignId,creatorId))continue;
-   records.push({...row,fields_json:undefined,fields:user.role==='ADMINISTRATOR'?fields:Object.fromEntries((SOURCE_FIELDS[row.tab]||[]).filter(k=>k in fields).map(k=>[k,fields[k]]))});
+   const allowed=visibility(user);
+   const sensitive=k=>(/\(\$\)|CAC|ROAS/.test(k)&&!allowed.includes('financial_economics')) || (['Name:','Email:','Creator Name','Evidence Link','Notes','Recommendation','Decision Needed / Blocker'].includes(k)&&!allowed.includes('creator_pii'));
+   records.push({...row,fields_json:undefined,fields:user.role==='ADMINISTRATOR'?fields:Object.fromEntries((SOURCE_FIELDS[row.tab]||[]).filter(k=>k in fields&&!sensitive(k)).map(k=>[k,fields[k]]))});
  }
  const byTab=tab=>records.filter(r=>r.tab===tab);
  const stages=[
@@ -59,7 +62,7 @@ export async function administerAccess({request},user) {
  return json({error:'This personnel route is retired. Use Administration → Team & Access.',replacement:'/api/console/team'},410);
 }
 export async function authorizeDecision({env,request},user) {
- if(!['ADMINISTRATOR','APPROVAL_AUTHORITY'].includes(user.role))return json({error:'Explicit business approval authority required'},403);
+ if(!user.teamGovernance&&!['ADMINISTRATOR','APPROVAL_AUTHORITY'].includes(user.role))return json({error:'Explicit business approval authority required'},403);
  if(request.method!=='POST')return json({error:'Method not allowed'},405);
  const body=await request.json(),db=env.OPERATIONS_DB;
  if(!AUTHORIZATION_FIELDS[body.entityType] || !body.values || Array.isArray(body.values) || !http(body.evidenceLink))return json({error:'An established entity, approved values and decision evidence are required'},422);
@@ -72,8 +75,8 @@ export async function authorizeDecision({env,request},user) {
   if(!entity)return json({error:'Entity and Campaign ID must match'},422);
   if(!await scoped(db,user,body.campaignId,body.entityType==='CREATOR'?entity.id:entity.creator_id))return json({error:'Assigned record access required'},403);
  }
- if(user.role==='APPROVAL_AUTHORITY') for(const field of fields) {
-  const grant=await db.prepare('SELECT 1 FROM console_approval_delegations WHERE operator_id=? AND campaign_id=? AND field_key=? AND expires_at>?').bind(user.id,body.campaignId,field,new Date().toISOString()).first();
+ if(user.role!=='ADMINISTRATOR') for(const field of fields) {
+  const grant=await db.prepare('SELECT 1 FROM console_approval_delegations WHERE operator_id=? AND campaign_id=? AND field_key=? AND datetime(expires_at)>datetime(?)').bind(user.id,body.campaignId,field,new Date().toISOString()).first();
   if(!grant)return json({error:'This business approval has not been explicitly delegated'},403);
  }
  const id='AUTH-'+crypto.randomUUID();

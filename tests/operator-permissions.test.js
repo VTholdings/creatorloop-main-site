@@ -79,7 +79,9 @@ test('APPROVAL_AUTHORITY requires field-specific Owner delegation and cannot del
  try{
   const body={campaignId:'CMP-100',entityType:'ASSIGNMENT',entityId:'ASG-200',values:{fixedContentFee:75},evidenceLink:'https://example.com/training/decision'};
   assert.equal((await call(env,'APPROVAL_AUTHORITY','POST','authorizations',body)).status,403);
-  db.prepare("INSERT INTO console_approval_delegations(operator_id,campaign_id,field_key,delegated_by,expires_at) VALUES('OP-APPROVAL_AUTHORITY','CMP-100','fixedContentFee','OP-ADMINISTRATOR','2099-01-01')").run();
+  // Established delegation fixture. The retired personnel route cannot grant it.
+  assert.equal((await call(env,'ADMINISTRATOR','POST','access',{action:'delegate',campaignId:'CMP-100',operatorId:'OP-APPROVAL_AUTHORITY',fieldKey:'fixedContentFee',expiresAt:'2099-01-01'})).status,410);
+  db.prepare('INSERT INTO console_approval_delegations(operator_id,campaign_id,field_key,delegated_by,expires_at) VALUES(?,?,?,?,?)').run('OP-APPROVAL_AUTHORITY','CMP-100','fixedContentFee','OP-ADMINISTRATOR','2099-01-01');
   assert.equal((await call(env,'APPROVAL_AUTHORITY','POST','authorizations',body)).status,201);
   assert.equal((await call(env,'APPROVAL_AUTHORITY','POST','authorizations',{...body,values:{paidUsageRights:'Yes'}})).status,403);
   assert.equal((await call(env,'APPROVAL_AUTHORITY','POST','authorizations',{...body,values:{ownerApproval:'Yes'}})).status,403);
@@ -92,15 +94,13 @@ test('record grants do not authorize creating unrelated records; attempted relat
   for(const payload of [{campaignId:'CMP-200'},{assigned_operator_id:'OP-ADMINISTRATOR'},{creatorId:'CR-202'}])assert.equal((await call(env,'OPERATOR','PATCH','assignments/ASG-200',{...payload,version:1})).status,403);
  }finally{db.close();}
 });
-test('retired personnel route cannot provision, grant, delegate or disable identities',async()=>{
+test('support is never newly provisioned, disabling preserves historical identity and requires an individual administrator',async()=>{
  const {db,env}=await fixture();
  try{
-  const before=db.prepare('SELECT id,login_email,display_name,role,account_status FROM operators').all();
-  for(const action of ['provision','grant','delegate','disable']) {
-   assert.equal((await call(env,'ADMINISTRATOR','POST','access',{action,campaignId:'CMP-100',operatorId:'OP-OPERATOR',email:'new@example.com',role:'ADMINISTRATOR'})).status,410);
-   assert.equal((await call(env,'OPERATOR','POST','access',{action})).status,403);
-  }
-  assert.deepEqual(db.prepare('SELECT id,login_email,display_name,role,account_status FROM operators').all(),before);
+  assert.equal((await call(env,'ADMINISTRATOR','POST','access',{action:'provision',campaignId:'CMP-100',email:'support@creatorloop.net',role:'ADMINISTRATOR'})).status,410);
+  db.prepare("INSERT INTO operators(id,login_email,display_name,role,account_status) VALUES('OP-OLD','support@creatorloop.net','Historical shared identity','ADMINISTRATOR','DISABLED')").run();
+  assert.equal((await call(env,'ADMINISTRATOR','POST','access',{action:'disable',campaignId:'CMP-100',operatorId:'OP-OLD'})).status,410);
+  assert.deepEqual({...db.prepare("SELECT id,login_email,account_status FROM operators WHERE id='OP-OLD'").get()},{id:'OP-OLD',login_email:'support@creatorloop.net',account_status:'DISABLED'});
  }finally{db.close();}
 });
 test('source queues preserve canonical fields and hide another assigned creator’s escalation',async()=>{

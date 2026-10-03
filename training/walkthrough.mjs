@@ -23,7 +23,8 @@ export async function walkthrough() {
   assert.equal((await call(env,'OPERATOR','POST','escalations',escalation)).body.replay,true);steps.push('Escalate: source-named blocker and idempotent capture');
   assert.equal((await call(env,'OPERATOR','PATCH','assignments/ASG-200',{status:'Live',version:1})).status,403);
   assert.equal((await call(env,'ADMINISTRATOR','PATCH','assignments/ASG-200',{status:'Live',version:1})).status,403);steps.push('Launch Gate: blocked source gate prevents operator and Owner bypass');
-  queues=await call(env,'OPERATOR','GET','queues?campaignId=CMP-100');assert.equal(queues.body.stages.find(s=>s.name==='Monitor').items[0].fields['Spend ($)'],'0');steps.push('Monitor: simulated zero-spend facts; no platform action');
+  queues=await call(env,'OPERATOR','GET','queues?campaignId=CMP-100');assert.equal('Spend ($)' in queues.body.stages.find(s=>s.name==='Monitor').items[0].fields,false);
+  const ownerQueues=await call(env,'ADMINISTRATOR','GET','queues?campaignId=CMP-100');assert.equal(ownerQueues.body.stages.find(s=>s.name==='Monitor').items[0].fields['Spend ($)'],'0');steps.push('Monitor: operator facts exclude restricted economics; Owner verifies simulated zero spend; no platform action');
   assert.equal((await call(env,'OPERATOR','PATCH','assignments/ASG-200',{status:'Complete',version:1})).status,403);
   assert.equal((await call(env,'ADMINISTRATOR','PATCH','assignments/ASG-200',{status:'Complete',notes:'TRAINING — closeout verified; no payment or next spend authorized',version:1})).status,200);steps.push('Close Out: Owner records verified closeout; operator cannot originate approval');
   const sync=await signedSync({env,request:new Request('https://ops.creatorloop.net/api/integrations/control-system')});assert.equal(sync.status,403);steps.push('Isolation: production synchronization denied in TRAINING');

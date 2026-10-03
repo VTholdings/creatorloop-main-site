@@ -4,7 +4,7 @@ CREATE TABLE console_team_profiles (
  operator_id TEXT PRIMARY KEY REFERENCES operators(id),
  employment_status TEXT NOT NULL CHECK(employment_status IN ('PENDING_START','EMPLOYED')),
  training_status TEXT NOT NULL DEFAULT 'NOT_STARTED' CHECK(training_status IN ('NOT_STARTED','IN_PROGRESS','CERTIFIED')),
- lifecycle_status TEXT NOT NULL DEFAULT 'PENDING' CHECK(lifecycle_status IN ('PENDING','ACTIVE','INACTIVE')),
+ lifecycle_status TEXT NOT NULL DEFAULT 'INVITED' CHECK(lifecycle_status IN ('PENDING','INVITED','TRAINING','CERTIFIED','ACTIVE','SUSPENDED','INACTIVE')),
  proposed_scope_json TEXT NOT NULL DEFAULT '[]',
  version INTEGER NOT NULL DEFAULT 1,
  updated_by TEXT NOT NULL REFERENCES operators(id),

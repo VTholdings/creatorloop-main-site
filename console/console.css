@@ -100,3 +100,5 @@ textarea{min-height:108px}
  .topbar strong{font-size:.9375rem}
  .system-strip span{padding:16px}
 }
+
+#team-detail pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;font-size:.875rem}#team-action-form{display:grid;gap:18px;margin-top:24px}#team-action-form fieldset{border:1px solid var(--line);border-radius:12px;padding:18px;display:grid;gap:12px}#team-action-form input[type=checkbox]{width:auto;justify-self:start}

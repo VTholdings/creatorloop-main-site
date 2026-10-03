@@ -1,6 +1,9 @@
 import { capabilities, scoped, scopedRows, project, authorizeFields } from '../console-policy.js';
 import { operationalQueues, administerAccess, authorizeDecision, escalate } from '../operator-workflows.js';
 import { canManageTeam, teamAccess } from '../team-access.js';
+import { OWNER_EMAIL,loadMembership,guardedDatabase,canDiagnose,canExport,EXPORTS,canViewAudit as canInspectAudit } from '../team-policy.js';
+import { reportHistory,finalizeReport,canViewReports } from '../report-history.js';
+import { auditHistory,correctAudit,exportDataset } from '../audit-governance.js';
 import {
   PLATFORMS, CREATOR_STATUSES, COMPENSATION, RIGHTS, PRODUCT_FOCUS, AUDIT_ROLES, nextCreatorId, nextEntityId, normalizeCreatorIdentity,
   qaChecklist, QA_ROLES, transitionAllowed, validateAssignment, validateEnrollment
@@ -18,8 +21,11 @@ const safeUser = (user) => ({
   accountStatus: user.account_status,
   loginIdentity: user.login_email,
   lastActivityAt: user.last_activity_at,
-  canViewAudit: AUDIT_ROLES.has(user.role),
+  canViewAudit: AUDIT_ROLES.has(user.role) || canInspectAudit(user),
   canManageTeam: canManageTeam(user),
+  canViewReports: canViewReports(user),
+  canDiagnose: canDiagnose(user),
+  exportDatasets: [...EXPORTS,...(canManageTeam(user)?['personnel']:[])].filter(dataset=>canExport(user,dataset)),
   capabilities: capabilities(user)
 });
 
@@ -27,15 +33,18 @@ async function actor(context) {
   const email = context.data.loginEmail;
   let user = await context.env.OPERATIONS_DB.prepare("SELECT * FROM operators WHERE login_email = ?").bind(email).first();
   const bootstrap = context.env.BOOTSTRAP_ADMIN_EMAIL?.trim().toLowerCase();
-  if (!user && bootstrap && email === bootstrap) {
+  if (!user && bootstrap === OWNER_EMAIL && email === OWNER_EMAIL) {
     const id = uid("OP");
     await context.env.OPERATIONS_DB.prepare("INSERT INTO operators (id,login_email,display_name,role,account_status,last_activity_at) VALUES (?,?,?,?,?,CURRENT_TIMESTAMP)")
       .bind(id, email, "Project Owner", "ADMINISTRATOR", "ACTIVE").run();
     user = await context.env.OPERATIONS_DB.prepare("SELECT * FROM operators WHERE id = ?").bind(id).first();
   }
   if (!user || user.account_status !== "ACTIVE") return null;
+  const member=await loadMembership(context.env.OPERATIONS_DB,user,context.env,context.data.accessIssuedAt);
+  if(member?.reauthenticate){context.data.reauthenticate=true;return null;}
+  if(!member)return null;
   await context.env.OPERATIONS_DB.prepare("UPDATE operators SET last_activity_at=CURRENT_TIMESTAMP WHERE id=?").bind(user.id).run();
-  return user;
+  return member;
 }
 
 const pathParts = (context) => (context.params.path ?? []).filter(Boolean);
@@ -64,29 +73,45 @@ async function dispatchRequest(context) {
   if (context.request.method !== "GET" && !sameOrigin(context.request)) return json({ error: "Origin rejected" }, 403);
   const user = await actor(context);
   if (!user) return json({ error: "Authorized operator account required" }, 403);
+  const checked=context.data.requestPermission;
+  if(checked&&(checked.role!==user.role||(checked.teamProfile?.version||0)!==(user.teamProfile?.version||0)))return json({error:'Permissions changed. Refresh and authenticate again.'},409);
+  context={...context,env:{...context.env,OPERATIONS_DB:guardedDatabase(context.env.OPERATIONS_DB,user)}};
   const parts = pathParts(context);
   try {
+    if (parts[0] === 'reports') {
+      if(parts.length!==1)return json({error:'Report route not found'},404);
+      if(context.request.method==='GET')return await reportHistory(context,user);
+      if(context.request.method==='POST')return await finalizeReport(context,user);
+      return json({error:'Finalized reports cannot be overwritten or deleted'},405);
+    }
     if (parts[0] === 'team') return await teamAccess(context,user);
+    if (parts[0] === 'exports') return await exportDataset(context,user);
+    if (parts[0] === 'audit' && parts[1] === 'corrections') return await correctAudit(context,user);
+    if (parts[0] === 'diagnostics' && context.request.method==='GET') {
+      if(!canDiagnose(user))return json({error:'Explicit technical diagnostic scope required'},403);
+      return json({environment:context.env.CONSOLE_ENVIRONMENT==='TRAINING'?'TRAINING':'PRODUCTION',schemaReady:await schemaReady(context.env),notice:'Console diagnostics only. No secrets, infrastructure administration or business approval authority are provided.'});
+    }
     if (parts[0] === 'access') return await administerAccess(context,user);
     if (parts[0] === 'authorizations') return await authorizeDecision(context,user);
     if (parts[0] === 'escalations' && context.request.method==='POST') return await escalate(context,user);
-    if (parts[0] === 'queues' && context.request.method === 'GET') return operationalQueues(context,user);
+    if (parts[0] === 'queues' && context.request.method === 'GET') return await operationalQueues(context,user);
     if (context.request.method === "GET" && parts[0] === "me") return json({ user: safeUser(user) });
-    if (context.request.method === "GET" && parts[0] === "dashboard") return dashboard(context, user);
-    if (context.request.method === "GET" && parts[0] === "campaigns" && !parts[1]) return listCampaigns(context);
-    if (context.request.method === "GET" && parts[0] === "campaigns" && parts[1]) return getCampaign(context, parts[1]);
-    if (context.request.method === "GET" && parts[0] === "creators" && !parts[1]) return listCreators(context);
-    if (context.request.method === "POST" && parts[0] === "creators" && !parts[1]) return createCreator(context, user);
-    if (context.request.method === "GET" && parts[0] === "creators" && parts[1]) return getCreator(context, parts[1]);
-    if (context.request.method === "PATCH" && parts[0] === "creators" && parts[1]) return updateCreator(context, user, parts[1]);
-    if (context.request.method === "POST" && parts[0] === "assignments" && !parts[1]) return createAssignment(context, user);
-    if (context.request.method === "PATCH" && parts[0] === "assignments" && parts[1]) return updateAssignment(context, user, parts[1]);
-    if (context.request.method === "POST" && parts[0] === "qa" && parts[1]) return reviewCreator(context, user, parts[1]);
-    if (context.request.method === "GET" && parts[0] === "audit") return audit(context, user);
-    if (context.request.method === "GET" && parts[0] === "system") return systemStatus(context, user);
+    if (context.request.method === "GET" && parts[0] === "dashboard") return await dashboard(context, user);
+    if (context.request.method === "GET" && parts[0] === "campaigns" && !parts[1]) return await listCampaigns(context);
+    if (context.request.method === "GET" && parts[0] === "campaigns" && parts[1]) return await getCampaign(context, parts[1]);
+    if (context.request.method === "GET" && parts[0] === "creators" && !parts[1]) return await listCreators(context);
+    if (context.request.method === "POST" && parts[0] === "creators" && !parts[1]) return await createCreator(context, user);
+    if (context.request.method === "GET" && parts[0] === "creators" && parts[1]) return await getCreator(context, parts[1]);
+    if (context.request.method === "PATCH" && parts[0] === "creators" && parts[1]) return await updateCreator(context, user, parts[1]);
+    if (context.request.method === "POST" && parts[0] === "assignments" && !parts[1]) return await createAssignment(context, user);
+    if (context.request.method === "PATCH" && parts[0] === "assignments" && parts[1]) return await updateAssignment(context, user, parts[1]);
+    if (context.request.method === "POST" && parts[0] === "qa" && parts[1]) return await reviewCreator(context, user, parts[1]);
+    if (context.request.method === "GET" && parts[0] === "audit") return await audit(context, user);
+    if (context.request.method === "GET" && parts[0] === "system") return await systemStatus(context, user);
     return json({ error: "Not found" }, 404);
   } catch (error) {
     console.error("Console request failed", { path: parts.join("/"), kind: error?.constructor?.name });
+    if(error?.message?.includes('Console permissions changed'))return json({error:'Permissions changed before the write. Refresh and authenticate again.'},403);
     return json({ error: "The request could not be completed" }, 500);
   }
 }
@@ -348,15 +373,8 @@ async function reviewCreator(context, user, id) {
 }
 
 async function audit({ env, request }, user) {
-  if (!AUDIT_ROLES.has(user.role)) return json({ error: "Administrator authority required" }, 403);
-  const campaignId = params(request).get("campaignId") || "CMP-100";
-  const db=env.OPERATIONS_DB;
-  const snapshots=await db.prepare("SELECT version FROM schema_migrations WHERE version='0006_audit_history'").first();
-  const query=snapshots
-    ? "SELECT a.*,o.display_name operator_name,o.role operator_role,s.actor_name,s.actor_email,s.actor_role role_at_action,s.scope_json scope_at_action,s.authority_json authority_at_action FROM audit_events a JOIN operators o ON o.id=a.operator_id LEFT JOIN console_audit_actor_snapshots s ON s.event_id=a.id WHERE a.campaign_id=? ORDER BY a.created_at DESC LIMIT 200"
-    : "SELECT a.*,o.display_name operator_name,o.role operator_role,NULL role_at_action FROM audit_events a JOIN operators o ON o.id=a.operator_id WHERE a.campaign_id=? ORDER BY a.created_at DESC LIMIT 200";
-  const events=await db.prepare(query).bind(campaignId).all();
-  return json({ events: events.results });
+  if (!AUDIT_ROLES.has(user.role) && !canInspectAudit(user)) return json({ error: "Administrator authority required or explicit audit visibility" }, 403);
+  return auditHistory({env,request},user);
 }
 
 async function systemStatus({ env }, user) {
@@ -437,7 +455,8 @@ export async function onRequest(context) {
   if (!context.env.OPERATIONS_DB) return json({error:'Operations database is not configured'},503);
   if (context.request.method !== 'GET' && !sameOrigin(context.request)) return json({error:'Origin rejected'},403);
   const user=await actor(context);
-  if(!user)return json({error:'Authorized operator account required'},403);
+  if(!user)return json(context.data.reauthenticate?{error:'Your access changed. Sign out and authenticate again at ops.creatorloop.net.',code:'REAUTHENTICATE'}:{error:'Authorized operator account required'},403);
+  context.data.requestPermission=user;
   const parts=pathParts(context), db=context.env.OPERATIONS_DB;
   let campaignId=params(context.request).get('campaignId');
   let creatorId=null;

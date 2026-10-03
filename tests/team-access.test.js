@@ -10,7 +10,7 @@ async function setup(migrate=true) {
  const result=await fixture();
  result.db.prepare('INSERT INTO operators(id,login_email,display_name,role,account_status) VALUES(?,?,?,?,?)').run('OP-OWNER',OWNER,'Owner','ADMINISTRATOR','ACTIVE');
  result.db.prepare('INSERT INTO operators(id,login_email,display_name,role,account_status) VALUES(?,?,?,?,?)').run('OP-RETIRED','support@creatorloop.net','Historical support','ADMINISTRATOR','DISABLED');
- if(migrate)result.db.exec(await readFile('migrations/0005_team_directory.sql','utf8'));
+ if(migrate){result.db.exec(await readFile('migrations/0005_team_directory.sql','utf8'));result.db.exec(await readFile('migrations/0006_audit_history.sql','utf8'));result.db.exec('BEGIN');result.db.exec(await readFile('migrations/0007_team_governance.sql','utf8'));result.db.exec('COMMIT');}
  return result;
 }
 async function request(env,method='GET',path='team',body,email=OWNER,origin='https://ops.creatorloop.net') {
@@ -50,7 +50,7 @@ test('directory reports actual grants and fallback record assignments without as
  assert.equal(employee.assignedRecords[0].id,'CR-201');
  assert.equal(body.activationAvailable,false);
  assert.equal(body.loginUrl,'https://ops.creatorloop.net');
- assert.deepEqual(body.approvedRoles,['OPERATOR','QA_REVIEWER','OPERATIONS','APPROVAL_AUTHORITY']);
+ assert.deepEqual(body.approvedRoles,['OPERATOR','QA_REVIEWER','OPERATIONS','APPROVAL_AUTHORITY','OPERATIONS_MANAGER','MARKETING_CAMPAIGN_MANAGER','TECHNICIAN','READ_ONLY_AUDITOR']);
  assert.equal(body.users.find(person=>person.id==='OP-RETIRED').accessStatus,'DISABLED');
 });
 test('missing metadata migration keeps directory read-only and fails writes closed',async()=>{
@@ -69,7 +69,7 @@ test('Add User is atomic, inactive, individually attributable and creates no gra
  assert.equal(user.account_status,'DISABLED');assert.equal(user.login_email,draft.email);
  assert.equal((await request(env,'GET','me',undefined,draft.email)).status,403);
  const profile=db.prepare('SELECT * FROM console_team_profiles WHERE operator_id=?').get(user.id);
- assert.equal(profile.lifecycle_status,'PENDING');assert.equal(profile.training_status,'NOT_STARTED');
+ assert.equal(profile.lifecycle_status,'INVITED');assert.equal(profile.training_status,'NOT_STARTED');
  assert.deepEqual(JSON.parse(profile.proposed_scope_json),draft.scopes);
  const event=db.prepare('SELECT * FROM console_team_events WHERE target_operator_id=?').get(user.id);
  assert.equal(event.actor_email,OWNER);assert.equal(event.actor_role,'ADMINISTRATOR');assert.equal(event.previous_state_json,null);
@@ -132,7 +132,7 @@ test('Team UI escapes identity data and presents inactive preparation without fu
  const context={document:{addEventListener(){},querySelector(){return {addEventListener(){}};}}};
  runInNewContext(source.replace(/start\(\);\s*$/,''),context);
  const html=runInNewContext(`teamRows([{id:'OP-1',fullName:'<script>alert(1)</script>',email:'x@example.com',role:'OPERATOR',accessStatus:'DISABLED',profile:{lifecycle_status:'PENDING',training_status:'NOT_STARTED'},scope:[],assignedRecords:[],delegations:[]}])`,context);
- assert.doesNotMatch(html,/<script>/);assert.match(html,/&lt;script&gt;/);assert.match(html,/Pending · inactive/);assert.match(html,/data-team-person=/);
+ assert.doesNotMatch(html,/<script>/);assert.match(html,/&lt;script&gt;/);assert.match(html,/Invited · inactive/);assert.match(html,/data-team-person=/);
  const form=runInNewContext(`addTeamForm({metadataReady:true,approvedRoles:['OPERATOR','QA_REVIEWER','OPERATIONS','APPROVAL_AUTHORITY'],campaigns:[{id:'CMP-100',name:'<unsafe>'}]})`,context);
  assert.match(form,/Save inactive user/);assert.doesNotMatch(form,/<option[^>]*>ADMINISTRATOR/);assert.match(form,/&lt;unsafe&gt;/);
  assert.match(source,/view === "team" && !state.dashboard.user.canManageTeam/);
