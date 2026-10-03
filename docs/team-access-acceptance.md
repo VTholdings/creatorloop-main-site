@@ -28,6 +28,14 @@ Before remote execution:
 
 Local tests demonstrate original row/foreign-key retention, immutable snapshots and rollback when the atomic rehearsal fails. No remote migrations have been applied by this continuation.
 
+### Repeatable backup preflight
+
+Run `python3 scripts/team-migration-preflight.py /absolute/path/to/fresh-backup.sql` separately for each affected environment. The script reads the backup and restores it into memory; it never connects to Cloudflare, changes the input file or writes a database. Its JSON receipt records the backup hash, exact migration hashes, registered/pending Team migrations, preserved table/audit counts and foreign-key checks. Do not use an old recovery export as current remote evidence.
+
+The preflight rejects registration gaps, identity column/constraint drift, missing historical guards and cascading identity references. It skips registered files only after comparing the affected schema and guards to the reviewed migrations. Pending files are rehearsed in one local transaction and every original table's columns/rows are compared afterward. Seven negative/checkpoint tests run through the ordinary test suite.
+
+A `LOCAL_REHEARSAL_PASS` is not a D1 execution approval. Before applying anything remotely, corroborate the current registered schema, backup freshness and restore procedure, exact deployment SHA, and the supported D1 executor's atomic/foreign-key behavior. Retain the resulting preflight receipt with the release evidence. Production execution remains held until the live release gates are ready.
+
 ## Hosted lifecycle gate
 
 Use distinct individually authenticated identities and separately isolated training/production audiences. Record evidence for invite, explicit scope/visibility/delegation, isolated training, role-specific certification, verified individual admission, activation, successful permitted action, rejected prohibited action, attributable audit event, permission change with old-session rejection, suspension, deactivation and retained history. Test pending edge revocation separately; Console denial does not prove a Cloudflare token was revoked. Include Technician restrictions and sensitive export denial/authorization. Confirm finalized versions survive the lifecycle.
