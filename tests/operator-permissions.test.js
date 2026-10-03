@@ -110,6 +110,17 @@ test('source queues preserve canonical fields and hide another assigned creatorâ
   assert.equal(queues.body.stages.find(s=>s.name==='Escalate').items[0].fields['Related ID'],'CR-200');
  }finally{db.close();}
 });
+test('intake uses the actual Approved Y/N header without turning intake approval into launch authority',async()=>{
+ const {db,env}=await fixture();
+ try {
+  for(const [id,approved] of [['RESPONSE-PENDING',''],['RESPONSE-APPROVED','Y']])db.prepare('INSERT INTO console_source_records(tab,record_id,campaign_id,creator_id,fields_json,source_version,source_updated_at) VALUES(?,?,?,?,?,?,?)').run('Creator Loop: Sign Up Form (Responses)',id,'CMP-100','CR-200',JSON.stringify({'Name:':'Fictional','Approved Y/N':approved,'Verification Status':'Pending'}),'SOURCE-TEST',new Date().toISOString());
+  const queue=(await call(env,'OPERATOR','GET','queues?campaignId=CMP-100')).body.stages.find(s=>s.name==='Receive Submission');
+  assert.deepEqual(queue.items.map(r=>r.record_id),['RESPONSE-PENDING']);
+  assert.equal(queue.items[0].fields['Approved Y/N'],'');
+  assert.equal('Approved (Y/N)' in queue.items[0].fields,false);
+  assert.equal((await call(env,'OPERATOR','PATCH','assignments/ASG-200',{status:'Live',version:1})).status,403);
+ }finally{db.close();}
+});
 test('Owner Status change requires verified source launch gates, not a client supplied approval',async()=>{
  const {db,env}=await fixture();
  try{
