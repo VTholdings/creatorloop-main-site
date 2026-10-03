@@ -8,7 +8,7 @@ export async function walkthrough() {
  const steps=[];
  const source=(tab,id,fields,creatorId='CR-200')=>db.prepare('INSERT INTO console_source_records(tab,record_id,campaign_id,creator_id,fields_json,source_version,source_updated_at) VALUES(?,?,?,?,?,?,?)').run(tab,id,'CMP-100',creatorId,JSON.stringify(fields),'TRAINING-FIXTURE',new Date().toISOString());
  try{
-  source('Creator Loop: Sign Up Form (Responses)','TRAINING-RESPONSE-1',{'Timestamp':'2026-10-01','Name:':'Fictional CR-200','Email:':'cr200@example.com','Verification Status':'Pending','Approved (Y/N)':'','Notes':'TRAINING ONLY'});
+  source('Creator Loop: Sign Up Form (Responses)','TRAINING-RESPONSE-1',{'Timestamp':'2026-10-01','Name:':'Fictional CR-200','Email:':'cr200@example.com','Verification Status':'Pending','Approved Y/N':'','Notes':'TRAINING ONLY'});
   source('LAUNCH CONTROL','LCH-200',{'Launch ID':'LCH-200','Campaign ID':'CMP-100','Launch Status':'Blocked','Pre-Launch QA':'READY','Economics Gate':'READY','Tracking Gate':'NOT VERIFIED','Rights Gate':'RIGHTS REQUIRED','Budget Gate':'READY','Owner Approval':''},null);
   source('DATA INTAKE','TEST-TRAINING-1',{'Import Batch':'TEST-TRAINING-1','Campaign ID':'CMP-100','Creator ID':'CR-200','Source Platform':'Meta','Spend ($)':'0','Purchases':'0','Revenue ($)':'0','Notes':'SIMULATED; no financial facts'});
   source('CREATOR PERFORMANCE','CR-200',{'Creator ID':'CR-200','Status':'In Progress','Decision':'Hold','Notes':'TRAINING ONLY'});
