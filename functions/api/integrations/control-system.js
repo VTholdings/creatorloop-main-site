@@ -92,7 +92,8 @@ async function importSnapshot(db, payload) {
       const fields=Object.fromEntries(Object.entries(row.fields).filter(([key])=>SOURCE_FIELDS[row.tab].includes(key)));
       statements.push(db.prepare(`INSERT INTO console_source_records(tab,record_id,campaign_id,creator_id,fields_json,source_version,source_updated_at) VALUES(?,?,?,?,?,?,?)
         ON CONFLICT(tab,record_id) DO UPDATE SET campaign_id=excluded.campaign_id,creator_id=excluded.creator_id,fields_json=excluded.fields_json,source_version=excluded.source_version,source_updated_at=excluded.source_updated_at
-        WHERE excluded.source_updated_at>=console_source_records.source_updated_at`).bind(row.tab,row.recordId,row.campaignId,row.creatorId||null,JSON.stringify(fields),sourceVersion,row.sourceUpdatedAt||new Date().toISOString()));
+        WHERE excluded.source_updated_at>=console_source_records.source_updated_at
+        AND NOT EXISTS (SELECT 1 FROM console_source_outbox o WHERE excluded.tab='DECISIONS & BLOCKERS' AND o.entity_type='DECISION' AND o.entity_id=excluded.record_id AND o.status IN ('PENDING','EXPORTED','FAILED'))`).bind(row.tab,row.recordId,row.campaignId,row.creatorId||null,JSON.stringify(fields),sourceVersion,row.sourceUpdatedAt||new Date().toISOString()));
     }
     if (statements.length) await db.batch(statements);
     await db.prepare("UPDATE control_system_imports SET status='APPLIED',applied_at=CURRENT_TIMESTAMP WHERE event_id=?").bind(eventId).run();
