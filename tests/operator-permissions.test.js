@@ -58,6 +58,22 @@ test('OPERATIONS records exact authorized values; altered, expired, wrong-record
   assert.equal((await call(env,'OPERATIONS','PATCH','assignments/ASG-200',{fixedContentFee:75,paidUsageRights:'No',authorizationId:approved.body.id,version:2})).status,403);
  }finally{db.close();}
 });
+test('operator scheduling reference cannot grant compensation or accept altered schedule values',async()=>{
+ const {db,env}=await fixture();
+ try {
+  const originalFee=db.prepare("SELECT fixed_content_fee FROM creator_assignments WHERE id='ASG-200'").get().fixed_content_fee;
+  const values={startDate:'2026-10-03',contentDue:'2026-10-10',fixedContentFee:75};
+  const approval=await call(env,'ADMINISTRATOR','POST','authorizations',{campaignId:'CMP-100',entityType:'ASSIGNMENT',entityId:'ASG-200',values,evidenceLink:'https://example.com/training/decision'});
+  assert.equal(approval.status,201);
+  const attempt=body=>call(env,'OPERATOR','PATCH','assignments/ASG-200',{authorizationId:approval.body.id,...body,version:1});
+  assert.equal((await attempt(values)).status,403);
+  assert.equal((await attempt({startDate:'2026-10-04',contentDue:values.contentDue})).status,403);
+  assert.equal((await attempt({startDate:values.startDate,contentDue:values.contentDue,authorizationId:'fabricated'})).status,403);
+  assert.equal((await attempt({startDate:values.startDate,contentDue:values.contentDue})).status,200);
+  const record=db.prepare("SELECT start_date,content_due,fixed_content_fee FROM creator_assignments WHERE id='ASG-200'").get();
+  assert.equal(record.start_date,values.startDate);assert.equal(record.content_due,values.contentDue);assert.equal(record.fixed_content_fee,originalFee);
+ } finally {db.close();}
+});
 test('APPROVAL_AUTHORITY requires field-specific Owner delegation and cannot delegate Owner Approval',async()=>{
  const {db,env}=await fixture();
  try{

@@ -234,6 +234,7 @@ function creatorForm(creator = {}) {
     '<label>Rights Status <select name="rightsStatus">' + optionList(state.dashboard.options?.rights || ["Not Reviewed","Organic Only","Paid Usage Approved","Expired","Blocked","N/A"],creator.rights_status) + '</select></label>' +
     '<label>Evidence Link <input name="evidenceLink" type="url" value="' + esc(creator.evidence_link) + '"><span class="field-help">INPUT · Never store secrets.</span></label></div>' +
     '<label>Product Focus <select name="productFocus" required><option value="">Choose Product Focus</option>' + optionList(state.dashboard.options?.productFocus || [],creator.product_focus) + '</select></label>' +
+    approvalReference('CREATOR') +
     '<label>Notes <textarea name="notes">' + esc(creator.notes) + '</textarea></label>' +
     '<div class="form-actions"><button class="action" type="submit">' + (edit ? "Save changes" : "Create enrollment") + '</button>' +
     (edit && ["IN_PROGRESS","CORRECTION_REQUIRED","HOLD"].includes(creator.workflow_status) ? '<button class="action secondary" type="button" id="submit-qa">Send to QA</button>' : "") +
@@ -265,6 +266,7 @@ function assignmentForm(assignment = {}) {
     '<label>Commission % <input name="commissionRate" type="number" min="0" max="1" step="0.01" value="' + esc(assignment.commission_rate ?? 0) + '"><span class="field-help">Enter 0.10 for 10%.</span></label>' +
     '<label>Attribution Window (Days) <input name="attributionWindowDays" type="number" min="1" max="365" value="' + esc(assignment.attribution_window_days ?? 30) + '"></label>' +
     '<label>Environment <input class="locked" value="' + esc(assignment.environment || "NONPRODUCTION") + '" disabled></label></div>' +
+    approvalReference('ASSIGNMENT') +
     '<label>Notes <textarea name="notes">' + esc(assignment.notes) + '</textarea></label><button class="action" type="submit">' + (edit ? "Save assignment" : "Create assignment") + '</button></form>';
 }
 
@@ -322,6 +324,7 @@ function lockEditorIfMigrationPending() {
 
 function bindCreatorForm(creator = {}) {
   applyRoleControls();
+  bindApprovalReference($("#creator-form"));
   $("#creator-form").addEventListener("submit",async (event) => {
     event.preventDefault();
     const form = event.currentTarget;
@@ -368,6 +371,7 @@ function bindAssignments() {
   document.querySelectorAll(".assignment-form").forEach((form) => {
     if (form.dataset.bound) return;
     form.dataset.bound = "true";
+    bindApprovalReference(form);
     form.addEventListener("submit",async (event) => {
       event.preventDefault();
       const body = Object.fromEntries(new FormData(form));
@@ -459,13 +463,26 @@ $("#global-search").addEventListener("keydown",(event) => {
 });
 $("#menu").addEventListener("click",() => $(".sidebar").classList.toggle("open"));
 
+// This reference is a Console authorization ID, not a new source workbook field.
+function approvalReference(type) {
+  const role=state.dashboard.user?.role;
+  if(role!=='OPERATIONS' && !(role==='OPERATOR' && type==='ASSIGNMENT'))return '';
+  const purpose=role==='OPERATOR'?'Start Date and Content Due':'the exact approved values';
+  return '<label>Authorization reference <input name="authorizationId" autocomplete="off" placeholder="Reference supplied by the authorized approver"><span class="field-help">APPROVAL · Enter the recorded decision reference to capture '+purpose+'. The server checks this record, the exact values and the decision validity when you save. This reference does not grant approval authority.</span></label>';
+}
+function bindApprovalReference(form) {
+  form?.querySelector('[name="authorizationId"]')?.addEventListener('input',applyRoleControls);
+}
 function applyRoleControls() {
   const user=state.dashboard.user,owner=user.role==='ADMINISTRATOR';
   const capture=!!user.capabilities?.captureFacts;
   const form=$('#creator-form');
   if(form) {
+    const referenced=user.role==='OPERATIONS' && Boolean(form.querySelector('[name="authorizationId"]')?.value.trim());
     form.querySelectorAll('input,select,textarea').forEach(control=>{
-      if(!capture || (!owner && ['compensationModel','rightsStatus','creatorStatus','productFocus'].includes(control.name)))control.disabled=true;
+      if(!capture)control.disabled=true;
+      else if(!owner && ['compensationModel','rightsStatus','productFocus'].includes(control.name))control.disabled=!referenced;
+      else if(!owner && control.name==='creatorStatus')control.disabled=true;
       if(!state.current && !owner && control.name==='compensationModel')control.value='N/A';
       if(!state.current && !owner && control.name==='rightsStatus')control.value='Not Reviewed';
       if(!state.current && !owner && control.name==='creatorStatus')control.value='Not Started';
@@ -474,8 +491,12 @@ function applyRoleControls() {
     form.querySelectorAll('button').forEach(control=>{if(!capture)control.disabled=true;});
   }
   document.querySelectorAll('.assignment-form').forEach(form=>{
+    const referenced=Boolean(form.querySelector('[name="authorizationId"]')?.value.trim());
+    const approved=['startDate','contentDue',...(user.role==='OPERATIONS'?['fixedContentFee','commissionRate','attributionWindowDays','paidUsageRights','evidenceStatus','signedRightsEvidenceLink']:[])];
     form.querySelectorAll('input,select,textarea').forEach(control=>{
-      if(!capture || (!owner && !['notes','creatorId','campaignId'].includes(control.name)))control.disabled=true;
+      if(!capture)control.disabled=true;
+      else if(!owner && approved.includes(control.name))control.disabled=!referenced;
+      else if(!owner && !['notes','creatorId','campaignId','authorizationId'].includes(control.name))control.disabled=true;
     });
     form.querySelectorAll('button').forEach(control=>{if(!capture)control.disabled=true;});
   });
