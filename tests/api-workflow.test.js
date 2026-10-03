@@ -31,6 +31,8 @@ async function fixture() {
     .run("OP-QA", "qa@example.com", "QA Reviewer", "QA_REVIEWER", "ACTIVE");
   database.prepare("INSERT INTO operators (id,login_email,display_name,role,account_status) VALUES (?,?,?,?,?)")
     .run("OP-ADMIN", "admin@example.com", "Project Owner", "ADMINISTRATOR", "ACTIVE");
+  database.exec(await readFile('migrations/0004_operator_permissions.sql','utf8'));
+  for(const id of ['OP-OPER','OP-QA'])database.prepare('INSERT INTO console_access_grants(operator_id,campaign_id,granted_by) VALUES(?,?,?)').run(id,'CMP-100','OP-ADMIN');
   return { database, env: { OPERATIONS_DB: new D1Database(database) } };
 }
 
@@ -39,6 +41,7 @@ async function v1Fixture() {
   database.exec(await readFile("migrations/0001_bm01.sql", "utf8"));
   database.prepare("INSERT INTO operators (id,login_email,display_name,role,account_status) VALUES (?,?,?,?,?)")
     .run("OP-OPER", "operator@example.com", "Test Operator", "OPERATOR", "ACTIVE");
+  database.prepare("UPDATE creator_enrollments SET assigned_operator_id='OP-OPER' WHERE id='CR-100'").run();
   return { database, env: { OPERATIONS_DB: new D1Database(database) } };
 }
 
@@ -62,9 +65,9 @@ const enrollment = {
   primaryPlatform: "TikTok",
   handle: "@certcreator",
   contact: "certification@example.com",
-  creatorStatus: "Active",
-  compensationModel: "Performance",
-  rightsStatus: "Paid Usage Approved",
+  creatorStatus: "In Progress",
+  compensationModel: "N/A",
+  rightsStatus: "Not Reviewed",
   productFocus: "PNB_META_ACQ_3ITEMS_202609 — 3-product campaign",
   notes: "Synthetic BM-01 certification record",
   evidenceLink: "https://drive.google.com/evidence/certification",
@@ -206,21 +209,21 @@ test("assignment changes are attributed, replay-safe, and do not alter locked id
     fixedContentFee: "75", commissionRate: "0.10", paidUsageRights: "Pending",
     attributionWindowDays: "30", evidenceStatus: "Planned", notes: "Synthetic V2 test"
   };
-  const created = await request(env, "operator@example.com", "POST", "assignments", body);
+  const created = await request(env, "admin@example.com", "POST", "assignments", body);
   assert.equal(created.response.status, 201);
   assert.equal(created.body.id, "ASG-100");
 
-  const duplicate = await request(env, "operator@example.com", "POST", "assignments", body);
+  const duplicate = await request(env, "admin@example.com", "POST", "assignments", body);
   assert.equal(duplicate.response.status, 409);
 
-  const updated = await request(env, "operator@example.com", "PATCH", "assignments/ASG-100", {
-    ...body, status: "Active", evidenceStatus: "Verified",
+  const updated = await request(env, "admin@example.com", "PATCH", "assignments/ASG-100", {
+    ...body, status: "In Progress", evidenceStatus: "Verified",
     paidUsageRights: "Yes", signedRightsEvidenceLink: "https://example.com/signed-rights",
     version: 1
   });
   assert.equal(updated.response.status, 200);
 
-  const stale = await request(env, "operator@example.com", "PATCH", "assignments/ASG-100", { ...body, version: 1 });
+  const stale = await request(env, "admin@example.com", "PATCH", "assignments/ASG-100", { ...body, version: 1 });
   assert.equal(stale.response.status, 409);
   assert.equal(database.prepare("SELECT creator_id FROM creator_assignments WHERE id='ASG-100'").get().creator_id, "CR-100");
   assert.equal(database.prepare("SELECT COUNT(*) count FROM audit_events WHERE object_id='ASG-100'").get().count, 2);

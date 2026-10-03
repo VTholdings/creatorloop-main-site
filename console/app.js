@@ -8,7 +8,7 @@ const api = async (path, options = {}) => {
   return body;
 };
 
-const state = { dashboard: null, campaigns: [], creators: [], assignments: [], current: null, currentCampaign: null };
+const state = { dashboard: null, campaigns: [], creators: [], assignments: [], current: null, currentCampaign: null, queues: null };
 const $ = (selector) => document.querySelector(selector);
 const esc = (value = "") => String(value ?? "").replace(/[&<>'"]/g, (character) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;"
@@ -47,6 +47,7 @@ async function loadCampaign(id) {
   state.dashboard = await api("dashboard?campaignId=" + encodeURIComponent(id));
   state.creators = (await api("creators?campaignId=" + encodeURIComponent(id))).creators;
   state.assignments = (await api("campaigns/" + encodeURIComponent(id))).assignments || [];
+  state.queues = await api('queues?campaignId='+encodeURIComponent(id)).catch(error=>({stages:[],missingSources:['Operational queue synchronization'],error:error.message}));
   state.current = null;
   state.currentCampaign = null;
 }
@@ -54,6 +55,7 @@ async function loadCampaign(id) {
 function renderAll() {
   renderChrome();
   renderHome();
+  bindEscalationForm();
   renderCampaigns();
   renderWork();
 }
@@ -79,21 +81,22 @@ function renderHome() {
   const today = operatingDate();
   const queue = dailyWork(state.creators, state.assignments, data.user, today);
   $("#home-view").innerHTML =
+    (data.system.training ? '<div class="notice error persistent"><strong>TRAINING — FICTIONAL DATA</strong><p>Practice only. This isolated environment cannot synchronize with the PNB Acquisition &amp; Launch Control System. No real payment, compensation change, advertising delivery, or campaign launch is authorized.</p></div>' : '') +
     '<div class="hero"><span class="eyebrow">OPERATOR HOME</span>' +
     '<h1>What do I need<br><em>to do today?</em></h1>' +
     '<p>Open the record below. Check the facts and proof. Send completed creator work to QA. Escalate decisions outside your role.</p>' +
     '<div class="identity-callout"><strong>' + esc(data.campaign.id) + '</strong><span>' + esc(data.campaign.name) + '</span></div>' +
     '<button class="action" data-go="work">Open creator work</button></div>' +
     (!data.system.schemaReady ? '<div class="notice error persistent">V2 database migration is pending. Browsing remains available; record changes are locked.</div>' : "") +
-    (/TEST\s*\/\s*FICTIONAL|certification/i.test(data.campaign.notes || "") ? '<div class="panel"><strong>Certification data</strong><p>This campaign contains fictional certification records. An isolated operator training campaign has not been established. These records do not authorize payment, paid use, or launch.</p></div>' : "") +
-    '<div class="section-head"><div><h2>Today’s creator work</h2><p>' + esc(today) + ' · Pacific/Honolulu · Selected campaign. Open records are shared; this is not a personal assignment queue.</p></div></div>' +
+    (!data.system.training && /TEST\s*\/\s*FICTIONAL|certification/i.test(data.campaign.notes || "") ? '<div class="panel"><strong>Certification data</strong><p>This campaign contains fictional certification records. Practice only in the separately designated hosted training environment. These records do not authorize payment, paid use, or launch.</p></div>' : "") +
+    '<div class="section-head"><div><h2>Today’s creator work</h2><p>' + esc(today) + ' · Pacific/Honolulu · Selected campaign. Only records authorized for your identity are shown.</p></div></div>' +
     dailyWorkCards(queue.actionable, 'No actionable creator records or dated assignments are currently shown. Other workflow checks below still apply.') +
     (queue.waiting.length ? '<div class="section-head"><div><h2>Waiting for QA</h2><p>An authorized reviewer makes the decision.</p></div></div>' + dailyWorkCards(queue.waiting, '') : '') +
-    '<div class="panel"><h2>Checks outside this queue</h2><p>Submissions are not connected to this Console. Use the approved intake route; ask Operations if that route is missing.</p><p>DECISIONS &amp; BLOCKERS, LAUNCH CONTROL, DATA INTAKE, monitoring, and closeout are not synchronized here. Ask Operations for those open items. An empty creator queue does not mean the campaign is clear to launch.</p><p><strong>QA PASS is not Owner Approval.</strong> Verify the required launch gates and explicit approval before any live use or spend.</p></div>' +
-    operatorWorkflowGuide() +
+    '<div class="panel"><h2>Source checks</h2><p>Submissions require a verified source and assigned campaign. Missing source queues remain unavailable until the bound Apps Script update and signed import are verified.</p><p>DECISIONS &amp; BLOCKERS, LAUNCH CONTROL, DATA INTAKE, monitoring, and closeout use the operational workflow below. An empty queue does not mean the campaign is clear to launch.</p><p><strong>QA PASS is not Owner Approval.</strong> Verify the required launch gates and explicit approval before any live use or spend.</p></div>' +
+    operationalQueueCards() + operatorWorkflowGuide() +
     '<div class="system-strip"><span><b>SYSTEM OF RECORD</b>' + esc(data.system.systemOfRecord) + '</span>' +
     '<span><b>CONTROL SYSTEM</b>' + esc(data.system.controlSystem) + '</span>' +
-    '<span><b>SYNC BRIDGE</b>' + (data.system.syncConfigured ? "Configured" : "Activation pending") + '</span></div>' +
+    '<span><b>SYNC BRIDGE</b>' + (data.system.training ? 'Production synchronization disabled' : data.system.syncConfigured ? "Configured" : "Activation pending") + '</span></div>' +
     '<div class="section-head"><div><h2>Work status</h2><p>Live D1 counts for ' + esc(campaignLabel(data.campaign)) + '.</p></div></div>' +
     '<div class="status-grid"><div class="status-card ready"><small>READY</small><strong>' + total("AVAILABLE") + '</strong></div>' +
     '<div class="status-card progress"><small>IN PROGRESS</small><strong>' + total("IN_PROGRESS") + '</strong></div>' +
@@ -201,7 +204,7 @@ async function openCampaign(id) {
 function renderWork() {
   $("#work-view").innerHTML =
     '<div class="section-head"><div><h2>Creator work</h2><p>Open records, update facts and evidence, then submit through QA.</p></div>' +
-    '<button class="action" id="new-creator" ' + (state.dashboard.system.schemaReady ? "" : "disabled") + '>New creator</button></div>' +
+    '<button class="action" id="new-creator" ' + (state.dashboard.system.schemaReady && state.dashboard.user.capabilities?.captureFacts ? "" : "disabled") + '>New creator</button></div>' +
     '<div class="search-grid"><input id="creator-search" type="search" placeholder="Creator ID, name, handle, campaign, platform, or status">' +
     '<select id="platform-filter"><option value="">All platforms</option>' + optionList(["Meta","TikTok","Google","Shopify","Klaviyo","Recharge","Clipster","Other"],"") + '</select>' +
     '<select id="status-filter"><option value="">All statuses</option>' + optionList(["AVAILABLE","IN_PROGRESS","AWAITING_QA","PASSED","HOLD","CORRECTION_REQUIRED","Active","Blocked","Complete"],"") + '</select>' +
@@ -239,7 +242,7 @@ function creatorForm(creator = {}) {
 
 function assignmentPanel() {
   const assignments = state.current.assignments || [];
-  return '<div class="section-head"><div><h2>Campaign assignments</h2><p>Operator-editable relational Control System records.</p></div><button class="action secondary" id="new-assignment">New assignment</button></div>' +
+  return '<div class="section-head"><div><h2>Campaign assignments</h2><p>Assigned records. Approved compensation, rights and scheduling are controlled.</p></div><button class="action secondary" id="new-assignment">New assignment</button></div>' +
     '<div id="assignment-list">' + (assignments.map(assignmentForm).join("") || '<p class="field-help">No assignments recorded.</p>') + '</div><div id="assignment-new"></div>';
 }
 
@@ -318,6 +321,7 @@ function lockEditorIfMigrationPending() {
 }
 
 function bindCreatorForm(creator = {}) {
+  applyRoleControls();
   $("#creator-form").addEventListener("submit",async (event) => {
     event.preventDefault();
     const form = event.currentTarget;
@@ -360,6 +364,7 @@ function bindCreatorForm(creator = {}) {
 }
 
 function bindAssignments() {
+  applyRoleControls();
   document.querySelectorAll(".assignment-form").forEach((form) => {
     if (form.dataset.bound) return;
     form.dataset.bound = "true";
@@ -453,4 +458,49 @@ $("#global-search").addEventListener("keydown",(event) => {
   if (event.key === "Enter") combinedSearch(event.currentTarget.value.trim()).catch((error) => notice(error.message,true));
 });
 $("#menu").addEventListener("click",() => $(".sidebar").classList.toggle("open"));
+
+function applyRoleControls() {
+  const user=state.dashboard.user,owner=user.role==='ADMINISTRATOR';
+  const capture=!!user.capabilities?.captureFacts;
+  const form=$('#creator-form');
+  if(form) {
+    form.querySelectorAll('input,select,textarea').forEach(control=>{
+      if(!capture || (!owner && ['compensationModel','rightsStatus','creatorStatus','productFocus'].includes(control.name)))control.disabled=true;
+      if(!state.current && !owner && control.name==='compensationModel')control.value='N/A';
+      if(!state.current && !owner && control.name==='rightsStatus')control.value='Not Reviewed';
+      if(!state.current && !owner && control.name==='creatorStatus')control.value='Not Started';
+      if(!state.current && control.name==='productFocus' && capture)control.disabled=false;
+    });
+    form.querySelectorAll('button').forEach(control=>{if(!capture)control.disabled=true;});
+  }
+  document.querySelectorAll('.assignment-form').forEach(form=>{
+    form.querySelectorAll('input,select,textarea').forEach(control=>{
+      if(!capture || (!owner && !['notes','creatorId','campaignId'].includes(control.name)))control.disabled=true;
+    });
+    form.querySelectorAll('button').forEach(control=>{if(!capture)control.disabled=true;});
+  });
+  const newAssignment=$('#new-assignment');if(newAssignment)newAssignment.hidden=!capture;
+}
+function escalationForm() {
+  if(!state.dashboard.user.capabilities?.captureFacts)return '';
+  const types=['Owner Access','Money/Spend','Tracking','Shipping','Product','Creator Rights','Creative','Inventory','Checkout','Data Missing','Other'];
+  return '<details class="panel"><summary>Record an escalation</summary><form id="escalation-form"><label>Type <select name="type">'+optionList(types,'Other')+'</select></label><label>Severity <select name="severity">'+optionList(['Green','Yellow','Red','Blue','Gray'],'Yellow')+'</select></label><label>Decision Needed / Blocker <textarea name="description" required></textarea></label><label>Recommendation <textarea name="recommendation"></textarea></label><label>Evidence Link <input type="url" name="evidenceLink" required></label><button class="action" type="submit">Send to DECISIONS &amp; BLOCKERS</button></form><p>This records an issue; it does not approve, resolve or authorize spending.</p></details>';
+}
+function operationalQueueCards() {
+  const queues=state.queues;
+  if(!queues)return '';
+  const missing=queues.error || (queues.missingSources?.length?'Awaiting verified source records: '+queues.missingSources.join(', '):'');
+  return '<section class="panel"><h2>Operational workflow</h2>'+(missing?'<p class="field-help">'+esc(missing)+'</p>':'')+
+    (queues.stages||[]).map(stage=>'<details><summary>'+esc(stage.name)+' · '+stage.items.length+'</summary>'+stage.items.map(row=>'<article class="nested-panel"><h3>'+esc(row.tab)+' · '+esc(row.record_id)+'</h3><dl>'+Object.entries(row.fields).map(([field,value])=>'<dt>'+esc(field)+'</dt><dd>'+esc(value)+'</dd>').join('')+'</dl></article>').join('')+'</details>').join('')+
+    '<p>Read the established source status and evidence. These records do not grant authority to approve money, rights or launch.</p></section>'+escalationForm();
+}
+function bindEscalationForm() {
+  const form=$('#escalation-form');if(!form)return;
+  const eventId=crypto.randomUUID();
+  form.addEventListener('submit',async event=>{
+    event.preventDefault();const button=form.querySelector('button');if(button.disabled)return;button.disabled=true;
+    try {await api('escalations',{method:'POST',body:JSON.stringify({...Object.fromEntries(new FormData(form)),campaignId:state.dashboard.campaign.id,eventId})});notice('Escalation recorded; source synchronization is pending.');await reload('home');}
+    catch(error){notice(error.message,true);button.disabled=false;}
+  });
+}
 start();
