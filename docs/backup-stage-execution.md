@@ -2,6 +2,8 @@
 
 The Owner's [dated authorization](acceptance-exceptions/2026-10-04-backup-stage-authorization.md) now supplies the export scope and 90-day retention decision. Workflow: `.github/workflows/acceptance-backups.yml`, branch `team-access-directory`, protected environment `creatorloop-acceptance`. PR #18 remains draft.
 
+**Completed capture:** [full backup acceptance](acceptance-exceptions/2026-10-04-backup-acceptance-complete.md) is complete for run `37242966914` and release `a7e3945a1a087a1fbc1ae8c7d0607e5ac94fcf46`, including Owner-confirmed off-platform retention and separate password custody. The instructions below remain the procedure for a separately authorized future capture; do not start another run under the completed authorization.
+
 ## Start a fresh Owner-attested run
 
 The existing `CREATORLOOP_BACKUP_PASSPHRASE` has passed the protected delivery/threshold check. Keep that secret and the existing Cloudflare secret unchanged. Keep the independently retained backup password in Owner-controlled storage; never put either secret in an input, source, command argument or ChatGPT.

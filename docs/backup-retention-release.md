@@ -1,6 +1,8 @@
 # Backup, retention and controlled release preparation
 
-Keep every existing audit event, actor snapshot, Team event and finalized report version. A report correction appends a linked version; it never replaces the original. This PR adds no purge, deletion schedule, storage provider or retention duration. Those require the actual external systems and the Owner's retention requirements.
+Keep every existing audit event, actor snapshot, Team event and finalized report version. A report correction appends a linked version; it never replaces the original. The approved backup stage creates no purge or historical-record deletion schedule. External report retention still requires evidence from the actual systems and the Owner's retention requirements.
+
+**D1 backup status, 2026-10-04:** the Owner-approved 90-day controlled backup stage is [fully accepted](acceptance-exceptions/2026-10-04-backup-acceptance-complete.md) for run `37242966914`, including encrypted copies, independently retrieved local restore comparison, local migration rehearsal and Owner-confirmed off-platform retention. This scoped backup retention decision does not establish a purge schedule or external report retention. No migration, restore, deployment, merge or further backup is authorized by that completion.
 
 ## Prepare evidence without live access
 
