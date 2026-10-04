@@ -11,7 +11,7 @@ const mainSha='a'.repeat(40),releaseSha='b'.repeat(40);
 const ids={production:'11111111-1111-4111-8111-111111111111',training:'22222222-2222-4222-8222-222222222222'};
 const root='/accounts/'+targets.accountId;
 function fixture(){
- const calls=[],bodies=new Map(),ok=result=>({success:true,result});
+ const calls=[],bodies=new Map(),statuses=new Map(),ok=result=>({success:true,result});
  bodies.set(root+'/tokens/verify',ok({status:'active',id:secret}));
  for(const name of ['production','training']){
   const pin=targets[name],vars={
@@ -35,10 +35,10 @@ function fixture(){
  bodies.set(root+'/access/apps?page=1&per_page=50',ok(['production','training'].map(n=>({id:ids[n],aud:targets[n].audience,domain:targets[n].domain||'creatorloop-operator-training.pages.dev'}))));
  const fetcher=async(url,options)=>{
   const path=url.slice('https://api.cloudflare.com/client/v4'.length);calls.push({url,path,options});
-  const body=bodies.get(path);return new Response(JSON.stringify(body||{success:false,errors:[{message:secret}]}),{status:body?200:404});
+  const body=bodies.get(path);return new Response(JSON.stringify(body||{success:false,errors:[{message:secret}]}),{status:statuses.get(path)||(body?200:404)});
  };
  const client=readOnlyClient({token:secret,targets,fetcher});
- return {bodies,calls,client,run:()=>verifyCloudflare({client,targets,releaseSha,mainSha,now:()=> '2026-10-04T01:00:00Z'})};
+ return {bodies,statuses,calls,client,run:()=>verifyCloudflare({client,targets,releaseSha,mainSha,now:()=> '2026-10-04T01:00:00Z'})};
 }
 test('protected verifier observes pinned Pages, D1 and Access resources exclusively through GET without signing or certification',async()=>{
  const f=fixture(),r=await f.run();assert.equal(r.status,'READ_ONLY_METADATA_MATCH',JSON.stringify(r.blockers));
@@ -116,6 +116,57 @@ test('Access pagination must be complete; unrelated identities are neither selec
  const r=await f.run();assert.equal(r.status,'READ_ONLY_METADATA_MATCH');assert.equal(f.calls.some(c=>c.path===appPath+'?page=2&per_page=50'),true);assert.doesNotMatch(JSON.stringify(r),new RegExp(secret));
  const tooMany=fixture(),get=tooMany.client.get.bind(tooMany.client);tooMany.client.get=async path=>path.startsWith(appPath+'?')?{success:true,result:[],result_info:{total_pages:21}}:get(path);
  const blocked=await tooMany.run();assert.equal(blocked.status,'READ_ONLY_VERIFICATION_BLOCKED');assert.equal(blocked.blockers.some(b=>b.code==='INCOMPLETE_PAGINATION'),true);
+});
+function deniedPagesFixture(){
+ const f=fixture(),tokenId='9'.repeat(32),path=root+'/pages/projects/'+targets.production.projectCandidates[0];
+ f.bodies.set(root+'/tokens/verify',{success:true,result:{status:'active',id:tokenId}});
+ f.bodies.set(path,{success:false,errors:[{code:10000,message:secret}]});f.statuses.set(path,403);
+ return {...f,tokenId};
+}
+test('Pages 403 probes independent GET capabilities and self-token policy metadata while redacting token identifiers and provider messages',async()=>{
+ const f=deniedPagesFixture();
+ f.bodies.set(root,{success:true,result:{id:targets.accountId,name:secret}});
+ f.bodies.set('/accounts?page=1&per_page=50',{success:true,result:[{id:targets.accountId,name:secret}]});
+ f.bodies.set(root+'/tokens/'+f.tokenId,{success:true,result:{id:f.tokenId,name:secret,creator_email_at_creation:'private-person@example.com',status:'active',policies:[{effect:'allow',permission_groups:[{name:'D1 Read'},{name:'Account Settings Read'}],resources:{['com.cloudflare.api.account.'+targets.accountId]:'*'}}]}});
+ f.bodies.set(root+'/pages/projects?page=1&per_page=50',{success:false,errors:[{code:10000,message:secret}]});f.statuses.set(root+'/pages/projects?page=1&per_page=50',403);
+ const r=await f.run(),d=r.observations.pagesAuthorizationDiagnostics;
+ assert.equal(r.status,'READ_ONLY_VERIFICATION_BLOCKED');assert.equal(d.classification,'PAGES_PERMISSION_NOT_DECLARED');
+ assert.equal(d.checks.accountDetails.pinnedAccountMatches,true);assert.equal(d.checks.accessibleAccounts.pinnedAccountListed,true);
+ assert.equal(d.checks['database:production'].pinnedDatabaseMatches,true);assert.equal(d.checks.accessApplicationList.productionAudiencePresent,true);
+ assert.deepEqual(r.blockers[0].providerCodes,[10000]);
+ assert.doesNotMatch(JSON.stringify(r),new RegExp(secret+'|'+f.tokenId+'|private-person@example.com|creator_email_at_creation'));
+ assert.equal(r.requests.some(q=>q.path===root+'/tokens/{authenticated-token}'),true);
+ assert.equal(f.calls.every(c=>c.options.method==='GET'&&!c.options.body&&c.options.redirect==='error'),true);
+ await assert.rejects(f.client.get(root+'/tokens/'+'8'.repeat(32)),/ENDPOINT_NOT_ALLOWED/);
+ await assert.rejects(f.client.get(root+'/tokens/'+f.tokenId+'/value'),/ENDPOINT_NOT_ALLOWED/);
+});
+test('complete Pages discovery identifies wrong project pins without changing targets or following discovered projects',async()=>{
+ const f=deniedPagesFixture();
+ f.bodies.set(root+'/pages/projects?page=1&per_page=50',{success:true,result:[{name:'actual-console',domains:[targets.production.domain],extraSecret:secret}]});
+ const r=await f.run(),d=r.observations.pagesAuthorizationDiagnostics;
+ assert.equal(d.classification,'PINNED_PRODUCTION_PROJECT_NOT_LISTED');
+ assert.deepEqual(d.checks.pagesProjectList.productionDomainProjects,['actual-console']);
+ assert.equal(f.calls.some(c=>c.path===root+'/pages/projects/actual-console'),false);
+ assert.equal(r.productionCertified,false);assert.equal(d.changesMade,false);
+});
+test('denied discovery and self-token metadata remain inconclusive and do not invent account absence or request broader access',async()=>{
+ const f=deniedPagesFixture(),r=await f.run(),d=r.observations.pagesAuthorizationDiagnostics;
+ assert.equal(d.classification,'AUTHORIZATION_CONDITION_UNRESOLVED');
+ assert.equal(d.checks.authenticatedTokenMetadata.readable,false);assert.equal(d.checks.accountDetails.readable,false);
+ assert.equal(d.checks.pagesProjectList.readable,false);assert.equal(r.liveLifecycleVerified,false);
+ assert.doesNotMatch(JSON.stringify(r),new RegExp(f.tokenId+'|'+secret));
+ const incomplete=deniedPagesFixture();
+ incomplete.bodies.set(root+'/tokens/'+incomplete.tokenId,{success:true,result:{policies:[{effect:'allow',resources:{},permission_groups:[{id:secret}]}]}});
+ const partial=await incomplete.run();
+ assert.equal(partial.observations.pagesAuthorizationDiagnostics.classification,'AUTHORIZATION_CONDITION_UNRESOLVED');
+});
+test('diagnostic endpoints require verified authentication and forbid token enumeration, mutation/value routes, unknown accounts and query extensions',async()=>{
+ const f=fixture();
+ for(const path of [root,'/accounts?page=1&per_page=50',root+'/pages/projects?page=1&per_page=50',root+'/tokens/'+'9'.repeat(32)])await assert.rejects(f.client.get(path),/ENDPOINT_NOT_ALLOWED/);
+ await assert.rejects(f.client.selfTokenMetadata(),/AUTHENTICATED_TOKEN_METADATA_UNAVAILABLE/);
+ await f.client.get(root+'/tokens/verify');
+ for(const path of [root+'/tokens','/accounts/'+'f'.repeat(32),root+'/tokens/'+'8'.repeat(32),'/accounts?page=1&per_page=50&extra=1',root+'/pages/projects?page=1&per_page=50&extra=1'])await assert.rejects(f.client.get(path),/ENDPOINT_NOT_ALLOWED/);
+ assert.equal(f.calls.length,1);
 });
 test('CLI requires the approved Actions repository, branch, event and environment before accessing Cloudflare',async()=>{
  const dir=await mkdtemp(join(tmpdir(),'creatorloop-readonly-'));

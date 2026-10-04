@@ -7,7 +7,7 @@ const aud=/^[0-9a-f]{64}$/;
 const sha=/^[0-9a-f]{40}$/;
 const fingerprint=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 export class VerificationError extends Error {
- constructor(code,path='',status=0){super(code);Object.assign(this,{code,path,status});}
+ constructor(code,path='',status=0,providerCodes=[]){super(code);Object.assign(this,{code,path,status,providerCodes});}
 }
 export function readOnlyClient({token,targets,fetcher=fetch}) {
  if(typeof token!=='string'||!token.trim())throw new VerificationError('MISSING_ENVIRONMENT_SECRET');
@@ -21,8 +21,13 @@ export function readOnlyClient({token,targets,fetcher=fetch}) {
  const projects=new Set([...targets.production.projectCandidates,...targets.training.projectCandidates]);
  const databases=new Set([targets.production.databaseId,targets.training.databaseId]);
  const requests=[];
+ let verifiedTokenId=null;
+ let verifiedTokenActive=false;
  const allowed=path=>{
   if(path===root+'/tokens/verify')return true;
+  if(verifiedTokenId&&path===root+'/tokens/'+verifiedTokenId)return true;
+  if(verifiedTokenActive&&(path===root||/^\/accounts\?page=[1-9][0-9]*&per_page=50$/.test(path)))return true;
+  if(verifiedTokenActive&&path.startsWith(root+'/pages/projects?'))return /^\?page=[1-9][0-9]*&per_page=50$/.test(path.slice((root+'/pages/projects').length));
   if(path.startsWith(root+'/pages/projects/'))return projects.has(path.slice((root+'/pages/projects/').length));
   if(path.startsWith(root+'/d1/database/'))return databases.has(path.slice((root+'/d1/database/').length));
   if(path.startsWith(root+'/access/apps')){
@@ -31,19 +36,29 @@ export function readOnlyClient({token,targets,fetcher=fetch}) {
   }
   return false;
  };
- return {requests,async get(path){
+ const safePath=path=>verifiedTokenId&&path===root+'/tokens/'+verifiedTokenId?root+'/tokens/{authenticated-token}':path;
+ const client={requests,async selfTokenMetadata(){
+  if(!verifiedTokenId)throw new VerificationError('AUTHENTICATED_TOKEN_METADATA_UNAVAILABLE');
+  return client.get(root+'/tokens/'+verifiedTokenId);
+ },async get(path){
   if(!allowed(path))throw new VerificationError('ENDPOINT_NOT_ALLOWED');
   let response;
   try{response=await fetcher(base+path,{method:'GET',headers:{Authorization:'Bearer '+token,Accept:'application/json'},redirect:'error',signal:AbortSignal.timeout(20000)});}
-  catch{throw new VerificationError('NETWORK_OR_REDIRECT_BLOCKED',path);}
-  requests.push({method:'GET',path,status:response.status});
-  if(!response.ok)throw new VerificationError('CLOUDFLARE_HTTP_ERROR',path,response.status);
+  catch{throw new VerificationError('NETWORK_OR_REDIRECT_BLOCKED',safePath(path));}
+  requests.push({method:'GET',path:safePath(path),status:response.status});
   let body;
   try{const text=await response.text();if(text.length>4000000)throw Error();body=JSON.parse(text);}
-  catch{throw new VerificationError('INVALID_API_RESPONSE',path,response.status);}
-  if(body?.success!==true)throw new VerificationError('CLOUDFLARE_API_REJECTED',path,response.status);
+  catch{throw new VerificationError(response.ok?'INVALID_API_RESPONSE':'CLOUDFLARE_HTTP_ERROR',safePath(path),response.status);}
+  const codes=Array.isArray(body?.errors)?body.errors.map(e=>e?.code).filter(c=>Number.isSafeInteger(c)&&c>=1000&&c<=999999).slice(0,20):[];
+  if(!response.ok)throw new VerificationError('CLOUDFLARE_HTTP_ERROR',safePath(path),response.status,codes);
+  if(body?.success!==true)throw new VerificationError('CLOUDFLARE_API_REJECTED',safePath(path),response.status,codes);
+  if(path===root+'/tokens/verify'){
+   verifiedTokenActive=body.result?.status==='active';
+   verifiedTokenId=body.result?.status==='active'&&/^[0-9a-f]{32}$/.test(body.result?.id||'')?body.result.id:null;
+  }
   return body;
  }};
+ return client;
 }
 async function listAll(client,path) {
  const results=[];
@@ -57,6 +72,74 @@ async function listAll(client,path) {
   else if(body.result.length<50)return results;
  }
  throw new VerificationError('INCOMPLETE_PAGINATION',path);
+}
+// A denied metadata read never proves a resource is absent. Probe independent
+// read capabilities without discovering credentials or changing resource pins.
+async function diagnosePagesAuthorization(client,targets) {
+ const root='/accounts/'+targets.accountId;
+ const result={classification:'AUTHORIZATION_CONDITION_UNRESOLVED',checks:{},limits:[],changesMade:false};
+ const attempt=async(name,fn)=>{
+  try{result.checks[name]={readable:true,...await fn()};}
+  catch(e){result.checks[name]={readable:false,code:e instanceof VerificationError?e.code:'INVALID_DIAGNOSTIC_RESPONSE',status:e instanceof VerificationError?e.status:0,providerCodes:e instanceof VerificationError?e.providerCodes:[]};}
+ };
+ await attempt('accountDetails',async()=>{
+  const a=(await client.get(root)).result;
+  if(!/^[0-9a-f]{32}$/.test(a?.id||''))throw new VerificationError('INVALID_ACCOUNT_RESPONSE');
+  return {accountId:a.id,pinnedAccountMatches:a.id===targets.accountId};
+ });
+ await attempt('accessibleAccounts',async()=>{
+  const accounts=await listAll(client,'/accounts');
+  const accountIds=accounts.map(a=>a?.id).filter(id=>/^[0-9a-f]{32}$/.test(id||''));
+  return {accountIds,pinnedAccountListed:accountIds.includes(targets.accountId),complete:true};
+ });
+ await attempt('authenticatedTokenMetadata',async()=>{
+  const t=(await client.selfTokenMetadata()).result;
+  if(!Array.isArray(t?.policies))throw new VerificationError('TOKEN_POLICIES_UNAVAILABLE');
+  const known=new Set(['Pages Read','Pages Write','D1 Read','D1 Write','Account Settings Read','Account Settings Write','Access: Apps and Policies Read','Access: Apps and Policies Write','Workers Scripts Read','Workers Scripts Write']);
+  const policies=t.policies.map(p=>{
+   const groups=Array.isArray(p.permission_groups)?p.permission_groups:[];
+   const names=groups.map(g=>g?.name);
+   const resources=p.resources&&typeof p.resources==='object'&&!Array.isArray(p.resources)?p.resources:{};
+   const keys=Object.keys(resources),ids=keys.map(k=>/^com\.cloudflare\.api\.account\.([0-9a-f]{32})$/.exec(k)?.[1]).filter(Boolean);
+   return {effect:['allow','deny'].includes(p.effect)?p.effect:'unknown',
+    recognizedPermissions:names.filter(n=>known.has(n)),permissionNamesComplete:Array.isArray(p.permission_groups)&&groups.every(g=>typeof g?.name==='string'),
+    otherPermissionCount:names.filter(n=>!known.has(n)).length,accountIds:ids,
+    allAccountsDeclared:keys.some(k=>['*','com.cloudflare.api.account.*'].includes(k)),
+    pinnedAccountDeclared:ids.includes(targets.accountId),resourceValueHash:fingerprint(resources)};
+  });
+  return {policies,ipConditionPresent:Boolean(t.condition?.request_ip),
+   status:['active','disabled','expired'].includes(t.status)?t.status:'unknown'};
+ });
+ await attempt('pagesProjectList',async()=>{
+  const projects=await listAll(client,root+'/pages/projects');
+  const pins=new Set([...targets.production.projectCandidates,...targets.training.projectCandidates]);
+  return {complete:true,projectCount:projects.length,
+   pinnedProjects:projects.filter(p=>pins.has(p?.name)).map(p=>p.name),
+   productionDomainProjects:projects.filter(p=>(p?.domains||[]).includes(targets.production.domain)&&/^[a-z0-9-]{1,100}$/.test(p?.name||'')).map(p=>p.name)};
+ });
+ for(const environment of ['production','training']){
+  for(const name of targets[environment].projectCandidates){
+   await attempt('project:'+name,async()=>{
+    const p=(await client.get(root+'/pages/projects/'+name)).result;
+    return {expectedNameMatches:p?.name===name,productionDomainPresent:(p?.domains||[]).includes(targets.production.domain)};
+   });
+  }
+  await attempt('database:'+environment,async()=>({pinnedDatabaseMatches:(await client.get(root+'/d1/database/'+targets[environment].databaseId)).result?.uuid===targets[environment].databaseId}));
+ }
+ await attempt('accessApplicationList',async()=>{
+  const apps=await listAll(client,root+'/access/apps');
+  return {complete:true,productionAudiencePresent:apps.some(a=>a.aud===targets.production.audience),trainingAudiencePresent:apps.some(a=>a.aud===targets.training.audience)};
+ });
+ const metadata=result.checks.authenticatedTokenMetadata;
+ const policies=metadata.readable?metadata.policies:[];
+ const allowed=policies.filter(p=>p.effect==='allow');
+ const list=result.checks.pagesProjectList;
+ if(metadata.readable&&allowed.length&&allowed.every(p=>p.permissionNamesComplete)&&!allowed.some(p=>p.recognizedPermissions.some(n=>n==='Pages Read'||n==='Pages Write')))result.classification='PAGES_PERMISSION_NOT_DECLARED';
+ else if(list.readable&&!list.pinnedProjects.some(n=>targets.production.projectCandidates.includes(n)))result.classification='PINNED_PRODUCTION_PROJECT_NOT_LISTED';
+ else if(list.readable)result.classification='PROJECT_METADATA_AUTHORIZATION_DENIED';
+ result.limits.push('A 403 cannot alone distinguish absent permission, resource scope, or another authorization condition.');
+ result.limits.push('Denied account/token metadata does not prove the pinned account or project is absent.');
+ return result;
 }
 const envPins=config=>{
  const variables=config?.env_vars||{};
@@ -148,7 +231,10 @@ export async function verifyCloudflare({client,targets,releaseSha,mainSha,now=()
    if(safePolicies.some(p=>p.decision==='bypass'))block('ACCESS_BYPASS_REQUIRES_REVIEW',{environment});
   }
  }catch(e){
-  block(e instanceof VerificationError?e.code:'VERIFICATION_RESPONSE_INVALID',e instanceof VerificationError?{path:e.path,status:e.status}:{});
+  block(e instanceof VerificationError?e.code:'VERIFICATION_RESPONSE_INVALID',e instanceof VerificationError?{path:e.path,status:e.status,providerCodes:e.providerCodes}:{});
+  if(report.observations.tokenActive&&e instanceof VerificationError&&e.status===403&&e.path.startsWith(root+'/pages/projects/')){
+   report.observations.pagesAuthorizationDiagnostics=await diagnosePagesAuthorization(client,targets);
+  }
  }
  report.status=report.blockers.length?'READ_ONLY_VERIFICATION_BLOCKED':'READ_ONLY_METADATA_MATCH';
  return report;
