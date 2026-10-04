@@ -78,7 +78,8 @@ test('capture entry point blocks valid dispatch without environment approval bef
  const dir=await mkdtemp(join(tmpdir(),'cl-capture-approval-'));try{
   const path=join(dir,'event.json'),preload=join(dir,'fetch.mjs'),calls=join(dir,'calls.json');
   await writeFile(path,JSON.stringify(event));
-  await writeFile(preload,`import {writeFileSync} from 'node:fs';const calls=[];globalThis.fetch=async(url)=>{calls.push(url);writeFileSync(${JSON.stringify(calls)},JSON.stringify(calls));if(!url.startsWith('https://api.github.com/'))throw Error('FORBIDDEN_INFRASTRUCTURE_CALL');return new Response(JSON.stringify(url.endsWith('/approvals')?[]:${JSON.stringify(run)}));};`);
+  // The spawned CLI needs the same fixture clock as the in-process tests.
+  await writeFile(preload,`import {writeFileSync} from 'node:fs';Date.now=()=>${now()};const calls=[];globalThis.fetch=async(url)=>{calls.push(url);writeFileSync(${JSON.stringify(calls)},JSON.stringify(calls));if(!url.startsWith('https://api.github.com/'))throw Error('FORBIDDEN_INFRASTRUCTURE_CALL');return new Response(JSON.stringify(url.endsWith('/approvals')?[]:${JSON.stringify(run)}));};`);
   const r=spawnSync(process.execPath,['--import',preload,resolve('scripts/acceptance/d1-backup-stage.mjs')],{cwd:dir,env:{...context,GITHUB_EVENT_PATH:path,CLOUDFLARE_API_TOKEN:'FICTIONAL-CF-PRIVATE',CREATORLOOP_BACKUP_PASSPHRASE:'FICTIONAL-BACKUP-KEY-FOR-LOCAL-TESTS-ONLY'},encoding:'utf8'});
   assert.equal(r.status,1);assert.match(r.stdout,/OWNER_ENVIRONMENT_APPROVAL_REQUIRED/);assert.doesNotMatch(r.stdout+r.stderr,/FICTIONAL-CF-PRIVATE|FICTIONAL-GH-PRIVATE/);
   const report=JSON.parse(await readFile(join(dir,'backup-private/export-evidence.json'),'utf8'));assert.deepEqual(report.exports,[]);
