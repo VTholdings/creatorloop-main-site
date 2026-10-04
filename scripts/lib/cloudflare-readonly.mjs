@@ -22,7 +22,7 @@ export function readOnlyClient({token,targets,fetcher=fetch}) {
  const databases=new Set([targets.production.databaseId,targets.training.databaseId]);
  const requests=[];
  const allowed=path=>{
-  if(path==='/user/tokens/verify')return true;
+  if(path===root+'/tokens/verify')return true;
   if(path.startsWith(root+'/pages/projects/'))return projects.has(path.slice((root+'/pages/projects/').length));
   if(path.startsWith(root+'/d1/database/'))return databases.has(path.slice((root+'/d1/database/').length));
   if(path.startsWith(root+'/access/apps')){
@@ -88,7 +88,7 @@ export async function verifyCloudflare({client,targets,releaseSha,mainSha,now=()
  const root='/accounts/'+targets.accountId;
  try{
   if(!sha.test(releaseSha)||!sha.test(mainSha))throw new VerificationError('INVALID_CODE_REFERENCE');
-  const token=(await client.get('/user/tokens/verify')).result;
+  const token=(await client.get(root+'/tokens/verify')).result;
   report.observations.tokenActive=token?.status==='active';
   if(!report.observations.tokenActive)throw new VerificationError('TOKEN_NOT_ACTIVE');
   const selected={};

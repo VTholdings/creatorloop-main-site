@@ -23,7 +23,7 @@ GitHub uses the word “deploy” for environment approval. This workflow only r
 
 The transport permits **GET only** to the fixed Cloudflare API origin and pinned account:
 
-- Verify the existing token is active.
+- Verify the existing Account API Token is active using `GET /accounts/{pinned_account_id}/tokens/verify`. The user-token endpoint is refused. An active token nearing its intentional expiration still proceeds through the remaining metadata checks; expired/disabled tokens and authentication failures stop the run.
 - Read the known Pages project configurations and canonical deployment commit.
 - Read metadata for the two known D1 databases.
 - Read Access application metadata, select the two expected audiences, and read their policies with complete pagination.

@@ -12,7 +12,7 @@ const ids={production:'11111111-1111-4111-8111-111111111111',training:'22222222-
 const root='/accounts/'+targets.accountId;
 function fixture(){
  const calls=[],bodies=new Map(),ok=result=>({success:true,result});
- bodies.set('/user/tokens/verify',ok({status:'active',id:secret}));
+ bodies.set(root+'/tokens/verify',ok({status:'active',id:secret}));
  for(const name of ['production','training']){
   const pin=targets[name],vars={
    CLOUDFLARE_ACCESS_AUD:{type:'plain_text',value:pin.audience},
@@ -48,8 +48,21 @@ test('protected verifier observes pinned Pages, D1 and Access resources exclusiv
  assert.equal(f.calls.every(c=>c.options.method==='GET'&&c.options.body===undefined&&c.options.redirect==='error'),true);
  assert.equal(f.calls.every(c=>c.url.startsWith('https://api.cloudflare.com/client/v4/')),true);
  assert.equal(f.calls[0].options.headers.Authorization,'Bearer '+secret);
+ assert.equal(f.calls[0].path,root+'/tokens/verify');
  assert.doesNotMatch(JSON.stringify(r),/FICTIONAL-NOT-A-LIVE-TOKEN|private-person@example.com|privateProviderValue|UNRELATED_SECRET/);
  assert.equal(r.observations.access.production.policies[0].ownerExplicitlyIncluded,true);
+});
+test('active account token near expiry continues through all pinned metadata checks without user-token fallback',async()=>{
+ const f=fixture();
+ f.bodies.set(root+'/tokens/verify',{success:true,result:{status:'active',id:secret,expires_on:'2026-10-04T01:01:00Z'}});
+ const r=await f.run();
+ assert.equal(r.status,'READ_ONLY_METADATA_MATCH');
+ assert.equal(r.observations.tokenActive,true);
+ assert.equal(r.observations.production.databaseMetadataReadable,true);
+ assert.equal(r.observations.training.databaseMetadataReadable,true);
+ assert.equal(r.observations.access.production.expectedDomainPresent,true);
+ assert.equal(r.observations.access.training.expectedDomainPresent,true);
+ assert.equal(f.calls.some(c=>c.path.startsWith('/user/')),false);
 });
 test('transport refuses queries, exports, mutation/session endpoints, arbitrary resources and credential redirects',async()=>{
  const f=fixture();
@@ -58,17 +71,18 @@ test('transport refuses queries, exports, mutation/session endpoints, arbitrary 
   root+'/access/apps/'+ids.production+'/revoke_tokens',root+'/access/apps/'+ids.production,
   root+'/pages/projects/unapproved',root+'/pages/projects/'+targets.production.projectCandidates[0]+'/deployments',
   root+'/workers/scripts',root+'/tokens',root+'/access/users',root+'/access/apps?page=1&per_page=50&untrusted=1',
-  '/accounts/'+'f'.repeat(32)+'/access/apps?page=1&per_page=50','https://untrusted.example/','/user/tokens/verify?token='+secret
+  '/accounts/'+'f'.repeat(32)+'/access/apps?page=1&per_page=50','https://untrusted.example/','/user/tokens/verify?token='+secret,
+  '/user/tokens/verify','/accounts/'+'f'.repeat(32)+'/tokens/verify',root+'/tokens/verify?untrusted=1',root+'/tokens/verify/extra'
  ])await assert.rejects(f.client.get(path),/ENDPOINT_NOT_ALLOWED/);
  assert.equal(f.calls.length,0);
  for(const changed of [{...targets,accountId:'untrusted'}, {...targets,training:{...targets.training,databaseId:targets.production.databaseId}}, {...targets,production:{...targets.production,projectCandidates:['project/../../tokens']}}])assert.throws(()=>readOnlyClient({token:secret,targets:changed}),/INVALID_|SHARED_/);
  const redirect=readOnlyClient({token:secret,targets,fetcher:async()=>{throw Error(secret);}});
- await assert.rejects(redirect.get('/user/tokens/verify'),e=>e.code==='NETWORK_OR_REDIRECT_BLOCKED'&&!e.message.includes(secret));
+ await assert.rejects(redirect.get(root+'/tokens/verify'),e=>e.code==='NETWORK_OR_REDIRECT_BLOCKED'&&!e.message.includes(secret));
 });
 test('missing or expired credentials stop metadata access and never expose provider errors',async()=>{
  assert.throws(()=>readOnlyClient({token:'',targets}),/MISSING_ENVIRONMENT_SECRET/);
  for(const body of [{success:true,result:{status:'expired'}},{success:false,errors:[{message:secret}]}]){
-  const f=fixture();f.bodies.set('/user/tokens/verify',body);const r=await f.run();assert.equal(r.status,'READ_ONLY_VERIFICATION_BLOCKED');
+  const f=fixture();f.bodies.set(root+'/tokens/verify',body);const r=await f.run();assert.equal(r.status,'READ_ONLY_VERIFICATION_BLOCKED');
   assert.equal(f.calls.length,1);assert.doesNotMatch(JSON.stringify(r),new RegExp(secret));
  }
 });
@@ -77,7 +91,7 @@ test('permission failure and malformed responses produce sanitized blockers rath
  assert.equal(r.status,'READ_ONLY_VERIFICATION_BLOCKED');assert.equal(r.blockers.some(b=>b.code==='CLOUDFLARE_HTTP_ERROR'&&b.status===404),true);
  assert.doesNotMatch(JSON.stringify(r),new RegExp(secret));
  const client=readOnlyClient({token:secret,targets,fetcher:async()=>new Response(secret,{status:200})});
- await assert.rejects(client.get('/user/tokens/verify'),/INVALID_API_RESPONSE/);
+ await assert.rejects(client.get(root+'/tokens/verify'),/INVALID_API_RESPONSE/);
 });
 test('training binding/audience drift, sync secrets and shared projects cannot be represented as isolation PASS',async()=>{
  const f=fixture(),p=f.bodies.get(root+'/pages/projects/'+targets.training.projectCandidates[0]).result;
