@@ -1,5 +1,12 @@
+import {admissionConfiguration} from '../admission.js';
+import {readiness} from '../readiness.js';
 import { capabilities, scoped, scopedRows, project, authorizeFields } from '../console-policy.js';
 import { operationalQueues, administerAccess, authorizeDecision, escalate } from '../operator-workflows.js';
+import { canManageTeam, teamAccess } from '../team-access.js';
+import { OWNER_EMAIL,loadMembership,guardedDatabase,canDiagnose,canExport,EXPORTS,canViewAudit as canInspectAudit } from '../team-policy.js';
+import { reportHistory,finalizeReport,canViewReports } from '../report-history.js';
+import { auditHistory,correctAudit,exportDataset } from '../audit-governance.js';
+import {canEditCampaign,campaignRevision,updateCampaign} from '../campaign-edit.js';
 import {
   PLATFORMS, CREATOR_STATUSES, COMPENSATION, RIGHTS, PRODUCT_FOCUS, AUDIT_ROLES, nextCreatorId, nextEntityId, normalizeCreatorIdentity,
   qaChecklist, QA_ROLES, transitionAllowed, validateAssignment, validateEnrollment
@@ -10,6 +17,15 @@ const json = (body, status = 200) => new Response(JSON.stringify(body), {
   headers: { "Content-Type": "application/json", "Cache-Control": "no-store" }
 });
 const uid = (prefix) => `${prefix}-${crypto.randomUUID()}`;
+const editFields={CREATOR:{creatorName:'creator_name',primaryPlatform:'primary_platform',handle:'handle',contact:'contact',creatorStatus:'creator_status',compensationModel:'compensation_model',rightsStatus:'rights_status',productFocus:'product_focus',notes:'notes',evidenceLink:'evidence_link'},ASSIGNMENT:{status:'status',startDate:'start_date',contentDue:'content_due',fixedContentFee:'fixed_content_fee',commissionRate:'commission_rate',attributionWindowDays:'attribution_window_days',paidUsageRights:'paid_usage_rights',evidenceStatus:'evidence_status',signedRightsEvidenceLink:'signed_rights_evidence_link',notes:'notes'}};
+function editValues(record,type,payload=false) {
+ return Object.fromEntries(Object.entries(editFields[type]).map(([key,column])=>{
+  let value=record[payload?key:column]??null;
+  if(payload&&['fixedContentFee','commissionRate','attributionWindowDays'].includes(key))value=Number(value??(key==='attributionWindowDays'?30:0));
+  if(payload&&typeof value==='string'){value=value.trim();if(!value)value=null;}
+  return [key,value];
+ }));
+}
 const safeUser = (user) => ({
   id: user.id,
   displayName: user.display_name,
@@ -17,7 +33,11 @@ const safeUser = (user) => ({
   accountStatus: user.account_status,
   loginIdentity: user.login_email,
   lastActivityAt: user.last_activity_at,
-  canViewAudit: AUDIT_ROLES.has(user.role),
+  canViewAudit: AUDIT_ROLES.has(user.role) || canInspectAudit(user),
+  canManageTeam: canManageTeam(user),
+  canViewReports: canViewReports(user),
+  canDiagnose: canDiagnose(user),
+  exportDatasets: [...EXPORTS,...(canManageTeam(user)?['personnel']:[])].filter(dataset=>canExport(user,dataset)),
   capabilities: capabilities(user)
 });
 
@@ -25,15 +45,18 @@ async function actor(context) {
   const email = context.data.loginEmail;
   let user = await context.env.OPERATIONS_DB.prepare("SELECT * FROM operators WHERE login_email = ?").bind(email).first();
   const bootstrap = context.env.BOOTSTRAP_ADMIN_EMAIL?.trim().toLowerCase();
-  if (!user && bootstrap && email === bootstrap) {
+  if (!user && bootstrap === OWNER_EMAIL && email === OWNER_EMAIL) {
     const id = uid("OP");
     await context.env.OPERATIONS_DB.prepare("INSERT INTO operators (id,login_email,display_name,role,account_status,last_activity_at) VALUES (?,?,?,?,?,CURRENT_TIMESTAMP)")
       .bind(id, email, "Project Owner", "ADMINISTRATOR", "ACTIVE").run();
     user = await context.env.OPERATIONS_DB.prepare("SELECT * FROM operators WHERE id = ?").bind(id).first();
   }
   if (!user || user.account_status !== "ACTIVE") return null;
+  const member=await loadMembership(context.env.OPERATIONS_DB,user,context.env,context.data.accessIssuedAt,context.data.accessSubject);
+  if(member?.reauthenticate){context.data.reauthenticate=true;return null;}
+  if(!member)return null;
   await context.env.OPERATIONS_DB.prepare("UPDATE operators SET last_activity_at=CURRENT_TIMESTAMP WHERE id=?").bind(user.id).run();
-  return user;
+  return member;
 }
 
 const pathParts = (context) => (context.params.path ?? []).filter(Boolean);
@@ -59,31 +82,67 @@ async function optionalRows(db, sql, values = []) {
 
 async function dispatchRequest(context) {
   if (!context.env.OPERATIONS_DB) return json({ error: "Operations database is not configured" }, 503);
+  if(context.env.CONSOLE_ENVIRONMENT!==undefined&&!['TRAINING','PRODUCTION'].includes(context.env.CONSOLE_ENVIRONMENT))return json({error:'Invalid Console environment'},503);
+  if(context.env.CONSOLE_ENVIRONMENT==='TRAINING'&&!admissionConfiguration(context.env))return json({error:'Verified isolated training configuration is pending'},503);
   if (context.request.method !== "GET" && !sameOrigin(context.request)) return json({ error: "Origin rejected" }, 403);
   const user = await actor(context);
   if (!user) return json({ error: "Authorized operator account required" }, 403);
+  const checked=context.data.requestPermission;
+  if(checked&&(checked.role!==user.role||(checked.teamProfile?.version||0)!==(user.teamProfile?.version||0)))return json({error:'Permissions changed. Refresh and authenticate again.'},409);
+  if(context.data.commitScope&&user.role!=='ADMINISTRATOR'){
+    const {campaignId,creatorId,wholeCampaign}=context.data.commitScope;
+    const grant="EXISTS (SELECT 1 FROM console_access_grants WHERE operator_id=? AND campaign_id=? AND (? IS NULL OR record_id='*' OR record_id=?)"+(wholeCampaign?" AND record_id='*'":"")+")";
+    const grantOnly=wholeCampaign||user.teamProfile?.managed_scope;
+    user.commitChecks=[{sql:grantOnly?grant:'('+grant+' OR EXISTS (SELECT 1 FROM creator_enrollments WHERE campaign_id=? AND assigned_operator_id=? AND (? IS NULL OR id=?)))',values:[user.id,campaignId,creatorId,creatorId||'',...(grantOnly?[]:[campaignId,user.id,creatorId,creatorId||''])]}];
+  }
+  if(context.data.commitScope?.creatorId){
+    const {campaignId,creatorId}=context.data.commitScope;
+    (user.commitChecks||=[]).push({sql:'EXISTS (SELECT 1 FROM creator_enrollments WHERE id=? AND campaign_id=?)',values:[creatorId,campaignId]});
+    if(pathParts(context)[0]==='assignments'&&pathParts(context)[1])(user.commitChecks||=[]).push({sql:'EXISTS (SELECT 1 FROM creator_assignments WHERE id=? AND creator_id=? AND campaign_id=?)',values:[pathParts(context)[1],creatorId,campaignId]});
+  }
+  context={...context,env:{...context.env,OPERATIONS_DB:guardedDatabase(context.env.OPERATIONS_DB,user)}};
   const parts = pathParts(context);
   try {
-    if (parts[0] === 'access') return administerAccess(context,user);
-    if (parts[0] === 'authorizations') return authorizeDecision(context,user);
-    if (parts[0] === 'escalations' && context.request.method==='POST') return escalate(context,user);
-    if (parts[0] === 'queues' && context.request.method === 'GET') return operationalQueues(context,user);
+    if(['creators','assignments','qa'].includes(parts[0])&&['POST','PATCH'].includes(context.request.method)){
+      const body=await context.request.clone().json();
+      if(body?.saveIntent==='REVIEWED_RECORD_EDIT'&&!user.teamGovernance)return json({error:'Governed editing migration is pending'},503);
+    }
+    if (parts[0] === 'reports') {
+      if(parts.length!==1)return json({error:'Report route not found'},404);
+      if(context.request.method==='GET')return await reportHistory(context,user);
+      if(context.request.method==='POST')return await finalizeReport(context,user);
+      return json({error:'Finalized reports cannot be overwritten or deleted'},405);
+    }
+    if(parts[0]==='readiness'&&parts.length===1&&context.request.method==='GET')return await readiness(context,user);
+    if (parts[0] === 'team') return await teamAccess(context,user);
+    if (parts[0] === 'exports') return await exportDataset(context,user);
+    if (parts[0] === 'audit' && parts[1] === 'corrections') return await correctAudit(context,user);
+    if (parts[0] === 'diagnostics' && context.request.method==='GET') {
+      if(!canDiagnose(user))return json({error:'Explicit technical diagnostic scope required'},403);
+      return json({environment:context.env.CONSOLE_ENVIRONMENT==='TRAINING'?'TRAINING':'PRODUCTION',schemaReady:await schemaReady(context.env),notice:'Console diagnostics only. No secrets, infrastructure administration or business approval authority are provided.'});
+    }
+    if (parts[0] === 'access') return await administerAccess(context,user);
+    if (parts[0] === 'authorizations') return await authorizeDecision(context,user);
+    if (parts[0] === 'escalations' && context.request.method==='POST') return await escalate(context,user);
+    if (parts[0] === 'queues' && context.request.method === 'GET') return await operationalQueues(context,user);
     if (context.request.method === "GET" && parts[0] === "me") return json({ user: safeUser(user) });
-    if (context.request.method === "GET" && parts[0] === "dashboard") return dashboard(context, user);
-    if (context.request.method === "GET" && parts[0] === "campaigns" && !parts[1]) return listCampaigns(context);
-    if (context.request.method === "GET" && parts[0] === "campaigns" && parts[1]) return getCampaign(context, parts[1]);
-    if (context.request.method === "GET" && parts[0] === "creators" && !parts[1]) return listCreators(context);
-    if (context.request.method === "POST" && parts[0] === "creators" && !parts[1]) return createCreator(context, user);
-    if (context.request.method === "GET" && parts[0] === "creators" && parts[1]) return getCreator(context, parts[1]);
-    if (context.request.method === "PATCH" && parts[0] === "creators" && parts[1]) return updateCreator(context, user, parts[1]);
-    if (context.request.method === "POST" && parts[0] === "assignments" && !parts[1]) return createAssignment(context, user);
-    if (context.request.method === "PATCH" && parts[0] === "assignments" && parts[1]) return updateAssignment(context, user, parts[1]);
-    if (context.request.method === "POST" && parts[0] === "qa" && parts[1]) return reviewCreator(context, user, parts[1]);
-    if (context.request.method === "GET" && parts[0] === "audit") return audit(context, user);
-    if (context.request.method === "GET" && parts[0] === "system") return systemStatus(context, user);
+    if (context.request.method === "GET" && parts[0] === "dashboard") return await dashboard(context, user);
+    if (context.request.method === "GET" && parts[0] === "campaigns" && !parts[1]) return await listCampaigns(context);
+    if (context.request.method === "GET" && parts[0] === "campaigns" && parts[1]) return await getCampaign(context, parts[1],user);
+    if (context.request.method === "PATCH" && parts[0] === "campaigns" && parts.length===2) return await updateCampaign(context,user,parts[1]);
+    if (context.request.method === "GET" && parts[0] === "creators" && !parts[1]) return await listCreators(context);
+    if (context.request.method === "POST" && parts[0] === "creators" && !parts[1]) return await createCreator(context, user);
+    if (context.request.method === "GET" && parts[0] === "creators" && parts[1]) return await getCreator(context, parts[1]);
+    if (context.request.method === "PATCH" && parts[0] === "creators" && parts[1]) return await updateCreator(context, user, parts[1]);
+    if (context.request.method === "POST" && parts[0] === "assignments" && !parts[1]) return await createAssignment(context, user);
+    if (context.request.method === "PATCH" && parts[0] === "assignments" && parts[1]) return await updateAssignment(context, user, parts[1]);
+    if (context.request.method === "POST" && parts[0] === "qa" && parts[1]) return await reviewCreator(context, user, parts[1]);
+    if (context.request.method === "GET" && parts[0] === "audit") return await audit(context, user);
+    if (context.request.method === "GET" && parts[0] === "system") return await systemStatus(context, user);
     return json({ error: "Not found" }, 404);
   } catch (error) {
     console.error("Console request failed", { path: parts.join("/"), kind: error?.constructor?.name });
+    if(error?.message?.includes('Console permissions changed'))return json({error:'Permissions changed before the write. Refresh and authenticate again.'},403);
     return json({ error: "The request could not be completed" }, 500);
   }
 }
@@ -102,10 +161,11 @@ async function dashboard({ env, request }, user) {
     nextAction: QA_ROLES.has(user.role) ? "Review work awaiting QA" : "Start or correct a creator enrollment",
     system: {
       schemaReady: ready,
+      governedEditingReady: Boolean(user.teamGovernance),
       training: env.CONSOLE_ENVIRONMENT === 'TRAINING',
       controlSystem: "PNB Acquisition & Launch Control System",
       systemOfRecord: env.CONSOLE_ENVIRONMENT === 'TRAINING' ? 'Isolated training database — fictional records' : 'Google Sheets',
-      syncConfigured: Boolean(env.CONTROL_SYSTEM_SYNC_SECRET)
+      syncConfigured: env.CONSOLE_ENVIRONMENT !== 'TRAINING' && Boolean(env.CONTROL_SYSTEM_SYNC_SECRET)
     }
   });
 }
@@ -123,13 +183,14 @@ async function listCampaigns({ env, request }) {
   return json({ campaigns: rows.results });
 }
 
-async function getCampaign({ env }, id) {
+async function getCampaign({ env }, id,user) {
   const campaign = await env.OPERATIONS_DB.prepare("SELECT * FROM campaigns WHERE id=?").bind(id).first();
   if (!campaign) return json({ error: "Campaign not found" }, 404);
   const creators = await env.OPERATIONS_DB.prepare("SELECT * FROM creator_enrollments WHERE campaign_id=? ORDER BY id").bind(id).all();
   const assignments = await optionalRows(env.OPERATIONS_DB, "SELECT a.*, c.creator_name, c.handle FROM creator_assignments a JOIN creator_enrollments c ON c.id=a.creator_id WHERE a.campaign_id=? ORDER BY a.id", [id]);
   const creatives = await optionalRows(env.OPERATIONS_DB, "SELECT * FROM creatives WHERE campaign_id=? ORDER BY id", [id]);
-  return json({ campaign, creators: creators.results, assignments, creatives });
+  const canEdit=Boolean(user?.teamGovernance&&await canEditCampaign(env.OPERATIONS_DB,user,id));
+  return json({ campaign, creators: creators.results, assignments, creatives,editing:{canEdit,revision:canEdit?(await campaignRevision(env.OPERATIONS_DB,campaign)).revision:null,...(canEdit?{notes:campaign.notes}:{})} });
 }
 
 async function listCreators({ env, request }) {
@@ -208,6 +269,7 @@ async function updateCreator(context, user, id) {
   if (!current) return json({ error: "Creator record not found" }, 404);
   const body = await context.request.json();
   if (body.action) {
+    if(Object.keys(body).some(key=>!['action','version'].includes(key)))return json({error:'Workflow actions cannot change protected record fields'},403);
     if(!capabilities(user).captureFacts)return json({error:'This role may not change creator workflow'},403);
     return updateCreatorWorkflow(context,user,current,body);
   }
@@ -229,7 +291,7 @@ async function updateCreator(context, user, id) {
     .bind(body.creatorName.trim(),body.primaryPlatform,body.handle.trim(),body.contact.trim(),body.creatorStatus,body.compensationModel,body.rightsStatus,body.productFocus.trim(),body.notes?.trim()||null,body.evidenceLink?.trim()||null,current.assigned_operator_id||user.id,now,mutationId,id,body.version);
   const result = await context.env.OPERATIONS_DB.batch([
     update,
-    conditionalCreatorAudit(context.env.OPERATIONS_DB,user,current.campaign_id,id,"CREATOR_ENROLLMENT_UPDATED",current.workflow_status,"IN_PROGRESS",null,mutationId),
+    conditionalCreatorAudit(context.env.OPERATIONS_DB,user,current.campaign_id,id,"CREATOR_ENROLLMENT_UPDATED",JSON.stringify(editValues(current,'CREATOR')),JSON.stringify(editValues(body,'CREATOR',true)),null,mutationId),
     conditionalCreatorOutbox(context.env.OPERATIONS_DB,user,"CREATOR",id,"UPSERT",JSON.stringify(payload),mutationId)
   ]);
   if (!result[0].meta.changes) return json({ error: "Record changed. Refresh and try again." }, 409);
@@ -298,6 +360,7 @@ async function updateAssignment(context, user, id) {
   if((body.creatorId && body.creatorId!==current.creator_id)||(body.campaignId && body.campaignId!==current.campaign_id))return json({error:'Creator ID and Campaign ID are locked'},403);
   body.creatorId = current.creator_id;
   body.campaignId = current.campaign_id;
+  if(body.environment&&body.environment!==current.environment)return json({error:'Environment is locked'},403);
   body.environment = current.environment;
   const permission=await authorizeFields(context.env.OPERATIONS_DB,user,'ASSIGNMENT',body,current);
   if(permission)return json({error:permission},403);
@@ -310,7 +373,7 @@ async function updateAssignment(context, user, id) {
     .bind(body.status,body.startDate||null,body.contentDue||null,Number(body.fixedContentFee||0),Number(body.commissionRate||0),body.paidUsageRights,Number(body.attributionWindowDays||30),body.evidenceStatus,body.notes?.trim()||null,body.signedRightsEvidenceLink?.trim()||null,current.assigned_operator_id||user.id,now,mutationId,id,body.version);
   const result = await context.env.OPERATIONS_DB.batch([
     update,
-    conditionalAssignmentAudit(context.env.OPERATIONS_DB,user,current.campaign_id,id,"CREATOR_ASSIGNMENT_UPDATED",current.status,body.status,mutationId),
+    conditionalAssignmentAudit(context.env.OPERATIONS_DB,user,current.campaign_id,id,"CREATOR_ASSIGNMENT_UPDATED",JSON.stringify(editValues(current,'ASSIGNMENT')),JSON.stringify(editValues(body,'ASSIGNMENT',true)),mutationId),
     conditionalAssignmentOutbox(context.env.OPERATIONS_DB,user,"ASSIGNMENT",id,"UPSERT",JSON.stringify(payload),mutationId)
   ]);
   if (!result[0].meta.changes) return json({ error: "Assignment changed. Refresh and try again." }, 409);
@@ -323,6 +386,7 @@ async function reviewCreator(context, user, id) {
   const current = await context.env.OPERATIONS_DB.prepare("SELECT * FROM creator_enrollments WHERE id=?").bind(id).first();
   if (!current) return json({ error: "Creator record not found" }, 404);
   const body = await context.request.json();
+  if(!body||Array.isArray(body)||Object.keys(body).some(key=>!['result','notes','version','saveIntent'].includes(key))||(body.saveIntent!==undefined&&body.saveIntent!=='REVIEWED_RECORD_EDIT'))return json({error:'QA may change only the authorized QA result and notes'},403);
   if (!transitionAllowed(current.workflow_status, body.result, user.role)) return json({ error: "Record is not awaiting QA" }, 409);
   if (!["PASS","HOLD","CORRECTION_REQUIRED"].includes(body.result)) return json({ error: "Choose PASS, HOLD, or CORRECTION REQUIRED" }, 422);
   if (body.result !== "PASS" && !String(body.notes ?? "").trim()) return json({ error: "Explain what must happen next" }, 422);
@@ -345,10 +409,8 @@ async function reviewCreator(context, user, id) {
 }
 
 async function audit({ env, request }, user) {
-  if (!AUDIT_ROLES.has(user.role)) return json({ error: "Administrator authority required" }, 403);
-  const campaignId = params(request).get("campaignId") || "CMP-100";
-  const events = await env.OPERATIONS_DB.prepare("SELECT a.*,o.display_name operator_name,o.role operator_role FROM audit_events a JOIN operators o ON o.id=a.operator_id WHERE a.campaign_id=? ORDER BY a.created_at DESC LIMIT 200").bind(campaignId).all();
-  return json({ events: events.results });
+  if (!AUDIT_ROLES.has(user.role) && !canInspectAudit(user)) return json({ error: "Administrator authority required or explicit audit visibility" }, 403);
+  return auditHistory({env,request},user);
 }
 
 async function systemStatus({ env }, user) {
@@ -359,7 +421,7 @@ async function systemStatus({ env }, user) {
     : { results: [] };
   return json({
     schemaReady: ready,
-    syncConfigured: Boolean(env.CONTROL_SYSTEM_SYNC_SECRET),
+    syncConfigured: env.CONSOLE_ENVIRONMENT !== 'TRAINING' && Boolean(env.CONTROL_SYSTEM_SYNC_SECRET),
     sourceSystem: "PNB Acquisition & Launch Control System",
     outbound: Object.fromEntries(counts.results.map((row) => [row.status,row.count]))
   });
@@ -429,7 +491,8 @@ export async function onRequest(context) {
   if (!context.env.OPERATIONS_DB) return json({error:'Operations database is not configured'},503);
   if (context.request.method !== 'GET' && !sameOrigin(context.request)) return json({error:'Origin rejected'},403);
   const user=await actor(context);
-  if(!user)return json({error:'Authorized operator account required'},403);
+  if(!user)return json(context.data.reauthenticate?{error:'Your access changed. Sign out and authenticate again at ops.creatorloop.net.',code:'REAUTHENTICATE'}:{error:'Authorized operator account required'},403);
+  context.data.requestPermission=user;
   const parts=pathParts(context), db=context.env.OPERATIONS_DB;
   let campaignId=params(context.request).get('campaignId');
   let creatorId=null;
@@ -450,6 +513,7 @@ export async function onRequest(context) {
     }
   }
   if(campaignId && !await scoped(db,user,campaignId,creatorId))return json({error:'Assigned campaign or record access required'},403);
+  if(campaignId&&context.request.method!=='GET')context.data.commitScope={campaignId,creatorId,wholeCampaign:parts[0]==='creators'&&!parts[1]&&context.request.method==='POST'};
   const response=await dispatchRequest(context);
   if(context.request.method!=='GET' || !response.ok || user.role==='ADMINISTRATOR')return response;
   const data=await response.json();

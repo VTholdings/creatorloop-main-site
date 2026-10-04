@@ -1,0 +1,83 @@
+name: CreatorLoop acceptance - read-only Cloudflare verification
+run-name: Read-only Cloudflare verification for ${{ github.sha }}
+
+# A branch push queues approval without putting this workflow on main.
+# GitHub's environment reviewer remains the authority to release the secret.
+on:
+  push:
+    branches: [team-access-directory]
+    paths:
+      - .github/workflows/acceptance-readonly.yml
+      - scripts/acceptance/**
+      - scripts/lib/cloudflare-readonly.mjs
+      - tests/cloudflare-readonly.test.js
+
+permissions:
+  contents: read
+
+concurrency:
+  group: creatorloop-acceptance-readonly
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    if: github.repository == 'VTholdings/creatorloop-main-site' && github.ref == 'refs/heads/team-access-directory'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      main_sha: ${{ steps.release.outputs.main_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm test
+      - run: npm run check
+      - run: python3 -m py_compile scripts/retention-manifest.py scripts/team-migration-preflight.py
+      - name: Record reviewed code references
+        id: release
+        shell: bash
+        run: |
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          echo "main_sha=$(git rev-parse refs/remotes/origin/main)" >> "$GITHUB_OUTPUT"
+
+  cloudflare-readonly:
+    name: Protected read-only Cloudflare verification
+    needs: validate
+    if: github.repository == 'VTholdings/creatorloop-main-site' && github.ref == 'refs/heads/team-access-directory' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: creatorloop-acceptance
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Fence an obsolete acceptance run
+        shell: bash
+        run: |
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse refs/remotes/origin/team-access-directory)" = "$GITHUB_SHA"
+      - name: Read Cloudflare metadata only
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ACCEPTANCE_ENVIRONMENT: creatorloop-acceptance
+          EXPECTED_MAIN_SHA: ${{ needs.validate.outputs.main_sha }}
+        run: node scripts/acceptance/cloudflare-readonly.mjs
+      - name: Keep sanitized verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: creatorloop-readonly-${{ github.sha }}
+          path: acceptance-evidence/cloudflare-readonly.json
+          if-no-files-found: ignore
+          retention-days: 14
