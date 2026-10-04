@@ -224,11 +224,14 @@ export async function verifyCloudflare({client,targets,releaseSha,mainSha,now=()
     canonicalDeploymentId:uuid.test(canonical?.id||'')?canonical.id:null,
     deployedSha:sha.test(metadata?.commit_hash||'')?metadata.commit_hash:null,
     productionBranch:/^[a-zA-Z0-9_/-]{1,100}$/.test(p.production_branch||'')?p.production_branch:null,
+    previewDeploymentSetting:['all','none','custom'].includes(p.source?.config?.preview_deployment_setting)?p.source.config.preview_deployment_setting:'unknown',
     production:envPins(p.deployment_configs?.production),
     preview:envPins(p.deployment_configs?.preview)
    };
    const observed=report.observations[environment];
    for(const slot of ['production','preview']){
+    // Empty preview settings are exempt only with explicit live disable evidence.
+    if(environment==='training'&&slot==='preview'&&observed.previewDeploymentSetting==='none')continue;
     if(observed[slot].databaseId!==pin.databaseId)block('DATABASE_BINDING_MISMATCH',{environment,slot});
     if(observed[slot].audience!==pin.audience)block('ACCESS_AUDIENCE_MISMATCH',{environment,slot});
     if(observed[slot].teamDomain!==targets.teamDomain)block('ACCESS_TEAM_MISMATCH',{environment,slot});

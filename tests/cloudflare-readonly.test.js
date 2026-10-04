@@ -101,6 +101,14 @@ test('training binding/audience drift, sync secrets and shared projects cannot b
  const r=await f.run();for(const code of ['DATABASE_BINDING_MISMATCH','ACCESS_AUDIENCE_MISMATCH','TRAINING_HAS_SYNC_CREDENTIAL','SHARED_PAGES_PROJECT'])assert.equal(r.blockers.some(b=>b.code===code),true,code);
  assert.equal(r.productionCertified,false);assert.doesNotMatch(JSON.stringify(r),new RegExp(secret));
 });
+test('training preview exemption requires explicit live disabled evidence, never empty configuration alone',async()=>{
+ for(const mode of ['none','all','custom',undefined]){
+  const f=fixture(),p=f.bodies.get(root+'/pages/projects/'+targets.training.projectCandidates[0]).result;
+  p.source={config:{preview_deployment_setting:mode}};p.deployment_configs.preview={};
+  const r=await f.run();assert.equal(r.status==='READ_ONLY_METADATA_MATCH',mode==='none');
+  assert.equal(r.observations.training.previewDeploymentSetting,mode||'unknown');
+ }
+});
 test('missing/ambiguous identities, retired human rules, bypass and production SHA drift remain explicit held gates',async()=>{
  const f=fixture(),p=f.bodies.get(root+'/pages/projects/'+targets.production.projectCandidates[0]).result;
  p.canonical_deployment.deployment_trigger.metadata.commit_hash='c'.repeat(40);
