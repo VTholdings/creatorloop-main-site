@@ -11,6 +11,8 @@ on:
       - scripts/backup-stage.py
       - scripts/acceptance/d1-backup-stage.mjs
       - scripts/acceptance/backup-artifact-check.mjs
+      - scripts/lib/backup-artifact-retention.mjs
+      - tests/backup-artifact-retention.test.js
       - tests/d1-backup-stage.test.js
 permissions:
   contents: read
