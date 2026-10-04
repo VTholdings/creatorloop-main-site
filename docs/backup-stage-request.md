@@ -2,6 +2,8 @@
 
 This is the next preparation gate under [CL-EX-20261004-01](acceptance-exceptions/2026-10-04-training-preservation.md). The historical Pages anomaly remains unresolved. This request authorizes nothing by itself and contains no executable remote operation.
 
+**Subsequent Owner authorization:** the [dated follow-up](acceptance-exceptions/2026-10-04-backup-stage-authorization.md) supplies 90-day retention and the allowed controlled export stage. Use [the execution guide](backup-stage-execution.md) for the prepared workflow, encrypted storage and current approval action. The decisions below describe the original request; they do not override that follow-up.
+
 ## Exact proposed scope
 
 | Environment | Pages reference | D1 database ID | Operation |
