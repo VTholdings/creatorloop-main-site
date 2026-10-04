@@ -12,6 +12,8 @@ For an independent restored export, repeat the command with `--compare-manifest 
 
 ## Execute only in the approved secure environment
 
+The 2026-10-04 [historical training preservation exception](acceptance-exceptions/2026-10-04-training-preservation.md) permits preparation only and leaves the anomaly unresolved. Use the [prepared backup-stage request](backup-stage-request.md) for the exact export/storage approval boundary. It does not bypass any step below or authorize a remote migration.
+
 1. Verify the exact release SHA and migration file hashes. Read current remote migration registration, table schema, foreign keys and immutable guards separately for training and production.
 2. Export fresh backups and record the database/project/AUD identities, export time, protected destination and restore procedure. Produce and retain both preflight and retention manifests. Rehearse restoration on an isolated copy; compare all original rows and hashes.
 3. Inspect external reports in their actual platform. Record all versions, supersession links, attributable author/time, retention controls, access restrictions and backup destination. Export the relevant versions and hash them. Restore a protected copy from the real backup destination and compare it. Do not invent a retention period or delete history.
