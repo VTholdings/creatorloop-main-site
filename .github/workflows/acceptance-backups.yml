@@ -85,6 +85,23 @@ jobs:
           github-token: ${{ github.token }}
           path: backup-private/history/forensics
           merge-multiple: true
+      - name: Retain successful value-free key-delivery diagnostic
+        uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '11316226132'
+          run-id: 37236841917
+          github-token: ${{ github.token }}
+          path: backup-private/history/key-delivery
+          merge-multiple: true
+      - name: Require the recorded key-delivery diagnostic to have passed
+        run: |
+          python3 - <<'PY'
+          import json
+          d=json.load(open('backup-private/history/key-delivery/backup-key-delivery.json'))
+          assert d.get('code')=='SECRET_DELIVERY_AND_VALIDATION_PASS'
+          assert all(d.get(k) is True for k in ('secretContextPresent','processValuePresent','minimumLengthMet','maximumLengthMet','validForBackup','contextConsistent'))
+          print('Recorded value-free key delivery passed; current secret validation remains required before export.')
+          PY
       - name: Capture fresh exports after Owner window attestation
         id: capture
         env:
