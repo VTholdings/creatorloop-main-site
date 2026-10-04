@@ -4,7 +4,7 @@ import {readFile,mkdtemp,writeFile,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join,resolve} from 'node:path';
 import {spawnSync} from 'node:child_process';
-import {exportDatabase,validateDownload,windowApproved,digest} from '../scripts/lib/d1-backup-export.mjs';
+import {exportDatabase,validateDownload,digest} from '../scripts/lib/d1-backup-export.mjs';
 import {encryptBundle,decryptBundle} from '../scripts/lib/backup-envelope.mjs';
 const targets=JSON.parse(await readFile('scripts/acceptance/cloudflare-targets.json','utf8'));
 const passphrase='FICTIONAL-BACKUP-KEY-FOR-LOCAL-TESTS-ONLY';
@@ -29,10 +29,6 @@ test('backup refuses substituted identities and never retries uncertain initiati
  calls=0;await assert.rejects(exportDatabase({token:'fictional',targets,environment:'TRAINING',pause:async()=>{},fetcher:async()=>new Response(JSON.stringify({success:true,result:{at_bookmark:'bookmark-'+ ++calls}}))}),/EXPORT_BOOKMARK_CHANGED_NO_RESTART/);assert.equal(calls,2);
  for(const url of ['http://fictional.r2.cloudflarestorage.com/a','https://api.cloudflare.com/client/v4/accounts/a','https://evil.example/backup','https://x.r2.cloudflarestorage.com.evil.example/a','https://user:pass@x.r2.cloudflarestorage.com/a'])assert.throws(()=>validateDownload(url),/REFUSED/);
 });
-test('Owner window attestation cannot be supplied by an unrelated reviewer, environment, comment or rejection',()=>{
- const r={state:'approved',user:{login:'Creatorloopzone'},comment:'BACKUP_WINDOW_NO_ACTIVE_OPERATORS',environments:[{name:'creatorloop-acceptance'}]};assert.equal(windowApproved([r]),true);
- for(const change of [{state:'rejected'},{user:{login:'fictional'}},{comment:'approved'},{environments:[{name:'production'}]}])assert.equal(windowApproved([{...r,...change}]),false);
-});
 test('encrypted bundle authenticates contents, rejects tampering and wrong keys, and uses fresh randomness',()=>{
  const bytes=Buffer.from(sql),one=encryptBundle(bytes,passphrase),two=encryptBundle(bytes,passphrase);
  assert.notDeepEqual(one,two);assert.deepEqual(decryptBundle(one,passphrase),bytes);assert.equal(one.includes(Buffer.from('private@example.com')),false);
@@ -41,7 +37,8 @@ test('encrypted bundle authenticates contents, rejects tampering and wrong keys,
 });
 test('export CLI rejects absent encryption custody before any live call and does not leak credentials',async()=>{
  const dir=await mkdtemp(join(tmpdir(),'cl-backup-context-'));try{
-  const r=spawnSync(process.execPath,[resolve('scripts/acceptance/d1-backup-stage.mjs')],{cwd:dir,env:{PATH:process.env.PATH,GITHUB_ACTIONS:'true',GITHUB_REPOSITORY:'VTholdings/creatorloop-main-site',GITHUB_REF:'refs/heads/team-access-directory',GITHUB_EVENT_NAME:'push',GITHUB_RUN_ATTEMPT:'1',GITHUB_RUN_ID:'1',GITHUB_SHA:'a'.repeat(40),ACCEPTANCE_ENVIRONMENT:'creatorloop-acceptance',CLOUDFLARE_API_TOKEN:'FICTIONAL-PRIVATE-TOKEN'},encoding:'utf8'});
+  await writeFile(join(dir,'event.json'),JSON.stringify({ref:'refs/heads/team-access-directory',sender:{login:'Creatorloopzone',id:245245322},repository:{full_name:'VTholdings/creatorloop-main-site'},inputs:{low_activity_attestation:'BACKUP_WINDOW_NO_ACTIVE_OPERATORS',expected_release_sha:'a'.repeat(40)}}));
+  const r=spawnSync(process.execPath,[resolve('scripts/acceptance/d1-backup-stage.mjs')],{cwd:dir,env:{PATH:process.env.PATH,GITHUB_ACTIONS:'true',GITHUB_REPOSITORY:'VTholdings/creatorloop-main-site',GITHUB_REF:'refs/heads/team-access-directory',GITHUB_EVENT_NAME:'workflow_dispatch',GITHUB_ACTOR:'Creatorloopzone',GITHUB_TRIGGERING_ACTOR:'Creatorloopzone',GITHUB_EVENT_PATH:join(dir,'event.json'),GITHUB_RUN_ATTEMPT:'1',GITHUB_RUN_ID:'1',GITHUB_SHA:'a'.repeat(40),ACCEPTANCE_ENVIRONMENT:'creatorloop-acceptance',CLOUDFLARE_API_TOKEN:'FICTIONAL-PRIVATE-TOKEN'},encoding:'utf8'});
   assert.equal(r.status,1);assert.match(r.stdout,/BACKUP_ENCRYPTION_SECRET_REQUIRED/);assert.doesNotMatch(r.stdout+r.stderr,/FICTIONAL-PRIVATE/);
  }finally{await rm(dir,{recursive:true,force:true});}
 });

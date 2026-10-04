@@ -3,7 +3,6 @@ const account='2a3b96a0b37850cd03107131baa66b6d';
 const ids={TRAINING:'12dbfa51-ca9c-475b-bb1b-ca90ac8bd7f0',PRODUCTION:'c4993a97-5835-4c6c-af06-7020fa8d4f2a'};
 export const fail=code=>{throw Error(code);};
 export const digest=bytes=>createHash('sha256').update(bytes).digest('hex');
-export function windowApproved(reviews){return Array.isArray(reviews)&&reviews.some(r=>r.state==='approved'&&r.user?.login?.toLowerCase()==='creatorloopzone'&&r.comment?.trim()==='BACKUP_WINDOW_NO_ACTIVE_OPERATORS'&&r.environments?.some(e=>e.name==='creatorloop-acceptance'));}
 export function validateDownload(value){
  let u;try{u=new URL(value);}catch{fail('EXPORT_DOWNLOAD_TARGET_REFUSED');}
  if(u.protocol!=='https:'||u.username||u.password||u.port||u.hash||!/^([a-z0-9-]+\.)*r2\.cloudflarestorage\.com$/.test(u.hostname))fail('EXPORT_DOWNLOAD_TARGET_REFUSED');

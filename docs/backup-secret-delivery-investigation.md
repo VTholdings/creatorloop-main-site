@@ -18,7 +18,7 @@ This establishes the immediate cause: the backup secret reference resolved to an
 
 Approve only that diagnostic run. Keep the existing secret unchanged during this investigation. A PASS corroborates current delivery/validation; it cannot retroactively establish the cause of the earlier empty resolution. An unavailable result corroborates a continuing environment/secret-resolution condition. A context/process mismatch isolates injection rather than validation. An invalid-size result isolates the existing validation rule without exposing the size or changing the secret.
 
-The original export run remains failed and must not be retried. No diagnostic result automatically resumes exports. The backup workflow's separate low-activity attestation still applies to any later newly authorized export request. The old run's approval comment was empty; once delivery is resolved, a later export approval must include `BACKUP_WINDOW_NO_ACTIVE_OPERATORS`. That is a separate future gate, not the cause of this failure.
+The original export run remains failed and must not be retried. No diagnostic result automatically resumes exports. The backup workflow's separate low-activity attestation still applies to any later newly authorized export request. The old run's approval comment was empty; the [replacement dispatch gate](acceptance-exceptions/2026-10-04-backup-dispatch-authorization.md) now requires the exact `BACKUP_WINDOW_NO_ACTIVE_OPERATORS` manual-run input plus independent environment approval. That is a separate future gate, not the cause of this failure.
 
 PR #18 remains draft. Preserve encryption requirements, unresolved historical preservation evidence and every migration/deployment hold.
 

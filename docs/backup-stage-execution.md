@@ -2,13 +2,29 @@
 
 The Owner's [dated authorization](acceptance-exceptions/2026-10-04-backup-stage-authorization.md) now supplies the export scope and 90-day retention decision. Workflow: `.github/workflows/acceptance-backups.yml`, branch `team-access-directory`, protected environment `creatorloop-acceptance`. PR #18 remains draft.
 
-## Before approving
+## Start a fresh Owner-attested run
 
-1. Generate a unique random password of at least 32 characters in your password manager. Keep it as the CreatorLoop backup decryption key in Owner-controlled storage, independently of GitHub. Do not reuse the Cloudflare token or send this key through ChatGPT.
-2. In repository **Settings → Environments → creatorloop-acceptance → Environment secrets**, add `CREATORLOOP_BACKUP_PASSPHRASE` with that password. Do not alter the existing Cloudflare secret, reviewers, branch restriction or administrator-bypass setting.
-3. Start a controlled window with no active operator use of either database. Open the prepared run, choose **Review deployments**, select `creatorloop-acceptance`, enter exactly `BACKUP_WINDOW_NO_ACTIVE_OPERATORS` as the review comment, and choose **Approve and deploy**. This attests the window; GitHub's button label does not authorize deployment. Keep operator use paused until both exports complete or the job stops.
+The existing `CREATORLOOP_BACKUP_PASSPHRASE` has passed the protected delivery/threshold check. Keep that secret and the existing Cloudflare secret unchanged. Keep the independently retained backup password in Owner-controlled storage; never put either secret in an input, source, command argument or ChatGPT.
 
-The implementation refuses absent/short encryption keys before any Cloudflare read/export, refuses another reviewer/comment/environment, fences an obsolete SHA and refuses run attempts after the first. Do not blindly rerun an export job, especially after uncertain initiation. Reconcile retained evidence and stage a new individually approved request if necessary.
+1. Confirm a controlled window with no active operator use of either database. Keep operator use paused until both exports complete or the job stops.
+2. Manually dispatch `.github/workflows/acceptance-backups.yml` on `team-access-directory`, signed in as **Creatorloopzone**. Supply `low_activity_attestation` exactly `BACKUP_WINDOW_NO_ACTIVE_OPERATORS`, and `expected_release_sha` as the full current, reviewed PR #18 HEAD. Neither input has a default. Invalid or missing input fails validation before the environment approval is requested.
+3. On that **fresh** run choose **Review deployments → creatorloop-acceptance → Approve and deploy**. A review comment is optional and is never authorization evidence. GitHub's button label does not authorize deployment. Approve within 60 minutes of dispatch; an expired attestation needs a fresh window and dispatch, never a rerun.
+
+The backup workflow has already run and is registered in Actions. The workflow lives on the held PR branch, not `main`. GitHub's **Run workflow** UI is generally exposed for default-branch workflows; do not merge the PR or alter the default branch to expose it. Use GitHub's branch-targeted dispatch API/CLI for the existing registered workflow when the button is unavailable:
+
+```sh
+gh workflow run acceptance-backups.yml \
+  --repo VTholdings/creatorloop-main-site \
+  --ref team-access-directory \
+  -f low_activity_attestation=BACKUP_WINDOW_NO_ACTIVE_OPERATORS \
+  -f expected_release_sha=FULL_REVIEWED_PR18_HEAD
+```
+
+Run this using an existing secure GitHub session authenticated as `Creatorloopzone`; it contains no secret. If GitHub refuses dispatch of this registered branch workflow, retain the exact error and stop. Do not enable a push export fallback, change the repository's default branch, introduce a credential or merge anything. A workflow registration adjustment would require a separately reviewed repository action.
+
+Pushes now perform validation only and never request the protected backup job. The runner reads the dispatch input from `GITHUB_EVENT_PATH`, checks exact equality without trimming or shell evaluation, and checks Owner identity by login and numeric GitHub ID. It corroborates the current run's event, ID, first attempt, actors, workflow path, repository, branch and SHA through GitHub's API. It independently requires the Owner's recorded approval of `creatorloop-acceptance`; missing or rejected approval fails closed even with valid input. GitHub review comments are no longer used.
+
+The accepted non-secret receipt is recorded in the job log and run summary and retained inside encrypted export evidence: exact attestation, Owner identity, run ID, SHA, environment ID, dispatch/validation/expiry timestamps and confirmation that the review comment was unused. The input belongs to this fresh event; it cannot authorize a push or a rerun. The existing encryption-key, environment and export-target guards remain. Both branch HEAD and main SHA are corroborated before infrastructure checks and again before each export; the 60-minute attestation deadline is also rechecked before each export. A moved ref, expired window or uncertain export outcome stops capture. Do not blindly retry an export job.
 
 ## Executed scope
 
