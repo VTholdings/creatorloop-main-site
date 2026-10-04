@@ -168,6 +168,31 @@ test('diagnostic endpoints require verified authentication and forbid token enum
  for(const path of [root+'/tokens','/accounts/'+'f'.repeat(32),root+'/tokens/'+'8'.repeat(32),'/accounts?page=1&per_page=50&extra=1',root+'/pages/projects?page=1&per_page=50&extra=1'])await assert.rejects(f.client.get(path),/ENDPOINT_NOT_ALLOWED/);
  assert.equal(f.calls.length,1);
 });
+test('extended Pages diagnostics compare canonical route and pinned subresources, retain safe provider trace evidence and never expose deployments',async()=>{
+ const f=deniedPagesFixture();
+ const path=root+'/pages/projects/'+targets.production.projectCandidates[0];
+ f.bodies.set(root+'/pages/projects',{success:false,errors:[{code:10000,message:'Authentication error '+secret}]});f.statuses.set(root+'/pages/projects',403);
+ f.bodies.set(root+'/pages/projects?page=1&per_page=50',{success:false,errors:[{code:10000,message:'Authentication error '+secret}]});f.statuses.set(root+'/pages/projects?page=1&per_page=50',403);
+ f.bodies.set(path+'/domains',{success:true,result:[{name:targets.production.domain,secret}]});
+ f.bodies.set(path+'/deployments?page=1&per_page=1',{success:true,result:[{id:secret,env_vars:{secret},url:secret}]});
+ const r=await f.run(),d=r.observations.pagesAuthorizationDiagnostics;
+ assert.equal(d.pagesDenialIndependentOfProjectName,true);assert.equal(d.pagesSubresourceReadable,true);
+ assert.equal(d.checks['domains:'+targets.production.projectCandidates[0]].productionDomainPresent,true);
+ assert.equal(d.checks['deployments:'+targets.production.projectCandidates[0]].deploymentPresent,true);
+ assert.deepEqual(d.checks.pagesCanonicalList.providerEvidence.errorCategories,['AUTHENTICATION_REJECTED']);
+ assert.doesNotMatch(JSON.stringify(r),new RegExp(secret+'|'+f.tokenId));
+ const trace=readOnlyClient({token:secret,targets,fetcher:async()=>new Response(JSON.stringify({success:false,errors:[{code:10000,message:secret}]}),{status:403,headers:{'cf-ray':'0123456789abcdef-HNL',date:'Sun, 04 Oct 2026 03:32:12 GMT','untrusted':secret}})});
+ await assert.rejects(trace.get(root+'/tokens/verify'),e=>e.providerEvidence.cloudflareRay==='0123456789abcdef-HNL'&&e.providerEvidence.serverTime==='2026-10-04T03:32:12.000Z'&&!JSON.stringify(e).includes(secret));
+ assert.doesNotMatch(JSON.stringify(trace.requests),new RegExp(secret));
+});
+test('extended diagnostic transport blocks token-issuing GET endpoints, credential values, arbitrary projects and unbounded deployment enumeration',async()=>{
+ const f=fixture();await f.client.get(root+'/tokens/verify');
+ for(const path of [root+'/pages/projects/unapproved/domains',root+'/pages/projects/'+targets.production.projectCandidates[0]+'/upload-token',root+'/pages/projects/'+targets.production.projectCandidates[0]+'/deployments?page=2&per_page=1',root+'/pages/projects/'+targets.production.projectCandidates[0]+'/deployments?page=1&per_page=100',root+'/pages/projects/'+targets.production.projectCandidates[0]+'/domains?extra=1'])await assert.rejects(f.client.get(path),/ENDPOINT_NOT_ALLOWED/);
+ assert.equal(f.calls.length,1);
+ const framed=readOnlyClient({token:' cfat_'+secret+'\n',targets,fetcher:async()=>{throw Error(secret);}});
+ assert.deepEqual(framed.credentialFraming,{surroundingWhitespace:true,controlCharactersPresent:true,format:'OTHER_TOKEN_FORMAT'});
+ assert.doesNotMatch(JSON.stringify(framed.credentialFraming),new RegExp(secret));
+});
 test('CLI requires the approved Actions repository, branch, event and environment before accessing Cloudflare',async()=>{
  const dir=await mkdtemp(join(tmpdir(),'creatorloop-readonly-'));
  try{
