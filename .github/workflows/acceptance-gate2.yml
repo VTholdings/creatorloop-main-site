@@ -1,3 +1,4 @@
+# Fresh first-attempt request after expired attestation in run 37254859143.
 name: CreatorLoop acceptance - isolated training Gate 2
 run-name: Gate 2 training synthetic atomicity approval for ${{ github.sha }}
 on:
