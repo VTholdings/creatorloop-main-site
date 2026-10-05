@@ -1,0 +1,127 @@
+name: CreatorLoop acceptance - isolated training Gate 2
+run-name: Gate 2 training synthetic atomicity approval for ${{ github.sha }}
+on:
+  push:
+    branches: [team-access-directory]
+    paths:
+      - .github/workflows/acceptance-gate2.yml
+      - scripts/lib/gate2-atomicity.mjs
+      - scripts/lib/gate2-authorization.mjs
+      - scripts/gate2/**
+      - tests/gate2-atomicity.test.js
+permissions:
+  contents: read
+  actions: read
+  issues: read
+concurrency:
+  group: creatorloop-acceptance-gate2-training
+  cancel-in-progress: false
+jobs:
+  validate:
+    if: github.repository == 'VTholdings/creatorloop-main-site' && github.ref == 'refs/heads/team-access-directory'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      main_sha: ${{ steps.references.outputs.main_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm test
+      - run: npm run check
+      - run: node --check scripts/lib/gate2-atomicity.mjs && node --check scripts/lib/gate2-authorization.mjs && node --check scripts/gate2/live.mjs
+      - run: python3 -m py_compile scripts/gate2/baseline.py
+      - id: references
+        run: echo "main_sha=$(git rev-parse refs/remotes/origin/main)" >> "$GITHUB_OUTPUT"
+  gate2:
+    name: Protected Gate 2 - TRAINING synthetic writes only
+    needs: validate
+    if: github.repository == 'VTholdings/creatorloop-main-site' && github.ref == 'refs/heads/team-access-directory' && github.event_name == 'push' && github.run_attempt == 1
+    environment:
+      name: creatorloop-acceptance
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Fence replay and stale requests
+        run: |
+          test "$GITHUB_RUN_ATTEMPT" = 1
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse refs/remotes/origin/team-access-directory)" = "$GITHUB_SHA"
+      - name: Retrieve existing accepted encrypted evidence - no export
+        uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '11317109290'
+          run-id: 37242966914
+          github-token: ${{ github.token }}
+          path: gate2-private
+          merge-multiple: true
+      - name: Retrieve completed training Gate 1 evidence
+        uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '11320388581'
+          run-id: 37248108426
+          github-token: ${{ github.token }}
+          path: gate2-private/training
+          merge-multiple: true
+      - name: Retrieve completed production Gate 1 receipt - no production API call
+        uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '11322070166'
+          run-id: 37251935281
+          github-token: ${{ github.token }}
+          path: gate2-private/production
+          merge-multiple: true
+      - name: Authenticate original training baseline locally
+        env:
+          CREATORLOOP_BACKUP_PASSPHRASE: ${{ secrets.CREATORLOOP_BACKUP_PASSPHRASE }}
+        run: |
+          cd gate2-private
+          echo 'd9d3ef5b502c70f1801693a73f7b516c954ac402a480300f4b1cb25d890ce191  owner-transfer.clbackup' | sha256sum --check
+          sha256sum --check owner-transfer.clbackup.sha256
+          node ../scripts/backup-envelope.mjs decrypt owner-transfer.clbackup accepted.zip
+          cd ..
+          python3 scripts/gate2/baseline.py gate2-private/accepted.zip gate2-private/baselines
+      - name: Require Owner approval and fresh PR training-window attestation before any Cloudflare call
+        id: gate2
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+          EXPECTED_MAIN_SHA: ${{ needs.validate.outputs.main_sha }}
+          ACCEPTANCE_ENVIRONMENT: creatorloop-acceptance
+          GATE2_SCOPE: TRAINING_SYNTHETIC_ONLY
+        run: node scripts/gate2/live.mjs
+      - name: Record preparation blocker without private evidence
+        if: always() && steps.gate2.outcome != 'success'
+        run: |
+          python3 - <<'PY'
+          import json,os,pathlib
+          p=pathlib.Path('gate2-evidence/TRAINING.json');p.parent.mkdir(exist_ok=True)
+          if not p.exists():p.write_text(json.dumps({'protocol':'CREATORLOOP_D1_ATOMICITY_V1','environment':'TRAINING','databaseId':'12dbfa51-ca9c-475b-bb1b-ca90ac8bd7f0','releaseSha':os.environ['GITHUB_SHA'],'runId':os.environ['GITHUB_RUN_ID'],'status':'GATE2_BLOCKED','blockers':[{'code':'GATE2_PREPARATION_BLOCKED'}],'cleanupStatus':'NOT_STARTED','atomicExecutionCertified':False,'remoteMigrationsApplied':False,'remoteRestorePerformed':False,'productionDeployed':False,'productionAccessed':False})+'\n')
+          PY
+      - name: Retain sanitized Gate 2 evidence only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: creatorloop-training-gate2-${{ github.sha }}
+          path: gate2-evidence/TRAINING.json
+          if-no-files-found: error
+          retention-days: 90
+      - name: Remove ephemeral private evidence - no database cleanup fallback
+        if: always()
+        run: rm -rf gate2-private
+      - name: Preserve production and all later gate holds
+        if: always()
+        run: echo 'Gate 2 only. No production access/write/migration, real training migration, restore, executor activation, configuration change, deployment or merge. PR 18 remains draft. Unverified fixture leftovers require a separate Owner decision.' >> "$GITHUB_STEP_SUMMARY"
