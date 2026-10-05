@@ -10,7 +10,7 @@ SCHEMA="SELECT type,name,tbl_name,sql FROM sqlite_master WHERE sql IS NOT NULL A
 REGISTRATION='SELECT version FROM schema_migrations ORDER BY version LIMIT 33'
 def digest(b):return hashlib.sha256(b).hexdigest()
 def rows(db,sql):return [dict(r) for r in db.execute(sql)]
-def baseline(archive):
+def baseline(archive,training_only=False):
     hashes={p.name:digest(p.read_bytes()) for p in sorted((ROOT/'migrations').glob('*.sql'))}
     with zipfile.ZipFile(archive) as z:
         names=z.namelist()
@@ -21,6 +21,7 @@ def baseline(archive):
         if summary.get('status')!='LOCAL_RESTORE_AND_REHEARSAL_PASS' or summary.get('remoteMigrationsApplied') is not False or summary.get('productionDeployed') is not False:raise ValueError()
         result={}
         for env,dbid in DBS.items():
+            if training_only and env!='TRAINING':continue
             raw=z.read(env+'.sql');capture=next(e for e in evidence['exports'] if e['environment']==env)
             preflight=json.loads(z.read(env+'-preflight.json'));original=json.loads(z.read(env+'-retention.json'));restored=json.loads(z.read(env+'-restore.json'))
             if capture.get('databaseId')!=dbid or capture.get('status')!='EXPORT_CAPTURED' or capture.get('sha256')!=digest(raw):raise ValueError()
@@ -52,9 +53,9 @@ def baseline(archive):
             finally:db.close()
         return result
 if __name__=='__main__':
-    a=argparse.ArgumentParser(description=__doc__);a.add_argument('archive');a.add_argument('output');v=a.parse_args()
+    a=argparse.ArgumentParser(description=__doc__);a.add_argument('archive');a.add_argument('output');a.add_argument('--training-only',action='store_true');v=a.parse_args()
     try:
-        result=baseline(v.archive);out=pathlib.Path(v.output);out.mkdir(mode=0o700,parents=True,exist_ok=False)
+        result=baseline(v.archive,training_only=v.training_only);out=pathlib.Path(v.output);out.mkdir(mode=0o700,parents=True,exist_ok=False)
         for env,value in result.items():p=out/(env+'.json');p.write_text(json.dumps(value)+'\n');p.chmod(0o600)
         print('ACCEPTED_SCHEMA_BASELINES_VERIFIED; no export or remote restore performed')
     except Exception:print('ACCEPTED_SCHEMA_BASELINE_BLOCKED',file=sys.stderr);sys.exit(1)

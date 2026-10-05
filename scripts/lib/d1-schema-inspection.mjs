@@ -6,6 +6,12 @@ const fail=code=>{throw Error(code);};
 const hash=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const canonical=value=>Array.isArray(value)?value.map(canonical):value&&typeof value==='object'?Object.fromEntries(Object.keys(value).sort().map(k=>[k,canonical(value[k])])):value;
 const fingerprint=value=>hash(canonical(value));
+const providerSha256='7e657b88f7044fb2b82a2ac486f4b4c2a1bf49fd180d64b03e26dfe0485a6686';
+function trainingProviderComparison(rows){
+ const candidates=rows.filter(r=>r?.name==='_cf_KV');
+ const valid=candidates.length===0||(candidates.length===1&&candidates[0].type==='table'&&candidates[0].tbl_name==='_cf_KV'&&fingerprint(candidates[0])===providerSha256);
+ return {rows:valid?rows.filter(r=>r!==candidates[0]):rows,stateSha256:fingerprint(candidates),blocker:valid?null:'PROVIDER_OBJECT_DEFINITION_DISCREPANCY',evidence:{rule:'TRAINING_CF_KV_EXACT_V1',object:'table:_cf_KV',classification:'CLOUDFLARE_MANAGED_EXPORT_EXCLUDED',count:candidates.length,present:candidates.length>0,excluded:valid&&candidates.length===1,requiredMetadataSha256:providerSha256,actualMetadataSha256:candidates.length===1?fingerprint(candidates[0]):null,definitionMatched:valid}};
+}
 const schema="SELECT type,name,tbl_name,sql FROM sqlite_master WHERE sql IS NOT NULL AND name NOT LIKE 'sqlite_%' ORDER BY type,name LIMIT 257";
 const registration='SELECT version FROM schema_migrations ORDER BY version LIMIT 33';
 function differences(q,actual){
@@ -52,12 +58,20 @@ export function schemaReadClient({token,environment,baseline,targets,fetcher=fet
   return {rows:result.results,evidence:{method:'POST',path,status:response.status,sqlSha256:createHash('sha256').update(sql).digest('hex'),rowsWritten:0,changedDatabase:false}};
  };
 }
-export async function inspectSchema({baseline,client,releaseSha,mainSha,runId,now=()=>new Date().toISOString(),fence=async()=>{}}){
+export async function inspectSchema({baseline,client,releaseSha,mainSha,runId,normalizeTrainingProvider=false,now=()=>new Date().toISOString(),fence=async()=>{}}){
  const receipt={protocol:'CREATORLOOP_D1_SCHEMA_INSPECTION_V1',environment:baseline.environment,databaseId:baseline.databaseId,releaseSha,mainSha,runId,backupRunId:baseline.backupRunId,backupReleaseSha:baseline.backupReleaseSha,backupSha256:baseline.backupSha256,exportCompletedAt:baseline.exportCompletedAt,status:'LIVE_SCHEMA_INSPECTION_BLOCKED',startedAt:now(),checks:[],blockers:[],migrationSha256:baseline.migrationSha256,acceptedRehearsalSha256:baseline.acceptedRehearsalSha256,registeredTeamMigrations:baseline.registeredTeamMigrations,pendingMigrations:baseline.pendingMigrations,remoteAppliedFileHashesStored:false,atomicExecutionCertified:false,remoteMigrationsApplied:false,remoteRestorePerformed:false,productionDeployed:false};
  try{
+  if(normalizeTrainingProvider&&(baseline.environment!=='TRAINING'||baseline.schema.some(r=>r.name==='_cf_KV'||r.tbl_name==='_cf_KV')||Object.hasOwn(baseline.foreignKeys,'_cf_KV')))fail('TRAINING_PROVIDER_NORMALIZATION_REFUSED');
+  let initialProviderState;
   for(const q of inspectionPlan(baseline)){
-   await fence();const {rows,evidence}=await client(q.sql);const matched=fingerprint(rows)===fingerprint(q.expected);
-   receipt.checks.push({check:q.key,matched,expectedSha256:fingerprint(q.expected),actualSha256:fingerprint(rows),rowCount:rows.length,...evidence,...(!matched?{differences:differences(q,rows)}:{})});
+   await fence();const {rows,evidence}=await client(q.sql);
+   const provider=normalizeTrainingProvider&&q.key.startsWith('schema')?trainingProviderComparison(rows):null;
+   let blocker=provider?.blocker;
+   if(provider&&q.key==='schema')initialProviderState=provider.stateSha256;
+   if(provider&&q.key==='schemaEndFence'&&provider.stateSha256!==initialProviderState)blocker??='PROVIDER_OBJECT_END_FENCE_DISCREPANCY';
+   const comparisonRows=provider?.rows??rows,matched=!blocker&&fingerprint(comparisonRows)===fingerprint(q.expected);
+   receipt.checks.push({check:q.key,matched,expectedSha256:fingerprint(q.expected),actualSha256:fingerprint(rows),rowCount:rows.length,...evidence,...(provider?{comparisonSha256:fingerprint(comparisonRows),comparisonRowCount:comparisonRows.length,providerNormalization:provider.evidence}:{}),...(!matched?{differences:differences(q,comparisonRows)}:{})});
+   if(blocker)fail(blocker);
    if(!matched)fail('LIVE_SCHEMA_DISCREPANCY');
    if(q.key.startsWith('foreignKeys:')&&rows.some(r=>r.table==='operators'&&(r.on_update!=='NO ACTION'||r.on_delete!=='NO ACTION')))fail('UNSUPPORTED_IDENTITY_FOREIGN_KEY_ACTION');
   }
