@@ -1,3 +1,4 @@
+# Fresh parser attempt after hosted-runner acquisition failure; run 37362163168 remains closed.
 name: CreatorLoop acceptance - training read-only parser diagnostic
 run-name: Training EXPLAIN-only parser diagnostic approval for ${{ github.sha }}
 on:
