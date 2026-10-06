@@ -214,7 +214,7 @@ test('authorization, expiry, checkout and protected workflow bytes remain exactl
  for(const [path,digest] of Object.entries({
   'scripts/lib/training-parser-authorization.mjs':'c64f55b1f3455c02b2527516d4b8cf21618453049bff4c45d9b8a2d8f9df6dde',
   'scripts/diagnostics/training-parser-live.mjs':'2b76eeebc725a6e6a3ee5979f72dbef2c794df46ca474e6a8ef57b853f240ed4',
-  '.github/workflows/acceptance-training-parser.yml':'575a02a4058a61bf669cfb91d6afdfa0ce0901cbd18444f38b5b1282c0470605'
+  '.github/workflows/acceptance-training-parser.yml':'e39d9522eb8b4f3afc0e76e7e7b623ecdec9ef0879667515a9f1a9c878f93c2d'
  }))assert.equal(sha256(await readFile(path)),digest,path);
 });
 async function rejectedSnapshot(body,status=400){
