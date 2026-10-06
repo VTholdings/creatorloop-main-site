@@ -16,7 +16,7 @@ const tables=['audit_events','campaigns','console_access_grants','console_approv
 const schemaSQL="SELECT type,name,tbl_name,sql FROM sqlite_master WHERE sql IS NOT NULL AND name NOT LIKE 'sqlite_%' ORDER BY type,name LIMIT 513";
 export const PARSER_SNAPSHOT=freeze([
  {sql:schemaSQL,limit:512},
- {sql:tables.map(t=>"SELECT '"+t+"' AS name,count(*) AS n FROM \""+t+'"').join(' UNION ALL '),limit:15},
+ ...tables.map(table=>({sql:"SELECT '"+table+"' AS name,count(*) AS n FROM \""+table+'"',limit:1,table})),
  {sql:'SELECT version FROM schema_migrations ORDER BY version LIMIT 33',limit:32},
  {sql:schemaSQL,limit:512}
 ]);
@@ -92,8 +92,9 @@ export function parserClient({token,authorization:a,runId,releaseSha,fetcher=fet
   }
   const expected=read?PARSER_SNAPSHOT.length:q.results;
   if(!Array.isArray(data.result)||data.result.length!==expected||data.result.some((r,i)=>r.success!==true||!Array.isArray(r.results)||r.results.length>(read?PARSER_SNAPSHOT[i].limit:512)||r.meta?.rows_written!==0||r.meta.changed_db!==false))fail('PARSER_ZERO_WRITE_OR_RESPONSE_BOUND_REQUIRED');
+  if(read&&data.result.slice(1,16).some((r,i)=>r.results.length!==1||fp(Object.keys(r.results[0]??{}).sort())!==fp(['n','name'])||r.results[0].name!==tables[i]||!Number.isSafeInteger(r.results[0].n)||r.results[0].n<0))fail('PARSER_SNAPSHOT_COUNT_RESULT_REQUIRED');
   if(!read&&data.result.some(r=>!r.results.length||r.results.some(x=>!Number.isSafeInteger(x?.addr)||typeof x?.opcode!=='string')))fail('PARSER_EXPLAIN_VM_EVIDENCE_REQUIRED');
-  return {outcome:'EXPLAIN_ACCEPTED',...(read?{rows:data.result.map(r=>r.results)}:{}),evidence:{...evidence,resultCount:data.result.length,resultRowCounts:data.result.map(r=>r.results.length),rowsWritten:0,changedDatabase:false,zeroWriteMetadataAvailable:true}};
+  return {outcome:'EXPLAIN_ACCEPTED',...(read?{rows:[data.result[0].results,data.result.slice(1,16).flatMap(r=>r.results),data.result[16].results,data.result[17].results]}:{}),evidence:{...evidence,resultCount:data.result.length,resultRowCounts:data.result.map(r=>r.results.length),rowsWritten:0,changedDatabase:false,zeroWriteMetadataAvailable:true}};
  };
 }
 export async function executeParserDiagnostic({source,request,fence,runId,releaseSha,now=()=>Date.now()}){

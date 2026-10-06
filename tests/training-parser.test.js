@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {DatabaseSync} from 'node:sqlite';
 import {createHash} from 'node:crypto';
+import {spawnSync} from 'node:child_process';
 import {fingerprint} from '../scripts/lib/gate2-atomicity.mjs';
 import {PARSER_VARIANTS,PARSER_REQUESTS,PARSER_SNAPSHOT,PARSER_MIGRATION_HASHES,TRAINING_PARSER_DB,verifyParserMigrations,verifyParserSource,parserClient,executeParserDiagnostic} from '../scripts/lib/training-parser.mjs';
 import {authorizeParserDiagnostic,fenceParserDiagnostic,parserAttestationBody} from '../scripts/lib/training-parser-authorization.mjs';
@@ -30,7 +31,8 @@ async function model(o={}){
  db.exec("CREATE TABLE _cf_KV (\n        key TEXT PRIMARY KEY,\n        value BLOB\n      ) WITHOUT ROWID");
  // SQLite query-only mode refuses actual schema/data writes but accepts EXPLAIN DDL.
  db.exec('PRAGMA query_only=ON');
- const rows=()=>PARSER_SNAPSHOT.map(x=>db.prepare(x.sql).all().map(r=>({...r}))),before=rows();
+ const physicalRows=()=>PARSER_SNAPSHOT.map(x=>db.prepare(x.sql).all().map(r=>({...r})));
+ const rows=()=>{const r=physicalRows();return [r[0],r.slice(1,16).flat(),r[16],r[17]];},before=rows();
  const source={sourceRunId:'37358040555',schemaSha256:fingerprint(before[0]),counts:before[1],registration:before[2]},calls=[];
  const authorization={scope:'TRAINING_EXPLAIN_ONLY',databaseId:TRAINING_PARSER_DB,runId:run,releaseSha:sha,attempt:1,windowExpiresAt:new Date(clock+3600000).toISOString()};
  const fetcher=async (url,options)=>{
@@ -47,19 +49,21 @@ async function model(o={}){
    const results=(q.results===2?[db.prepare('EXPLAIN SELECT 1').all(),db.prepare(variant).all()]:[db.prepare(variant).all()]);
    return new Response(JSON.stringify({success:true,result:results.map(v=>({success:true,results:v,meta:{rows_written:o.writes?1:0,changed_db:o.writes===true}}))}));
   }
-  const observed=rows();
+  const observed=physicalRows();
   if(o.drift&&calls.includes('probe'))observed[0]=[];
   if(o.countDrift&&calls.includes('probe'))observed[1][0].n++;
-  if(o.registrationDrift&&calls.includes('probe'))observed[2].push({version:'0005_team_directory'});
-  if(o.endDrift&&calls.includes('probe'))observed[3]=[];
+  if(o.registrationDrift&&calls.includes('probe'))observed[16].push({version:'0005_team_directory'});
+  if(o.endDrift&&calls.includes('probe'))observed[17]=[];
   return new Response(JSON.stringify({success:true,result:observed.map(v=>({success:true,results:v,meta:{rows_written:0,changed_db:false}}))}));
  };
  const request=parserClient({token:'FICTIONAL-CF-TOKEN',authorization,runId:run,releaseSha:sha,fetcher,now:()=>clock});
- return {db,rows,before,source,request,calls,authorization,fetcher};
+ return {db,rows,physicalRows,before,source,request,calls,authorization,fetcher};
 }
 const execute=m=>executeParserDiagnostic({source:m.source,request:m.request,fence:async()=>{},runId:run,releaseSha:sha,now:()=>clock});
 test('fixed parser matrix contains only complete EXPLAIN trigger variants and EXPLAIN controls',()=>{
  assert.equal(PARSER_VARIANTS.length,6);assert.equal(PARSER_REQUESTS.length,24);assert.equal(new Set(PARSER_REQUESTS.map(x=>x.id)).size,24);
+ assert.equal(createHash('sha256').update(JSON.stringify(PARSER_VARIANTS)).digest('hex'),'ca633d1570e8a7c4ae4e2a0aaac4a21102b87cc854c4038e23688f9a1d7f724f');
+ assert.equal(createHash('sha256').update(JSON.stringify(PARSER_REQUESTS)).digest('hex'),'45458f8b19cc7a1c335ee82b8b542a2e8414d7e5f05a1df725f55cfb9b715749');
  for(const v of PARSER_VARIANTS){assert.match(v.sql,/^EXPLAIN CREATE TRIGGER cl_parser_explain_only BEFORE UPDATE ON operators/);assert.doesNotMatch(v.sql,/PRAGMA|INSERT|DELETE|ALTER|DROP|ATTACH|DETACH|COMMIT|ROLLBACK/);assert.match(v.sql,/ END;$/);assert.ok(Object.isFrozen(v));}
  for(const q of PARSER_REQUESTS){assert.ok(Object.isFrozen(q.body));for(const x of q.body.batch??[q.body]){assert.match(x.sql,/^EXPLAIN /);assert.deepEqual(x.params,[]);}}
  assert.throws(()=>{PARSER_REQUESTS[0].body.sql='DELETE FROM operators';},TypeError);
@@ -85,6 +89,134 @@ test('unexpected authorization/provider errors are sanitized and stop after one 
  }finally{m.db.close();}
 });
 const sha256=value=>createHash('sha256').update(value).digest('hex');
+const snapshotTables=['audit_events','campaigns','console_access_grants','console_approval_delegations','console_authorizations','console_source_outbox','console_source_records','control_system_imports','control_system_outbox','creatives','creator_assignments','creator_enrollments','operators','qa_reviews','schema_migrations'];
+test('snapshot is one allowlisted 18-entry batch reconstructed into four exact logical results',async()=>{
+ assert.equal(PARSER_SNAPSHOT.length,18);
+ assert.equal(PARSER_SNAPSHOT[0].sql,PARSER_SNAPSHOT[17].sql);
+ assert.equal(PARSER_SNAPSHOT[0].limit,512);assert.equal(PARSER_SNAPSHOT[17].limit,512);
+ assert.equal(PARSER_SNAPSHOT[16].sql,'SELECT version FROM schema_migrations ORDER BY version LIMIT 33');assert.equal(PARSER_SNAPSHOT[16].limit,32);
+ assert.deepEqual(PARSER_SNAPSHOT.slice(1,16).map(x=>x.table),snapshotTables);
+ for(const [i,table] of snapshotTables.entries())assert.deepEqual(PARSER_SNAPSHOT[i+1],{sql:`SELECT '${table}' AS name,count(*) AS n FROM "${table}"`,limit:1,table});
+ const m=await model();try{
+  const result=await m.request('snapshot');assert.deepEqual(m.calls,['snapshot']);assert.deepEqual(result.rows,m.before);assert.equal(result.rows.length,4);
+  assert.deepEqual(result.rows[1].map(x=>x.name),snapshotTables);assert.deepEqual(result.rows[2],m.source.registration);assert.deepEqual(result.rows[0],result.rows[3]);
+  assert.equal(result.evidence.resultCount,18);assert.deepEqual(result.evidence.resultRowCounts,m.physicalRows().map(x=>x.length));assert.equal(result.evidence.zeroWriteMetadataAvailable,true);
+ }finally{m.db.close();}
+});
+test('original 15-term failure reproduces the retained provider hash; corrected batch passes compound limit five',async t=>{
+ const sql=PARSER_SNAPSHOT.map(x=>x.sql),original=[sql[0],sql.slice(1,16).join(' UNION ALL '),sql[16],sql[17]];
+ assert.equal(fingerprint({batch:original.map(sql=>({sql,params:[]}))}),'1bf3494d2f0a1a3ba00749195d8b83478fa04fdfcb46e00666c948c3576b5975');
+ const reproduction=spawnSync('python3',['-c',`
+import hashlib,json,sqlite3,sys
+p=json.load(sys.stdin)
+db=sqlite3.connect(':memory:',cached_statements=0)
+db.row_factory=sqlite3.Row
+versions=['0002_operations_console_v2','0003_pnb_source_contract','0004_operator_permissions']
+for i,name in enumerate(p['tables']):
+    db.execute('CREATE TABLE "'+name+'" (id INTEGER, version TEXT)')
+    values=versions if name=='schema_migrations' else [None]*(i+1)
+    db.executemany('INSERT INTO "'+name+'" VALUES (?,?)',enumerate(values))
+db.commit()
+db.execute('PRAGMA query_only=ON')
+db.setlimit(sqlite3.SQLITE_LIMIT_COMPOUND_SELECT,5)
+assert db.getlimit(sqlite3.SQLITE_LIMIT_COMPOUND_SELECT)==5
+before=db.total_changes
+def rows(sql): return [dict(r) for r in db.execute(sql)]
+try:
+    rows(p['original'][1])
+    raise AssertionError('original compound statement unexpectedly succeeded')
+except sqlite3.OperationalError as error:
+    assert str(error)=='too many terms in compound SELECT'
+    assert error.sqlite_errorname=='SQLITE_ERROR'
+    message=str(error)+': '+error.sqlite_errorname
+    error_hash=hashlib.sha256(message.encode()).hexdigest()
+    assert error_hash=='0eb54e3072e6e800bad61521002c1ae76699b327d5d7c6831eba93e9297f4bdd'
+physical=[rows(s) for s in p['corrected']]
+assert len(physical)==18
+logical=[physical[0],[r for entry in physical[1:16] for r in entry],physical[16],physical[17]]
+expected=[{'name':name,'n':3 if name=='schema_migrations' else i+1} for i,name in enumerate(p['tables'])]
+assert logical[1]==expected
+assert logical[2]==[{'version':v} for v in versions]
+assert logical[0]==logical[3] and len(logical[0])==15
+assert db.total_changes==before
+try:
+    db.execute('CREATE TABLE forbidden(id INTEGER)')
+    raise AssertionError('query_only failed')
+except sqlite3.OperationalError as error:
+    assert error.sqlite_errorname=='SQLITE_READONLY'
+db.setlimit(sqlite3.SQLITE_LIMIT_COMPOUND_SELECT,500)
+assert [rows(s) for s in p['original']]==logical
+print(json.dumps({'message':message,'errorSha256':error_hash,'compoundLimit':5,'batchEntries':len(physical),'physical':physical,'logical':logical,'totalChangesDelta':db.total_changes-before,'sqliteVersion':sqlite3.sqlite_version}))
+db.close()
+`],{input:JSON.stringify({tables:snapshotTables,original,corrected:sql}),encoding:'utf8'});
+ assert.equal(reproduction.status,0,reproduction.stderr);const proof=JSON.parse(reproduction.stdout);
+ assert.equal(proof.compoundLimit,5);assert.equal(proof.batchEntries,18);assert.equal(proof.totalChangesDelta,0);
+ const {evidence}=await rejectedSnapshot({success:false,errors:[{code:7500,message:proof.message}]},400);
+ assert.equal(evidence.errorSha256,proof.errorSha256);assert.equal(evidence.errorSha256,'0eb54e3072e6e800bad61521002c1ae76699b327d5d7c6831eba93e9297f4bdd');assert.equal(evidence.zeroWriteMetadataAvailable,false);
+ let calls=0;
+ const authorization={scope:'TRAINING_EXPLAIN_ONLY',databaseId:TRAINING_PARSER_DB,runId:run,releaseSha:sha,attempt:1,windowExpiresAt:new Date(clock+3600000).toISOString()};
+ const request=parserClient({token:'FICTIONAL-CF-TOKEN',authorization,runId:run,releaseSha:sha,now:()=>clock,fetcher:async(url,options)=>{
+  calls++;assert.equal(JSON.parse(options.body).batch.length,18);
+  return new Response(JSON.stringify({success:true,result:proof.physical.map(results=>({success:true,results,meta:{rows_written:0,changed_db:false}}))}));
+ }});
+ const result=await request('snapshot');assert.equal(calls,1);assert.deepEqual(result.rows,proof.logical);
+ t.diagnostic(JSON.stringify({sqliteVersion:proof.sqliteVersion,compoundLimit:proof.compoundLimit,originalError:proof.message,errorSha256:proof.errorSha256,correctedBatchEntries:proof.batchEntries,totalChangesDelta:proof.totalChangesDelta}));
+});
+async function assertSnapshotBlocked(m,result,{afterProbe=false,label=''}={}){
+ let calls=0;
+ const request=parserClient({token:'FICTIONAL-CF-TOKEN',authorization:m.authorization,runId:run,releaseSha:sha,now:()=>clock,fetcher:async(url,options)=>{
+  calls++;if(afterProbe&&calls<=2)return m.fetcher(url,options);
+  return new Response(JSON.stringify({success:true,result}));
+ }});
+ const receipt=await execute({...m,request});assert.equal(receipt.status,'PARSER_DIAGNOSTIC_BLOCKED',label);assert.equal(calls,afterProbe?3:1,label);
+ assert.equal(receipt.snapshots.filter(x=>x.matched===true).length,afterProbe?1:0,label);assert.equal(receipt.observations.length,afterProbe?1:0,label);
+ assert.ok(receipt.observations.every(x=>x.schemaPreserved===false),label);assert.equal(receipt.blockers.length,1,label);
+ return receipt;
+}
+test('missing, extra, malformed and reordered snapshot results fail closed before probes and after a probe',async()=>{
+ const m=await model();try{
+  const valid=()=>m.physicalRows().map(results=>({success:true,results,meta:{rows_written:0,changed_db:false}}));
+  for(const result of [undefined,null,{},[],valid().slice(0,17),[...valid(),valid()[0]]])await assertSnapshotBlocked(m,result);
+  for(let i=0;i<18;i++){
+   for(const replacement of [null,{}, {success:false,results:[],meta:{rows_written:0,changed_db:false}}, {...valid()[i],results:{}}, {...valid()[i],results:null}]){
+    const result=valid();result[i]=replacement;await assertSnapshotBlocked(m,result,{label:'malformed index '+i});
+   }
+   if(i<17){const result=valid();[result[i],result[i+1]]=[result[i+1],result[i]];await assertSnapshotBlocked(m,result,{label:'reordered indices '+i+','+(i+1)});}
+  }
+  for(let i=1;i<=15;i++){
+   for(const results of [[],[{name:snapshotTables[i-1],n:-1}],[{name:snapshotTables[i-1],n:1.5}],[{name:snapshotTables[i-1],n:'0'}],[{name:snapshotTables[i-1],n:Number.MAX_SAFE_INTEGER+1}],[{name:'operators; DELETE',n:0}],[{n:0}],[null],[{name:snapshotTables[i-1],n:0,extra:true}],[...valid()[i].results,...valid()[i].results]]){
+    const result=valid();result[i].results=results;await assertSnapshotBlocked(m,result,{label:'invalid count index '+i});
+   }
+  }
+  for(const [index,length] of [[0,513],[16,33],[17,513]]){const result=valid();result[index].results=Array.from({length},()=>({}));await assertSnapshotBlocked(m,result,{label:'row bound index '+index});}
+  const result=valid();[result[1],result[2]]=[result[2],result[1]];await assertSnapshotBlocked(m,result,{afterProbe:true});
+ }finally{m.db.close();}
+});
+test('all 18 snapshot entries require explicit numeric-zero rows_written and boolean-false changed_db',async()=>{
+ const m=await model();try{
+  for(let i=0;i<18;i++)for(const meta of [undefined,{}, {rows_written:0},{changed_db:false},{rows_written:'0',changed_db:false},{rows_written:0,changed_db:0},{rows_written:1,changed_db:false},{rows_written:0,changed_db:true}]){
+   const result=m.physicalRows().map(results=>({success:true,results,meta:{rows_written:0,changed_db:false}}));result[i].meta=meta;
+   const r=await assertSnapshotBlocked(m,result,{label:'metadata index '+i});assert.equal(r.blockers[0].code,'PARSER_ZERO_WRITE_OR_RESPONSE_BOUND_REQUIRED');
+  }
+ }finally{m.db.close();}
+});
+test('all EXPLAIN request bodies are transmitted unchanged',async()=>{
+ const m=await model(),bodies=[];try{
+  const request=parserClient({token:'FICTIONAL-CF-TOKEN',authorization:m.authorization,runId:run,releaseSha:sha,now:()=>clock,fetcher:async(url,options)=>{
+   bodies.push(options.body);return m.fetcher(url,options);
+  }});
+  for(const q of PARSER_REQUESTS)await request(q.id);
+  assert.deepEqual(bodies,PARSER_REQUESTS.map(q=>JSON.stringify(q.body)));
+  assert.equal(sha256(JSON.stringify(PARSER_REQUESTS)),'45458f8b19cc7a1c335ee82b8b542a2e8414d7e5f05a1df725f55cfb9b715749');
+ }finally{m.db.close();}
+});
+test('authorization, expiry, checkout and protected workflow bytes remain exactly reviewed',async()=>{
+ for(const [path,digest] of Object.entries({
+  'scripts/lib/training-parser-authorization.mjs':'c64f55b1f3455c02b2527516d4b8cf21618453049bff4c45d9b8a2d8f9df6dde',
+  'scripts/diagnostics/training-parser-live.mjs':'2b76eeebc725a6e6a3ee5979f72dbef2c794df46ca474e6a8ef57b853f240ed4',
+  '.github/workflows/acceptance-training-parser.yml':'575a02a4058a61bf669cfb91d6afdfa0ce0901cbd18444f38b5b1282c0470605'
+ }))assert.equal(sha256(await readFile(path)),digest,path);
+});
 async function rejectedSnapshot(body,status=400){
  const raw=typeof body==='string'?body:JSON.stringify(body),calls=[];let fences=0;
  const authorization={scope:'TRAINING_EXPLAIN_ONLY',databaseId:TRAINING_PARSER_DB,runId:run,releaseSha:sha,attempt:1,windowExpiresAt:new Date(clock+3600000).toISOString()};
@@ -97,7 +229,7 @@ async function rejectedSnapshot(body,status=400){
  assert.equal(calls[0].url,'https://api.cloudflare.com/client/v4/accounts/2a3b96a0b37850cd03107131baa66b6d/d1/database/'+TRAINING_PARSER_DB+'/query');
  assert.equal(calls[0].options.method,'POST');assert.equal(calls[0].options.redirect,'error');
  assert.deepEqual(calls[0].options.headers,{Authorization:'Bearer FICTIONAL-CF-TOKEN',Accept:'application/json','Content-Type':'application/json'});
- assert.equal(sha256(calls[0].options.body),'3ce8760c26f57928452d7e7033aabe0877f0e80e668a88d1b7aa8421138bc442');
+ assert.equal(sha256(calls[0].options.body),'af5ee967d03bd99e690cd07d5fd6f2af6bee3017286a689b609fe5e00d3f50fe');
  const evidence=receipt.blockers[0].evidence;
  assert.equal(evidence.httpStatus,status);assert.equal(evidence.requestId,'snapshot');assert.equal(evidence.responseBodySha256,sha256(raw));
  assert.equal(evidence.rowsWritten,undefined);assert.equal(evidence.changedDatabase,undefined);assert.equal(evidence.schemaPreserved,undefined);
@@ -137,11 +269,11 @@ test('result-level snapshot error is hashed and classified when no top-level err
  assert.equal(evidence.category,'STATEMENT_COUNT');assert.deepEqual(evidence.providerCodes,[]);assert.equal(evidence.errorSha256,sha256(message));
 });
 test('zero-write metadata availability never converts a rejected snapshot into preservation evidence',async()=>{
- const result=Array.from({length:4},()=>({success:true,results:[{login_email:'FICTIONAL-PRIVATE'}],meta:{rows_written:0,changed_db:false}}));
+ const result=Array.from({length:18},()=>({success:true,results:[{login_email:'FICTIONAL-PRIVATE'}],meta:{rows_written:0,changed_db:false}}));
  const available=await rejectedSnapshot({success:true,result},500);
  assert.equal(available.evidence.responseEnvelope,'OBJECT_SUCCESS_TRUE');assert.equal(available.evidence.zeroWriteMetadataAvailable,true);
  const apiFailure=await rejectedSnapshot({success:false,result},200);assert.equal(apiFailure.evidence.zeroWriteMetadataAvailable,true);
- for(const modified of [result.slice(0,3),result.map(r=>({...r,meta:{rows_written:0}})),result.map(r=>({...r,meta:{rows_written:1,changed_db:true}}))]){
+ for(const modified of [result.slice(0,17),result.map(r=>({...r,meta:{rows_written:0}})),result.map(r=>({...r,meta:{rows_written:1,changed_db:true}}))]){
   const {evidence}=await rejectedSnapshot({success:false,result:modified});assert.equal(evidence.zeroWriteMetadataAvailable,false);
  }
 });
