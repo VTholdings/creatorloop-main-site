@@ -53,6 +53,16 @@ function errorEvidence(body){
  const category=text==='incomplete input: SQLITE_ERROR'?'INCOMPLETE_INPUT':/A prepared SQL statement must contain only one statement\.?/.test(text)?'STATEMENT_COUNT':/not authorized|Authentication error/i.test(text)?'AUTHORIZATION':/EXPLAIN.*(?:not supported|unsupported)/i.test(text)?'EXPLAIN_UNSUPPORTED':'OTHER_PROVIDER_ERROR';
  return {category,errorSha256:hash(text),providerCodes:[...new Set(errors.map(e=>e?.code).filter(Number.isSafeInteger))].slice(0,8)};
 }
+class ParserSnapshotRejection extends Error{
+ constructor(evidence){super('PARSER_SNAPSHOT_REJECTED');this.evidence=freeze(evidence);}
+}
+function snapshotFailureEvidence(body,evidence,responseBodySha256){
+ const object=body!==null&&typeof body==='object'&&!Array.isArray(body);
+ const responseEnvelope=Array.isArray(body)?'JSON_ARRAY':!object?'JSON_PRIMITIVE':body.success===true?'OBJECT_SUCCESS_TRUE':body.success===false?'OBJECT_SUCCESS_FALSE':!Object.hasOwn(body,'success')?'OBJECT_SUCCESS_MISSING':'OBJECT_SUCCESS_INVALID';
+ // Availability describes returned metadata only; rejection remains fatal and verifies no preservation.
+ const zeroWriteMetadataAvailable=Array.isArray(body?.result)&&body.result.length===PARSER_SNAPSHOT.length&&body.result.every(r=>r?.meta?.rows_written===0&&r?.meta?.changed_db===false);
+ return {...evidence,responseEnvelope,...errorEvidence(body),responseBodySha256,zeroWriteMetadataAvailable};
+}
 export function parserClient({token,authorization:a,runId,releaseSha,fetcher=fetch,now=()=>Date.now()}){
  if(typeof token!=='string'||!token.trim()||a?.scope!=='TRAINING_EXPLAIN_ONLY'||a.databaseId!==TRAINING_PARSER_DB||a.runId!==runId||a.releaseSha!==releaseSha||a.attempt!==1||!/^\d{1,20}$/.test(runId||'')||!/^[a-f0-9]{40}$/.test(releaseSha||''))fail('PARSER_CREDENTIAL_OR_TARGET_REFUSED');
  const used=new Set();let reads=0;
@@ -66,16 +76,16 @@ export function parserClient({token,authorization:a,runId,releaseSha,fetcher=fet
   const body=read?{batch:PARSER_SNAPSHOT.map(x=>({sql:x.sql,params:[]}))}:q.body;
   const path='/accounts/'+account+'/d1/database/'+TRAINING_PARSER_DB+'/query';
   const evidence={requestId:id,method:'POST',path,requestBodySha256:fp(body)};
-  let response,data;
+  let response,data,responseBodySha256;
   try{
    response=await fetcher('https://api.cloudflare.com/client/v4'+path,{method:'POST',headers:{Authorization:'Bearer '+token,Accept:'application/json','Content-Type':'application/json'},body:JSON.stringify(body),redirect:'error',signal:AbortSignal.timeout(20000)});
    const reader=response.body?.getReader();if(!reader)throw Error();let size=0;const chunks=[];
    try{for(;;){const v=await reader.read();if(v.done)break;size+=v.value.length;if(size>1024*1024)throw Error();chunks.push(Buffer.from(v.value));}}finally{await reader.cancel().catch(()=>{});}
-   data=JSON.parse(Buffer.concat(chunks).toString());
+   const raw=Buffer.concat(chunks);data=JSON.parse(raw.toString());if(read)responseBodySha256=hash(raw);
   }catch{fail('PARSER_RESPONSE_UNAVAILABLE_NO_RETRY');}
   evidence.httpStatus=response.status;
   if(!response.ok||data.success!==true){
-   if(read)fail('PARSER_SNAPSHOT_REJECTED');
+   if(read)throw new ParserSnapshotRejection(snapshotFailureEvidence(data,evidence,responseBodySha256));
    const sanitized=errorEvidence(data);
    const expected=[200,400].includes(response.status)&&data.success===false&&sanitized.providerCodes.includes(7500)&&['INCOMPLETE_INPUT','STATEMENT_COUNT'].includes(sanitized.category);
    return {outcome:expected?'PARSER_REJECTION_OBSERVED':'UNEXPECTED_PROVIDER_RESPONSE',evidence:{...evidence,...sanitized,zeroWriteMetadataAvailable:false}};
@@ -104,6 +114,6 @@ export async function executeParserDiagnostic({source,request,fence,runId,releas
    if(r.outcome==='UNEXPECTED_PROVIDER_RESPONSE')fail('PARSER_UNEXPECTED_PROVIDER_RESPONSE');
   }
   receipt.status='PARSER_DIAGNOSTIC_COMPLETE';
- }catch(e){receipt.blockers.push({code:/^[A-Z_0-9]+$/.test(e.message)?e.message:'PARSER_DIAGNOSTIC_BLOCKED'});}
+ }catch(e){receipt.blockers.push({code:/^[A-Z_0-9]+$/.test(e.message)?e.message:'PARSER_DIAGNOSTIC_BLOCKED',...(e instanceof ParserSnapshotRejection?{evidence:e.evidence}:{})});}
  receipt.completedAt=new Date(now()).toISOString();return receipt;
 }

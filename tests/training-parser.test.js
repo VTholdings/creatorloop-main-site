@@ -84,6 +84,86 @@ test('unexpected authorization/provider errors are sanitized and stop after one 
   const r=await execute(m);assert.equal(r.status,'PARSER_DIAGNOSTIC_BLOCKED');assert.equal(r.observations.length,1);assert.equal(r.observations[0].httpStatus,403);assert.equal(r.observations[0].schemaPreserved,true);assert.equal(r.blockers[0].code,'PARSER_UNEXPECTED_PROVIDER_RESPONSE');assert.doesNotMatch(JSON.stringify(r),/FICTIONAL-PRIVATE/);
  }finally{m.db.close();}
 });
+const sha256=value=>createHash('sha256').update(value).digest('hex');
+async function rejectedSnapshot(body,status=400){
+ const raw=typeof body==='string'?body:JSON.stringify(body),calls=[];let fences=0;
+ const authorization={scope:'TRAINING_EXPLAIN_ONLY',databaseId:TRAINING_PARSER_DB,runId:run,releaseSha:sha,attempt:1,windowExpiresAt:new Date(clock+3600000).toISOString()};
+ const request=parserClient({token:'FICTIONAL-CF-TOKEN',authorization,runId:run,releaseSha:sha,now:()=>clock,fetcher:async(url,options)=>{
+  calls.push({url,options});return new Response(raw,{status});
+ }});
+ const receipt=await executeParserDiagnostic({source:{schemaSha256:'UNREACHED',counts:[],registration:[]},request,fence:async()=>{fences++;},runId:run,releaseSha:sha,now:()=>clock});
+ assert.equal(receipt.status,'PARSER_DIAGNOSTIC_BLOCKED');assert.equal(receipt.blockers[0].code,'PARSER_SNAPSHOT_REJECTED');
+ assert.deepEqual(receipt.observations,[]);assert.deepEqual(receipt.snapshots,[]);assert.equal(calls.length,1);assert.equal(fences,1);
+ assert.equal(calls[0].url,'https://api.cloudflare.com/client/v4/accounts/2a3b96a0b37850cd03107131baa66b6d/d1/database/'+TRAINING_PARSER_DB+'/query');
+ assert.equal(calls[0].options.method,'POST');assert.equal(calls[0].options.redirect,'error');
+ assert.deepEqual(calls[0].options.headers,{Authorization:'Bearer FICTIONAL-CF-TOKEN',Accept:'application/json','Content-Type':'application/json'});
+ assert.equal(sha256(calls[0].options.body),'3ce8760c26f57928452d7e7033aabe0877f0e80e668a88d1b7aa8421138bc442');
+ const evidence=receipt.blockers[0].evidence;
+ assert.equal(evidence.httpStatus,status);assert.equal(evidence.requestId,'snapshot');assert.equal(evidence.responseBodySha256,sha256(raw));
+ assert.equal(evidence.rowsWritten,undefined);assert.equal(evidence.changedDatabase,undefined);assert.equal(evidence.schemaPreserved,undefined);
+ assert.doesNotMatch(JSON.stringify(receipt),/FICTIONAL-PRIVATE|FICTIONAL-CF-TOKEN|Bearer|login_email/);
+ return {receipt,evidence};
+}
+test('HTTP snapshot rejection retains sanitized authorization evidence and stays fatal before all probes',async()=>{
+ const message='FICTIONAL-PRIVATE Authentication error';
+ const {evidence}=await rejectedSnapshot({success:false,errors:[{code:10000,message}]},403);
+ assert.equal(evidence.responseEnvelope,'OBJECT_SUCCESS_FALSE');assert.equal(evidence.category,'AUTHORIZATION');
+ assert.deepEqual(evidence.providerCodes,[10000]);assert.equal(evidence.errorSha256,sha256(message));assert.equal(evidence.zeroWriteMetadataAvailable,false);
+});
+test('HTTP-200 API snapshot rejection retains SQL error evidence without asserting zero writes or preservation',async()=>{
+ const message='incomplete input: SQLITE_ERROR';
+ const {evidence}=await rejectedSnapshot({success:false,errors:[{code:7500,message}]},200);
+ assert.equal(evidence.responseEnvelope,'OBJECT_SUCCESS_FALSE');assert.equal(evidence.category,'INCOMPLETE_INPUT');
+ assert.deepEqual(evidence.providerCodes,[7500]);assert.equal(evidence.errorSha256,'83cb710a45a1cd2ce9d2b1bc2508d8f6f9e66976e695041ffa9bfbc9ec67ef56');assert.equal(evidence.zeroWriteMetadataAvailable,false);
+});
+test('snapshot envelope classification preserves the existing strict success rejection',async()=>{
+ for(const [body,label] of [[{},'OBJECT_SUCCESS_MISSING'],[{success:'true'},'OBJECT_SUCCESS_INVALID'],[[],'JSON_ARRAY'],[42,'JSON_PRIMITIVE']]){
+  const {evidence}=await rejectedSnapshot(body,200);assert.equal(evidence.responseEnvelope,label);
+  assert.deepEqual(evidence.providerCodes,[]);assert.equal(evidence.category,'OTHER_PROVIDER_ERROR');assert.equal(evidence.errorSha256,sha256(''));assert.equal(evidence.zeroWriteMetadataAvailable,false);
+ }
+});
+test('snapshot evidence hashes exact response bytes and retains only bounded numeric codes and sanitized fields',async()=>{
+ const codes=[7500,7500,'10000',null,1.5,...Array.from({length:10},(_,i)=>10001+i)];
+ const body={success:false,errors:codes.map(code=>({code,message:'FICTIONAL-PRIVATE π'})),result:[{error:'FICTIONAL-PRIVATE result error',results:[{login_email:'FICTIONAL-PRIVATE'}]}],token:'FICTIONAL-PRIVATE'};
+ const raw=' \n'+JSON.stringify(body,null,2)+'\n';const {evidence}=await rejectedSnapshot(raw);
+ assert.deepEqual(evidence.providerCodes,[7500,10001,10002,10003,10004,10005,10006,10007]);
+ assert.equal(evidence.errorSha256,sha256([...body.errors.map(x=>x.message),body.result[0].error].join('\n')));
+ assert.notEqual(evidence.responseBodySha256,sha256(JSON.stringify(body)));
+ assert.deepEqual(Object.keys(evidence).sort(),['requestId','method','path','requestBodySha256','httpStatus','responseEnvelope','category','errorSha256','providerCodes','responseBodySha256','zeroWriteMetadataAvailable'].sort());
+});
+test('result-level snapshot error is hashed and classified when no top-level error codes are supplied',async()=>{
+ const message='A prepared SQL statement must contain only one statement.';
+ const {evidence}=await rejectedSnapshot({success:false,result:[{success:false,error:message}]});
+ assert.equal(evidence.category,'STATEMENT_COUNT');assert.deepEqual(evidence.providerCodes,[]);assert.equal(evidence.errorSha256,sha256(message));
+});
+test('zero-write metadata availability never converts a rejected snapshot into preservation evidence',async()=>{
+ const result=Array.from({length:4},()=>({success:true,results:[{login_email:'FICTIONAL-PRIVATE'}],meta:{rows_written:0,changed_db:false}}));
+ const available=await rejectedSnapshot({success:true,result},500);
+ assert.equal(available.evidence.responseEnvelope,'OBJECT_SUCCESS_TRUE');assert.equal(available.evidence.zeroWriteMetadataAvailable,true);
+ const apiFailure=await rejectedSnapshot({success:false,result},200);assert.equal(apiFailure.evidence.zeroWriteMetadataAvailable,true);
+ for(const modified of [result.slice(0,3),result.map(r=>({...r,meta:{rows_written:0}})),result.map(r=>({...r,meta:{rows_written:1,changed_db:true}}))]){
+  const {evidence}=await rejectedSnapshot({success:false,result:modified});assert.equal(evidence.zeroWriteMetadataAvailable,false);
+ }
+});
+test('generic thrown errors cannot inject untrusted failure evidence into the receipt',async()=>{
+ const request=async()=>{throw Object.assign(Error('PARSER_SNAPSHOT_REJECTED'),{evidence:{secret:'FICTIONAL-PRIVATE'}});};
+ const r=await executeParserDiagnostic({source:{},request,fence:async()=>{},runId:run,releaseSha:sha,now:()=>clock});
+ assert.deepEqual(r.blockers,[{code:'PARSER_SNAPSHOT_REJECTED'}]);assert.deepEqual(r.snapshots,[]);assert.deepEqual(r.observations,[]);
+});
+test('a rejected preservation snapshot after a probe retains evidence without marking that probe preserved',async()=>{
+ const m=await model();let snapshots=0;
+ try{
+  const request=parserClient({token:'FICTIONAL-CF-TOKEN',authorization:m.authorization,runId:run,releaseSha:sha,now:()=>clock,fetcher:async(url,options)=>{
+   if(options.body===JSON.stringify({batch:PARSER_SNAPSHOT.map(x=>({sql:x.sql,params:[]}))})&&++snapshots===2){
+    m.calls.push('snapshot');return new Response(JSON.stringify({success:false,errors:[{code:10000,message:'Authentication error'}]}),{status:401});
+   }
+   return m.fetcher(url,options);
+  }});
+  const r=await execute({...m,request});assert.equal(r.status,'PARSER_DIAGNOSTIC_BLOCKED');assert.deepEqual(m.calls,['snapshot','probe','snapshot']);
+  assert.equal(r.snapshots.length,1);assert.equal(r.snapshots[0].matched,true);assert.equal(r.observations.length,1);assert.equal(r.observations[0].schemaPreserved,false);
+  assert.equal(r.blockers[0].code,'PARSER_SNAPSHOT_REJECTED');assert.equal(r.blockers[0].evidence.httpStatus,401);assert.equal(r.blockers[0].evidence.zeroWriteMetadataAvailable,false);
+ }finally{m.db.close();}
+});
 test('schema, end fence, counts or registration discrepancy stops at the first probe',async()=>{
  for(const o of [{drift:true},{endDrift:true},{countDrift:true},{registrationDrift:true}]){const m=await model(o);try{const r=await execute(m);assert.equal(r.blockers[0].code,'PARSER_SCHEMA_OR_COUNTS_PRESERVATION_DISCREPANCY');assert.equal(m.calls.filter(x=>x==='probe').length,1);assert.equal(r.observations[0].schemaPreserved,false);}finally{m.db.close();}}
 });
