@@ -37,7 +37,7 @@ Exactly six statements change. Predicate bytes, ABORT behavior, error messages, 
 - A separate local check used the public Cloudflare Wrangler splitter at commit `fe607f9d7d35b377d5e272e8f946598e3812fe41`; it emitted the exact same 44 statements executed by SQLite. TypeScript was type-stripped locally; Error substituted for the trimmer's UserError on an unreachable transaction-wrapper branch. No public source is a runtime dependency.
 - Splitter SHA256: `519578f75edb734fd1e23d70ffea03ca4b6817f90e2001696e8c0e3215a07de0`; trimmer SHA256: `6018a7715fddad3f853dc24de4e676e27030caca638ced3a9945a7ec5050580d`.
 
-These local limits and the public client splitter do **not** reproduce or certify Cloudflare's private REST parser. No corrected SQL was sent remotely; remote acceptance is unverified.
+These local limits and the public client splitter do **not** reproduce or certify Cloudflare's private REST parser. Subsequent protected [run 37700780032](https://github.com/VTholdings/creatorloop-main-site/actions/runs/37700780032) accepted all twelve EXPLAIN requests for the three exact corrected trigger bodies across four shapes, with thirteen matching zero-write preservation snapshots. This establishes acceptance of the tested trigger syntax; actual migration execution and live governance behavior remain unverified. See [the verified result](training-case-free-parser-result-37700780032.md).
 
 | File | Corrected SHA256 |
 | --- | --- |
