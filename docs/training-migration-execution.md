@@ -1,5 +1,7 @@
 # Training migration execution — separate Owner approval required
 
+> Historical specification for the original reviewed bytes. Pending 0006/0007 now have a [CASE-free correction](case-free-migration-correction.md). The historical hashes below remain pinned and reject corrected files; this document and old receipts do not authorize their execution.
+
 System destination: `VTholdings/creatorloop-main-site`, draft PR #18, branch `team-access-directory`, protected GitHub environment `creatorloop-acceptance`. The only Cloudflare database target is training D1 `12dbfa51-ca9c-475b-bb1b-ca90ac8bd7f0` in account `2a3b96a0b37850cd03107131baa66b6d`.
 
 Preparation implements the Owner-reviewed plan from release `7237c1317113c2705c5f2b8e622d284ea14871fc`. It is not migration execution approval. Gate 2 PASS remains accepted at run [37353740653](https://github.com/VTholdings/creatorloop-main-site/actions/runs/37353740653); only its training REST batch path is certified. Backup acceptance remains complete at run [37242966914](https://github.com/VTholdings/creatorloop-main-site/actions/runs/37242966914), including separately retained encrypted Owner storage. Nothing here authorizes another export, production access or a remote restore.

@@ -1,5 +1,7 @@
 # Training-only read-only parser diagnostic
 
+> Historical protocol. Run [37541286670](https://github.com/VTholdings/creatorloop-main-site/actions/runs/37541286670) completed and is closed. Its CASE/simple findings support a [pending migration correction](case-free-migration-correction.md). Original protocol hash pins remain unchanged and reject the corrected files before Cloudflare I/O; do not reuse old approvals or attestations.
+
 System destination: draft PR #18 in `VTholdings/creatorloop-main-site`, branch `team-access-directory`, protected environment `creatorloop-acceptance`. Only training D1 `12dbfa51-ca9c-475b-bb1b-ca90ac8bd7f0` is addressed. Run `37358040555` is closed and is not rerun.
 
 The source is that run's sanitized rollback receipt, pinned by exact SHA-256 `551758939c0792d995197afb652204e33f7993395490c6bda32e600c65d4fa2e`. The recovered error text is `incomplete input: SQLITE_ERROR`, whose exact hash matches the retained provider error. All migration files remain unchanged; their original reviewed hashes are checked before Cloudflare access. No export, backup decryption, migration execution, production receipt or production endpoint is used.

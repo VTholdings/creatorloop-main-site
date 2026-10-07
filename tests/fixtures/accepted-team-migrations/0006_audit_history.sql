@@ -17,7 +17,8 @@ BEGIN
   (SELECT json_group_array(json_object('campaignId',campaign_id,'recordId',record_id)) FROM console_access_grants WHERE operator_id=o.id),
   (SELECT json_group_array(json_object('campaignId',campaign_id,'fieldKey',field_key,'expiresAt',expires_at)) FROM console_approval_delegations WHERE operator_id=o.id AND expires_at>CURRENT_TIMESTAMP)
  FROM operators o WHERE o.id=NEW.operator_id;
- SELECT RAISE(ABORT,'Audit identity snapshot required') WHERE NOT EXISTS(SELECT 1 FROM console_audit_actor_snapshots WHERE event_id=NEW.id);
+ SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM console_audit_actor_snapshots WHERE event_id=NEW.id)
+  THEN RAISE(ABORT,'Audit identity snapshot required') END;
 END;
 CREATE TRIGGER audit_events_no_update BEFORE UPDATE ON audit_events
  BEGIN SELECT RAISE(ABORT,'Audit history is append-only'); END;

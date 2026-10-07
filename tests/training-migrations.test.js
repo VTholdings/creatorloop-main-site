@@ -1,7 +1,7 @@
 import test,{after} from 'node:test';
 import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
-import {readFile,mkdtemp,writeFile,rm} from 'node:fs/promises';
+import {readFile,mkdtemp,writeFile,rm,cp,mkdir} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join,resolve} from 'node:path';
 import {spawnSync} from 'node:child_process';
@@ -9,8 +9,12 @@ import {MIGRATION_HASHES,TRAINING_DB,trainingMigrationPlan,trainingMigrationClie
 import {fingerprint} from '../scripts/lib/gate2-atomicity.mjs';
 import {authorizeTrainingMigration,fenceTrainingMigration,migrationWindowBody} from '../scripts/lib/training-migration-authorization.mjs';
 const targets=JSON.parse(await readFile('scripts/acceptance/cloudflare-targets.json','utf8'));
-const migrations=Object.fromEntries(await Promise.all(Object.keys(MIGRATION_HASHES).map(async n=>[n,await readFile('migrations/'+n,'utf8')])));
+// Keep the closed executor's exact accepted-byte model separate from corrected pending files.
+const migrations=Object.fromEntries(await Promise.all(Object.keys(MIGRATION_HASHES).map(async n=>[n,await readFile((n==='0005_team_directory.sql'?'migrations/':'tests/fixtures/accepted-team-migrations/')+n,'utf8')])));
 const dir=await mkdtemp(join(tmpdir(),'cl-training-migrations-'));after(()=>rm(dir,{recursive:true,force:true}));
+const historicalRoot=join(dir,'historical-source');await mkdir(historicalRoot);
+await cp('scripts',join(historicalRoot,'scripts'),{recursive:true});await cp('migrations',join(historicalRoot,'migrations'),{recursive:true});
+for(const [name,sql] of Object.entries(migrations))await writeFile(join(historicalRoot,'migrations',name),sql);
 const fixture=`import pathlib,sqlite3,json,hashlib
 p=pathlib.Path(${JSON.stringify(dir)});db=sqlite3.connect(':memory:')
 for m in sorted(pathlib.Path('migrations').glob('*.sql'))[:4]:db.executescript(m.read_text())
@@ -24,8 +28,8 @@ for env,dbid in [('TRAINING','${TRAINING_DB}'),('PRODUCTION','${targets.producti
 (source/'export-evidence.json').write_text(json.dumps(e))
 `;
 let r=spawnSync('python3',['-c',fixture],{encoding:'utf8'});assert.equal(r.status,0,r.stderr);
-for(const args of [['bundle',join(dir,'source'),join(dir,'original.zip')],['restore',join(dir,'original.zip'),join(dir,'restored')],['bundle',join(dir,'restored'),join(dir,'accepted.zip')]]){r=spawnSync('python3',['scripts/backup-stage.py',...args,'--release-sha','a7e3945a1a087a1fbc1ae8c7d0607e5ac94fcf46'],{encoding:'utf8'});assert.equal(r.status,0,r.stderr);}
-r=spawnSync('python3',['scripts/training-migrations/baseline.py',join(dir,'accepted.zip'),join(dir,'baseline')],{encoding:'utf8'});assert.equal(r.status,0,r.stderr);
+for(const args of [['bundle',join(dir,'source'),join(dir,'original.zip')],['restore',join(dir,'original.zip'),join(dir,'restored')],['bundle',join(dir,'restored'),join(dir,'accepted.zip')]]){r=spawnSync('python3',['scripts/backup-stage.py',...args,'--release-sha','a7e3945a1a087a1fbc1ae8c7d0607e5ac94fcf46'],{encoding:'utf8',cwd:historicalRoot});assert.equal(r.status,0,r.stderr);}
+r=spawnSync('python3',['scripts/training-migrations/baseline.py',join(dir,'accepted.zip'),join(dir,'baseline')],{encoding:'utf8',cwd:historicalRoot});assert.equal(r.status,0,r.stderr);
 const baseline=JSON.parse(await readFile(join(dir,'baseline/TRAINING.json'),'utf8')),originalSQL=await readFile(join(dir,'original.sql'),'utf8');
 const sha='c'.repeat(40),main='b'.repeat(40),run='123',time=Date.parse('2026-10-05T18:00:00Z'),owner={login:'Creatorloopzone',id:245245322};
 const context={GITHUB_ACTIONS:'true',GITHUB_REPOSITORY:'VTholdings/creatorloop-main-site',GITHUB_REF:'refs/heads/team-access-directory',GITHUB_EVENT_NAME:'push',GITHUB_RUN_ATTEMPT:'1',GITHUB_RUN_ID:run,GITHUB_SHA:sha,GITHUB_TOKEN:'FICTIONAL-PRIVATE-GH',EXPECTED_MAIN_SHA:main,ACCEPTANCE_ENVIRONMENT:'creatorloop-acceptance',TRAINING_MIGRATION_SCOPE:'TRAINING_0005_0007_ONLY'};
@@ -90,9 +94,15 @@ function github(options={}){
   return new Response(JSON.stringify(value));
  }};
 }
-test('training-only private baseline verifies accepted backup, complete actual SQL rehearsal and late-failure rollback',()=>{
+test('historical training-only baseline verifies pinned accepted SQL rehearsal and late-failure rollback',()=>{
  assert.equal(baseline.localRehearsal,'LOCAL_REHEARSAL_AND_ROLLBACK_PASS');assert.deepEqual(baseline.pendingMigrations,Object.keys(MIGRATION_HASHES).map(n=>n.slice(0,-4)));assert.equal(baseline.backupData.audit_events.count,1);assert.equal(baseline.backupData.schema_migrations.count,3);assert.equal(Object.hasOwn(baseline,'production'),false);
  assert.equal(baseline.postTableInfo.console_team_profiles.find(c=>c.name==='environment').dflt_value,"'PRODUCTION'");assert.equal(baseline.postSchema.some(s=>s.name==='operators_expanded'),false);
+});
+test('closed executor and private rehearsal reject corrected current migration bytes before remote I/O',async()=>{
+ const current=Object.fromEntries(await Promise.all(Object.keys(MIGRATION_HASHES).map(async n=>[n,await readFile('migrations/'+n,'utf8')])));
+ const m=model();try{assert.throws(()=>trainingMigrationPlan({runId:run,releaseSha:sha,baseline:m.b,migrations:current}),/REVIEWED_MIGRATION_BYTES_REQUIRED/);assert.deepEqual(m.calls,[]);}finally{m.db.close();}
+ const result=spawnSync('python3',['scripts/training-migrations/baseline.py',join(dir,'accepted.zip'),join(dir,'current-blocked')],{encoding:'utf8'});
+ assert.notEqual(result.status,0);assert.match(result.stderr,/TRAINING_MIGRATION_BASELINE_BLOCKED/);
 });
 test('migration plan preserves reviewed bytes/order as one frozen SQL unit and refuses substitution, altered bytes and registration drift',()=>{
  const m=model();try{

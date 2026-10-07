@@ -8,7 +8,8 @@ import {fingerprint} from '../scripts/lib/gate2-atomicity.mjs';
 import {PARSER_VARIANTS,PARSER_REQUESTS,PARSER_SNAPSHOT,PARSER_MIGRATION_HASHES,TRAINING_PARSER_DB,verifyParserMigrations,verifyParserSource,parserClient,executeParserDiagnostic} from '../scripts/lib/training-parser.mjs';
 import {authorizeParserDiagnostic,fenceParserDiagnostic,parserAttestationBody} from '../scripts/lib/training-parser-authorization.mjs';
 import {runParserDiagnostic} from '../scripts/diagnostics/training-parser-live.mjs';
-const files=Object.keys(PARSER_MIGRATION_HASHES),migrations=Object.fromEntries(await Promise.all(files.map(async n=>[n,await readFile('migrations/'+n,'utf8')])));
+// This closed diagnostic remains bound to its original reviewed migration bytes.
+const files=Object.keys(PARSER_MIGRATION_HASHES),migrations=Object.fromEntries(await Promise.all(files.map(async n=>[n,await readFile((n==='0005_team_directory.sql'?'migrations/':'tests/fixtures/accepted-team-migrations/')+n,'utf8')])));
 const sha='c'.repeat(40),main='b'.repeat(40),run='123',clock=Date.parse('2026-10-05T19:00:00Z'),owner={login:'Creatorloopzone',id:245245322};
 const context={GITHUB_ACTIONS:'true',GITHUB_REPOSITORY:'VTholdings/creatorloop-main-site',GITHUB_REF:'refs/heads/team-access-directory',GITHUB_EVENT_NAME:'push',GITHUB_RUN_ATTEMPT:'1',GITHUB_RUN_ID:run,GITHUB_SHA:sha,GITHUB_TOKEN:'FICTIONAL-GH-TOKEN',EXPECTED_MAIN_SHA:main,ACCEPTANCE_ENVIRONMENT:'creatorloop-acceptance',TRAINING_PARSER_SCOPE:'TRAINING_EXPLAIN_ONLY',CLOUDFLARE_API_TOKEN:'FICTIONAL-CF-TOKEN'};
 function github(o={}){
@@ -310,8 +311,10 @@ test('client refuses arbitrary SQL, replay, substituted database, wrong scope an
   const expired=parserClient({token:'x',authorization:{...m.authorization,windowExpiresAt:new Date(clock).toISOString()},runId:run,releaseSha:sha,fetcher:m.fetcher,now:()=>clock});const n=m.calls.length;await assert.rejects(expired('snapshot'),/EXPIRED/);assert.equal(m.calls.length,n);
  }finally{m.db.close();}
 });
-test('reviewed migration hashes stay unchanged and altered receipt/migration bytes are rejected',()=>{
+test('historical diagnostic pins stay unchanged and corrected/current migration bytes require fresh evidence',async()=>{
  assert.deepEqual(verifyParserMigrations(migrations),PARSER_MIGRATION_HASHES);
+ const current=Object.fromEntries(await Promise.all(files.map(async n=>[n,await readFile('migrations/'+n,'utf8')])));
+ assert.throws(()=>verifyParserMigrations(current),/BYTES_CHANGED/);
  assert.throws(()=>verifyParserMigrations({...migrations,[files[0]]:migrations[files[0]]+'\n'}),/BYTES_CHANGED/);
  assert.throws(()=>verifyParserSource('{}'),/RECEIPT_HASH_REQUIRED/);
  assert.equal(createHash('sha256').update('incomplete input: SQLITE_ERROR').digest('hex'),'83cb710a45a1cd2ce9d2b1bc2508d8f6f9e66976e695041ffa9bfbc9ec67ef56');
