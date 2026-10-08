@@ -26,7 +26,7 @@ Before remote execution:
 4. Rehearse on a backed-up isolated copy. Compare every original row/column, identity ID and attribution before/after. Check `PRAGMA foreign_key_check`, `PRAGMA integrity_check`, immutable triggers, migration registration and future audit snapshots.
 5. Record interrupted-execution/rollback evidence. Never retry individual fragments of a failed migration against the live database. Inspect and restore or resume through the supported migration tool according to the rehearsed procedure.
 
-Local tests demonstrate original row/foreign-key retention, immutable snapshots and rollback when the atomic rehearsal fails. No remote migrations have been applied by this continuation.
+Local tests demonstrate original row/foreign-key retention, immutable snapshots and rollback when the atomic rehearsal fails. Corrected 0005 → 0006 → 0007 were applied to TRAINING only in protected run 37705786539, with exact current-state and original-row preservation checks passing; see [verified TRAINING migration result](acceptance-exceptions/2026-10-07-case-free-training-migrations-complete.md). Production migrations and all later gates remain held.
 
 ### Repeatable backup preflight
 

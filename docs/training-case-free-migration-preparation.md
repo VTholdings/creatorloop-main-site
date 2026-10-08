@@ -1,4 +1,6 @@
-# Corrected TRAINING migrations — protected run awaiting fresh authority
+# Corrected TRAINING migration preparation — executed result retained
+
+**Verified result:** Run 37705786539 attempt 1 completed successfully on October 7, 2026 at 11:12:05 PM HST. See [TRAINING migration completion evidence](acceptance-exceptions/2026-10-07-case-free-training-migrations-complete.md). The handoff below is historical; this completed run/attestation must not be reused. All other holds remain intact.
 
 System destination: VTholdings/creatorloop-main-site, existing draft PR #18 on draft PR #17, team-access-directory; training D1 `12dbfa51-ca9c-475b-bb1b-ca90ac8bd7f0` in account `2a3b96a0b37850cd03107131baa66b6d`. Owner authorization releases only one protected TRAINING migration execution after fresh verification and approval. No production access, restore, deployment, merge, admission, activation or later gate is released.
 
@@ -32,7 +34,7 @@ Failure handling retains the historical rules: known SQL rejection requires inde
 
 These tests use local synthetic fixtures. The Owner's encrypted accepted backup was not decrypted or accessed in this preparation. Fresh private-backup and remote preflight verification are required in a separately authorized protected run; local tests do not certify them.
 
-## Fresh run handoff
+## Historical run handoff — consumed
 
 The Owner released only the TRAINING migration hold. Once validation passes, return the newly created attempt-1 run and full branch SHA. Stop before environment approval or protected execution. The Owner must post the exact fresh four-line comment to PR #18 and provide its saved link for independent verification. Its immutable 60-minute window begins at GitHub’s comment creation time; five minutes must remain before the migration write. Do not reuse or refresh closed-run attestations. Fresh protected preflight must still prove current state and authenticated backup/rollback agreement before any write.
 
