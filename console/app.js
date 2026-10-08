@@ -23,10 +23,12 @@ const campaignOptions = (current) => state.campaigns.map((campaign) =>
 ).join("");
 const notice = (message,error = false) => {
   const element = $("#notice");
+  const token = Symbol();
+  element.noticeToken = token;
   element.textContent = message;
   element.className = "notice" + (error ? " error" : "");
   element.hidden = false;
-  setTimeout(() => { element.hidden = true; },6000);
+  setTimeout(() => { if(element.noticeToken === token)element.hidden = true; },6000);
 };
 
 const recordEditors=new Set();
@@ -121,10 +123,11 @@ async function start() {
 
 async function loadCampaign(id) {
   if(!leavePendingEdits())return false;
-  state.dashboard = await api("dashboard?campaignId=" + encodeURIComponent(id));
-  state.creators = (await api("creators?campaignId=" + encodeURIComponent(id))).creators;
-  state.assignments = (await api("campaigns/" + encodeURIComponent(id))).assignments || [];
-  state.queues = await api('queues?campaignId='+encodeURIComponent(id)).catch(error=>({stages:[],missingSources:['Operational queue synchronization'],error:error.message}));
+  const dashboard = await api("dashboard?campaignId=" + encodeURIComponent(id));
+  const creators = (await api("creators?campaignId=" + encodeURIComponent(id))).creators;
+  const assignments = (await api("campaigns/" + encodeURIComponent(id))).assignments || [];
+  const queues = await api('queues?campaignId='+encodeURIComponent(id)).catch(error=>({stages:[],missingSources:['Operational queue synchronization'],error:error.message}));
+  Object.assign(state, { dashboard, creators, assignments, queues });
   state.current = null;
   state.currentCampaign = null;
 }
