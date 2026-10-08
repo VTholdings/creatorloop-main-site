@@ -532,6 +532,7 @@ document.addEventListener("click",async (event) => {
     }
     if (event.target.id === "new-creator") {
       if(!leavePendingEdits())return;
+      state.current = null;
       $("#editor").innerHTML = creatorForm();
       lockEditorIfMigrationPending();
       bindCreatorForm();
