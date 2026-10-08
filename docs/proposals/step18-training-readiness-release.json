@@ -2,7 +2,7 @@
   "protocol": "CREATORLOOP_STEP18_TRAINING_RELEASE_PREPARATION_V1",
   "status": "BLOCKED_ON_APPROVED_ADMISSION_CUSTODY_AND_PROTECTED_RELEASE",
   "executable": false,
-  "applicationReleaseSha": "d55adfe148c0d25431bcd7b93c4b95545bc844c1",
+  "applicationReleaseSha": "f0fb836fd3169099761c6630ba3068e8ca6b1869",
   "repository": "VTholdings/creatorloop-main-site",
   "branch": "team-access-directory",
   "training": {
