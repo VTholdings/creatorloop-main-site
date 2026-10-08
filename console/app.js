@@ -23,10 +23,12 @@ const campaignOptions = (current) => state.campaigns.map((campaign) =>
 ).join("");
 const notice = (message,error = false) => {
   const element = $("#notice");
+  const token = Symbol();
+  element.noticeToken = token;
   element.textContent = message;
   element.className = "notice" + (error ? " error" : "");
   element.hidden = false;
-  setTimeout(() => { element.hidden = true; },6000);
+  setTimeout(() => { if(element.noticeToken === token)element.hidden = true; },6000);
 };
 
 const recordEditors=new Set();
