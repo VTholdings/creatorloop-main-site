@@ -7,6 +7,14 @@ export const GATE2_RECEIPT_HASH='4172d4a907145811dc3d9c9101d763fea8564dcfe90bedb
 const account='2a3b96a0b37850cd03107131baa66b6d',root='/accounts/'+account;
 const fail=c=>{throw Error(c);},bytes=s=>createHash('sha256').update(s).digest('hex');
 const freeze=v=>{if(v&&typeof v==='object'){Object.values(v).forEach(freeze);Object.freeze(v);}return v;};
+// Response evidence is observational: it never changes acceptance, rollback or retry rules.
+function responseEvidence(data){
+ const object=data!==null&&typeof data==='object'&&!Array.isArray(data);
+ const messages=[...(Array.isArray(data?.errors)?data.errors:[]).map(x=>x?.message),...(Array.isArray(data?.result)?data.result:[]).map(x=>x?.error)].filter(x=>typeof x==='string').join('\n');
+ const codes=[...(Array.isArray(data?.errors)?data.errors:[]),...(Array.isArray(data?.result)?data.result:[]).flatMap(x=>Array.isArray(x?.errors)?x.errors:[])].map(x=>x?.code).filter(Number.isSafeInteger);
+ const zero=Array.isArray(data?.result)&&data.result.length>0&&data.result.every(x=>x?.meta?.rows_written===0&&x.meta.changed_db===false);
+ return {responseEnvelope:object?(data.success===true?'OBJECT_SUCCESS_TRUE':data.success===false?'OBJECT_SUCCESS_FALSE':'OBJECT_SUCCESS_MISSING'):Array.isArray(data)?'ARRAY':data===null?'NULL':'PRIMITIVE',providerCodes:[...new Set(codes)].slice(0,128),providerErrorCategory:messages.length===0?'NO_PROVIDER_ERROR_TEXT':/SQLITE_|D1_ERROR/.test(messages)||codes.includes(7500)?'D1_SQL_ERROR':/auth|permission|forbidden|token/i.test(messages)?'AUTH_OR_PERMISSION':'OTHER_PROVIDER_ERROR',providerErrorSha256:bytes(messages),zeroWriteMetadataAvailable:zero};
+}
 const reviewed=new WeakSet();
 const sorted=rows=>rows.toSorted((a,b)=>{const x=JSON.stringify(Object.fromEntries(Object.entries(a).sort())),y=JSON.stringify(Object.fromEntries(Object.entries(b).sort()));return x<y?-1:x>y?1:0;});
 const schemaSQL="SELECT type,name,tbl_name,sql FROM sqlite_master WHERE sql IS NOT NULL AND name NOT LIKE 'sqlite_%' ORDER BY type,name LIMIT 513";
@@ -76,27 +84,28 @@ export function caseFreeTrainingMigrationClient({token,targets,authorization:a,p
   const get=phase==='token'||phase==='metadata',descriptors=['before','beforeFence','rollback'].includes(phase)?plan.before:phase==='post'?plan.post:null;
   const path=root+(phase==='token'?'/tokens/verify':'/d1/database/'+TRAINING_DB+(phase==='metadata'?'':'/query'));
   const body=writing?{batch:[{sql:plan.migrationSQL,params:[]}]}:descriptors?{batch:descriptors.map(d=>({sql:d.sql,params:[]}))}:undefined;
-  const evidence={phase,method:get?'GET':'POST',path,sqlPlanSha256:writing?plan.migrationSQLSha256:descriptors?fingerprint(descriptors.map(d=>d.sql)):undefined};
-  let r;try{r=await fetcher('https://api.cloudflare.com/client/v4'+path,{method:get?'GET':'POST',headers:{Authorization:'Bearer '+token,Accept:'application/json',...(!get?{'Content-Type':'application/json'}:{})},...(!get?{body:JSON.stringify(body)}:{}),redirect:'error',signal:AbortSignal.timeout(20000)});}catch{if(writing)return {outcome:'UNKNOWN',evidence:{...evidence,outcome:'UNKNOWN_NO_RETRY'}};fail('MIGRATION_READ_UNAVAILABLE_NO_RETRY');}
-  evidence.status=r.status;let data;
-  try{const reader=r.body?.getReader();if(!reader)throw Error();let size=0;const chunks=[];try{for(;;){const v=await reader.read();if(v.done)break;size+=v.value.length;if(size>4*1024*1024)throw Error();chunks.push(Buffer.from(v.value));}}finally{await reader.cancel().catch(()=>{});}data=JSON.parse(Buffer.concat(chunks).toString());}catch{if(writing)return {outcome:'UNKNOWN',evidence:{...evidence,outcome:'RESPONSE_UNKNOWN_NO_RETRY'}};fail('MIGRATION_READ_RESPONSE_REFUSED');}
+  const evidence={phase,method:get?'GET':'POST',path,httpStatus:null,responseEnvelope:'NOT_RECEIVED',zeroWriteMetadataAvailable:false,sqlPlanSha256:writing?plan.migrationSQLSha256:descriptors?fingerprint(descriptors.map(d=>d.sql)):undefined};
+  const reject=code=>{throw Object.assign(Error(code),{evidence:{...evidence}});};
+  let r;try{r=await fetcher('https://api.cloudflare.com/client/v4'+path,{method:get?'GET':'POST',headers:{Authorization:'Bearer '+token,Accept:'application/json',...(!get?{'Content-Type':'application/json'}:{})},...(!get?{body:JSON.stringify(body)}:{}),redirect:'error',signal:AbortSignal.timeout(20000)});}catch{if(writing)return {outcome:'UNKNOWN',evidence:{...evidence,outcome:'UNKNOWN_NO_RETRY'}};reject('MIGRATION_READ_UNAVAILABLE_NO_RETRY');}
+  evidence.status=r.status;evidence.httpStatus=r.status;let data;
+  try{const reader=r.body?.getReader();if(!reader)throw Error();let size=0;const chunks=[];try{for(;;){const v=await reader.read();if(v.done)break;size+=v.value.length;if(size>4*1024*1024)throw Error();chunks.push(Buffer.from(v.value));}}finally{await reader.cancel().catch(()=>{});}const raw=Buffer.concat(chunks);evidence.responseBodySha256=bytes(raw);evidence.responseEnvelope='MALFORMED_JSON';data=JSON.parse(raw.toString());Object.assign(evidence,responseEvidence(data));}catch{if(writing)return {outcome:'UNKNOWN',evidence:{...evidence,outcome:'RESPONSE_UNKNOWN_NO_RETRY'}};reject('MIGRATION_READ_RESPONSE_REFUSED');}
   if(writing){
    if(r.ok&&data.success===true&&Array.isArray(data.result)&&data.result.length>=1&&data.result.length<=128&&data.result.every(x=>x.success===true&&Array.isArray(x.results)&&x.results.length<=2000&&Number.isSafeInteger(x.meta?.rows_written)&&x.meta.rows_written>=0&&typeof x.meta.changed_db==='boolean'))return {outcome:'COMMITTED_UNVERIFIED',evidence:{...evidence,resultCount:data.result.length,rowsWritten:data.result.map(x=>x.meta.rows_written),changedDatabase:data.result.map(x=>x.meta.changed_db)}};
    const messages=[...(Array.isArray(data.errors)?data.errors:[]).map(x=>x.message),...(Array.isArray(data.result)?data.result:[]).map(x=>x.error)].filter(x=>typeof x==='string').join('\n');
    const sqlFailure=[200,400].includes(r.status)&&data.success===false&&(data.errors?.some?.(x=>x.code===7500)||/SQLITE_|D1_ERROR/.test(messages));
    return {outcome:sqlFailure?'SQL_FAILED_UNVERIFIED':'UNKNOWN',evidence:{...evidence,outcome:sqlFailure?'SQL_FAILED_UNVERIFIED':'UNKNOWN_NO_RETRY',errorSha256:bytes(messages)}};
   }
-  if(!r.ok||data.success!==true)fail('MIGRATION_READ_OR_CREDENTIAL_REJECTED');
+  if(!r.ok||data.success!==true)reject('MIGRATION_READ_OR_CREDENTIAL_REJECTED');
   if(get){
    if(phase==='token'){
-    if(data.result?.status!=='active')fail('ACTIVE_ACCOUNT_TOKEN_REQUIRED');
+    if(data.result?.status!=='active')reject('ACTIVE_ACCOUNT_TOKEN_REQUIRED');
     const expiry=data.result.expires_on==null?null:Date.parse(data.result.expires_on),start=data.result.not_before==null?null:Date.parse(data.result.not_before);
-    if((expiry!==null&&(!Number.isFinite(expiry)||expiry-now()<20*60*1000))||(start!==null&&(!Number.isFinite(start)||start>now())))fail('TOKEN_EXECUTION_WINDOW_INSUFFICIENT');
+    if((expiry!==null&&(!Number.isFinite(expiry)||expiry-now()<20*60*1000))||(start!==null&&(!Number.isFinite(start)||start>now())))reject('TOKEN_EXECUTION_WINDOW_INSUFFICIENT');
     return {evidence:{...evidence,tokenStatus:'active',expiresAt:expiry===null?null:new Date(expiry).toISOString()}};
    }
-   if(data.result?.uuid!==TRAINING_DB)fail('TRAINING_DATABASE_METADATA_MISMATCH');return {evidence:{...evidence,databaseId:TRAINING_DB}};
+   if(data.result?.uuid!==TRAINING_DB)reject('TRAINING_DATABASE_METADATA_MISMATCH');return {evidence:{...evidence,databaseId:TRAINING_DB}};
   }
-  if(!Array.isArray(data.result)||data.result.length!==descriptors.length||data.result.some((x,i)=>x.success!==true||!Array.isArray(x.results)||x.results.length>descriptors[i].limit||x.meta?.rows_written!==0||x.meta.changed_db!==false))fail('MIGRATION_READ_BOUND_OR_ZERO_WRITE_EVIDENCE_REQUIRED');
+  if(!Array.isArray(data.result)||data.result.length!==descriptors.length||data.result.some((x,i)=>x.success!==true||!Array.isArray(x.results)||x.results.length>descriptors[i].limit||x.meta?.rows_written!==0||x.meta.changed_db!==false))reject('MIGRATION_READ_BOUND_OR_ZERO_WRITE_EVIDENCE_REQUIRED');
   return {rows:data.result.map(x=>x.results),evidence:{...evidence,rowsWritten:0,changedDatabase:false}};
  };
 }
@@ -135,7 +144,8 @@ export async function executeCaseFreeTrainingMigrations({plan,request,fence,pref
  const call=async phase=>{
   await fence();receipt.phases.push({phase,status:'REQUEST_STARTED'});
   if(phase==='migrate'){receipt.migrationSubmitted=true;receipt.remoteMigrationsApplied=null;receipt.rollbackStatus='OUTCOME_UNVERIFIED';writeStarted=now();}
-  const r=await request(phase);Object.assign(receipt.phases.at(-1),r.evidence,{status:r.outcome??'READ_COMPLETED'});return r;
+  let r;try{r=await request(phase);}catch(error){if(error.evidence)Object.assign(receipt.phases.at(-1),error.evidence,{status:'REQUEST_REJECTED'});throw error;}
+  Object.assign(receipt.phases.at(-1),r.evidence,{status:r.outcome??'READ_COMPLETED'});return r;
  };
  try{
   await call('token');await call('metadata');await fence();receipt.preflight=await preflight();

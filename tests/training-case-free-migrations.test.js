@@ -1,4 +1,5 @@
 import test,{after} from 'node:test';
+import {createHash} from 'node:crypto';
 import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
 import {readFile,mkdtemp,writeFile,rm,cp,mkdir} from 'node:fs/promises';
@@ -116,7 +117,7 @@ test('corrected executor refuses historical files, forged parser receipts, clone
 });
 test('migration plan preserves reviewed bytes/order as one frozen SQL unit and refuses substitution, altered bytes and registration drift',()=>{
  const m=model();try{
-  assert.equal(m.plan.migrationSQL,Object.values(migrations).join('\n'));assert.ok(Object.isFrozen(m.plan));assert.ok(Object.isFrozen(m.plan.before));assert.deepEqual(m.plan.migrationSha256,MIGRATION_HASHES);
+  assert.equal(m.plan.migrationSQL,Object.values(migrations).join('\n'));assert.equal(m.plan.migrationSQLSha256,'cde49d27c0c242a0bf2c93c29ddc474bd249e0bc37e7bc57cf666aaf28d9daf6');assert.equal(fingerprintBytes(JSON.stringify({batch:[{sql:m.plan.migrationSQL,params:[]}]})),'2ec66c36095ca410b7b4b1270db3ce68764fff96fd9ed5d5cd0549f554fe1f9f');assert.ok(Object.isFrozen(m.plan));assert.ok(Object.isFrozen(m.plan.before));assert.deepEqual(m.plan.migrationSha256,MIGRATION_HASHES);
   const build=changes=>caseFreeTrainingMigrationPlan({runId:run,releaseSha:sha,baseline:structuredClone(m.b),migrations,acceptedParser,...changes});
   for(const changes of [{runId:"1';DELETE"},{releaseSha:'x'},{baseline:{...baseline,environment:'PRODUCTION',databaseId:targets.production.databaseId}},{baseline:{...baseline,registeredTeamMigrations:['0005_team_directory']}},{baseline:{...baseline,dataColumns:{...baseline.dataColumns,operators:['id']}}},{baseline:{...baseline,foreignKeys:{...baseline.foreignKeys,audit_events:[{table:'operators',on_delete:'CASCADE',on_update:'NO ACTION'}]}}},{migrations:{...migrations,'0007_team_governance.sql':migrations['0007_team_governance.sql']+' '}},{migrations:Object.fromEntries(Object.entries(migrations).reverse())}])assert.throws(()=>build(changes),/REFUSED|REQUIRED/);
   assert.throws(()=>caseFreeTrainingMigrationClient({token:'x',targets,authorization:m.authorization,plan:{...m.plan}}),/REFUSED/);
@@ -226,16 +227,42 @@ test('live entry point blocks before any Cloudflare request without approval and
  const receipt=JSON.parse(await readFile(join(sub,'training-case-free-migration-evidence/TRAINING.json'),'utf8'));assert.equal(receipt.blockers[0].code,'OWNER_ENVIRONMENT_APPROVAL_REQUIRED');assert.equal(receipt.migrationSubmitted,false);assert.equal(receipt.productionAccessed,false);assert.doesNotMatch(result.stdout+result.stderr+JSON.stringify(receipt),/FICTIONAL-PRIVATE/);
 });
 test('protected workflow contains one migration executor, existing secrets, pinned accepted evidence and sanitized-only retention',async()=>{
- const w=await readFile('docs/proposals/acceptance-training-case-free-migrations.yml','utf8');assert.match(w,/environment:\n\s+name: creatorloop-acceptance/);assert.match(w,/github.run_attempt == 1/);assert.match(w,/TRAINING_CASE_FREE_MIGRATION_SCOPE: TRAINING_CASE_FREE_0005_0007_ONLY/);assert.match(w,/secrets.CLOUDFLARE_API_TOKEN/);assert.match(w,/secrets.CREATORLOOP_BACKUP_PASSPHRASE/);assert.match(w,/artifact-ids: '11317109290'/);assert.match(w,/artifact-ids: '11363258261'/);assert.match(w,/retention-days: 90/);
+ const w=await readFile('.github/workflows/acceptance-training-case-free-migrations.yml','utf8');assert.match(w,/environment:\n\s+name: creatorloop-acceptance/);assert.match(w,/github.run_attempt == 1/);assert.match(w,/TRAINING_CASE_FREE_MIGRATION_SCOPE: TRAINING_CASE_FREE_0005_0007_ONLY/);assert.match(w,/secrets.CLOUDFLARE_API_TOKEN/);assert.match(w,/secrets.CREATORLOOP_BACKUP_PASSPHRASE/);assert.match(w,/artifact-ids: '11317109290'/);assert.match(w,/artifact-ids: '11363258261'/);assert.match(w,/retention-days: 90/);
  assert.doesNotMatch(w,/wrangler|migrations apply|d1-backup-stage|edge-executor|pull_request_target|set -x|workflow_dispatch/i);
  const upload=w.split('uses: actions/upload-artifact@v4')[1].split('      - name:')[0];assert.match(upload,/training-case-free-migration-evidence\/TRAINING.json/);assert.doesNotMatch(upload,/private|\.sql|\.zip|baselines/);
 });
 
-test('migration workflow remains a proposal and cannot queue or use the diagnostic attestation',async()=>{
- const {access}=await import('node:fs/promises');
- await assert.rejects(access('.github/workflows/acceptance-training-case-free-migrations.yml'));
- const w=await readFile('docs/proposals/acceptance-training-case-free-migrations.yml','utf8');
+test('installed migration workflow exactly matches the reviewed proposal and cannot use the diagnostic attestation',async()=>{
+ const w=await readFile('.github/workflows/acceptance-training-case-free-migrations.yml','utf8');
+ assert.equal(w,await readFile('docs/proposals/acceptance-training-case-free-migrations.yml','utf8'));
  assert.match(w,/artifact-ids: '11517569475'/);assert.match(w,/run-id: 37700780032/);
  const g=github({body:'CREATORLOOP_TRAINING_CASE_FREE_PARSER_DIAGNOSTIC_V1\nrun='+run+'\nsha='+sha+'\nattestation=TRAINING_CASE_FREE_EXPLAIN_ONLY_NO_WRITES'});
  await assert.rejects(authorizeCaseFreeTrainingMigration({context,fetcher:g.fetcher,now:()=>time}));
 });
+
+
+test('failed prewrite HTTP/API responses retain sanitized evidence and remain fatal without migration',async()=>{
+ for(const [status,body,category] of [[400,{success:false,errors:[{code:7500,message:'SQLITE_ERROR FICTIONAL-PRIVATE'}]},'D1_SQL_ERROR'],[403,{success:false,errors:[{code:10000,message:'Authentication FICTIONAL-PRIVATE'}]},'AUTH_OR_PERMISSION'],[200,{success:false,errors:[{code:7500,message:'D1_ERROR FICTIONAL-PRIVATE'}]},'D1_SQL_ERROR']]){
+  const m=model();let calls=0;try{
+   const raw=JSON.stringify(body),request=caseFreeTrainingMigrationClient({token:'x',targets,authorization:m.authorization,plan:m.plan,fetcher:async()=>{calls++;return new Response(raw,{status});}});
+   const receipt=await execute(m,{request:phase=>phase==='before'?request(phase):m.request(phase)});
+   assert.equal(receipt.status,'TRAINING_MIGRATION_BLOCKED');assert.equal(receipt.migrationSubmitted,false);assert.equal(receipt.blockers[0].code,'MIGRATION_READ_OR_CREDENTIAL_REJECTED');assert.equal(calls,1);
+   const e=receipt.phases.at(-1);assert.equal(e.httpStatus,status);assert.equal(e.responseEnvelope,'OBJECT_SUCCESS_FALSE');assert.deepEqual(e.providerCodes,[body.errors[0].code]);assert.equal(e.providerErrorCategory,category);assert.equal(e.zeroWriteMetadataAvailable,false);assert.equal(e.responseBodySha256,fingerprintBytes(raw));assert.equal(e.providerErrorSha256,fingerprintBytes(body.errors[0].message));assert.doesNotMatch(JSON.stringify(receipt),/FICTIONAL-PRIVATE/);
+   await assert.rejects(request('before'),/REPLAY_REFUSED/);assert.equal(calls,1);
+  }finally{m.db.close();}
+ }
+});
+test('malformed read response retains numeric status and body hash without inventing zero-write metadata',async()=>{
+ const m=model();try{
+  const raw='FICTIONAL-PRIVATE-MALFORMED',request=caseFreeTrainingMigrationClient({token:'x',targets,authorization:m.authorization,plan:m.plan,fetcher:async()=>new Response(raw,{status:400})});
+  const receipt=await execute(m,{request:phase=>phase==='before'?request(phase):m.request(phase)});
+  const e=receipt.phases.at(-1);assert.equal(receipt.blockers[0].code,'MIGRATION_READ_RESPONSE_REFUSED');assert.equal(receipt.migrationSubmitted,false);assert.equal(e.httpStatus,400);assert.equal(e.responseEnvelope,'MALFORMED_JSON');assert.equal(e.responseBodySha256,fingerprintBytes(raw));assert.equal(e.zeroWriteMetadataAvailable,false);assert.doesNotMatch(JSON.stringify(receipt),/FICTIONAL-PRIVATE/);
+ }finally{m.db.close();}
+});
+test('SQL rejection preserves provider evidence alongside independent complete rollback proof',async()=>{
+ const m=model({lateFailure:true});try{
+  const receipt=await execute(m),e=receipt.phases.find(p=>p.phase==='migrate');
+  assert.equal(receipt.rollbackStatus,'VERIFIED_ATOMIC_ROLLBACK');assert.equal(e.httpStatus,400);assert.equal(e.responseEnvelope,'OBJECT_SUCCESS_FALSE');assert.deepEqual(e.providerCodes,[7500]);assert.equal(e.providerErrorCategory,'D1_SQL_ERROR');assert.match(e.providerErrorSha256,/^[a-f0-9]{64}$/);assert.match(e.responseBodySha256,/^[a-f0-9]{64}$/);assert.equal(e.zeroWriteMetadataAvailable,false);assert.equal(receipt.phases.find(p=>p.phase==='rollback').zeroWriteMetadataAvailable,true);assert.equal(m.calls.filter(x=>x==='migrate').length,1);
+ }finally{m.db.close();}
+});
+function fingerprintBytes(value){return createHash('sha256').update(value).digest('hex');}
