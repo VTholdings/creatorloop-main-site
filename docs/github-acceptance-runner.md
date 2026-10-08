@@ -1,0 +1,59 @@
+# Protected read-only Cloudflare acceptance runner
+
+## What this stage does
+
+The existing acceptance architecture now has a GitHub Actions entry point: **CreatorLoop acceptance - read-only Cloudflare verification**. A push affecting its workflow, verifier, public target file or verifier tests on `team-access-directory` queues the run. Local validation completes before the protected job can start.
+
+The job uses the existing `creatorloop-acceptance` environment. Its required reviewer, disabled administrator bypass and branch restriction remain managed by the Owner in GitHub. No environment settings or secrets are read, created or changed by this PR. Only the metadata step receives `${{ secrets.CLOUDFLARE_API_TOKEN }}`; the Console, checkout, tests and artifact action receive no Cloudflare credential.
+
+GitHub requires a workflow-dispatch definition on the default branch before its **Run workflow** button can start a new workflow. This branch-push entry point avoids changing `main` or merging PR #17/#18. After the initial commit queues a run, subsequent runs can use GitHub's existing run retry controls; each protected job still requires the environment gate. Obsolete SHAs fail the branch fence before credential use.
+
+## Approve the first run
+
+1. Open the repository's **Actions** tab.
+2. Open **CreatorLoop acceptance - read-only Cloudflare verification** for the published PR #18 commit. Wait for **validate** to pass.
+3. As `Creatorloopzone`, choose **Review deployments**.
+4. Select `creatorloop-acceptance` and choose **Approve and deploy**.
+
+GitHub uses the word “deploy” for environment approval. This workflow only reads Cloudflare metadata. It contains no production deployment, configuration change, D1 query/migration, provisioning, session revocation or receipt-signing step. Do not use an administrator bypass.
+
+## Read-only contract
+
+`scripts/acceptance/cloudflare-targets.json` contains recovered public resource pins, so no GitHub environment variables are needed. The account ID comes from the preserved D1 migration workspace; the production D1 ID and AUD from the existing repository; the training project/database/AUD from the preserved training configuration and governance checkpoint. Production project candidates reflect historical naming differences: selection must uniquely match `ops.creatorloop.net`. These are lookup/verification pins, not proof of current remote state.
+
+The transport permits **GET only** to the fixed Cloudflare API origin and pinned account:
+
+- Verify the existing Account API Token is active using `GET /accounts/{pinned_account_id}/tokens/verify`. The user-token endpoint is refused. An active token nearing its intentional expiration still proceeds through the remaining metadata checks; expired/disabled tokens and authentication failures stop the run.
+- Read the known Pages project configurations and canonical deployment commit.
+- Read metadata for the two known D1 databases.
+- Read Access application metadata, select the two expected audiences, and read their policies with complete pagination.
+
+Redirects, unknown paths/accounts/projects/databases, SQL endpoints, exports and mutation/revocation endpoints are refused. HTTP/authentication failures and mismatches remain blockers; no broader credentials or security fallback are attempted.
+
+Only explicit public configuration, selected identifiers, boolean credential-presence flags, policy fingerprints and request status codes enter the evidence. Raw provider bodies, token IDs, environment secrets, policy emails and exception details are not logged or uploaded. Evidence is `acceptance-evidence/cloudflare-readonly.json`; GitHub keeps this short-lived diagnostic artifact for 14 days. This artifact expiration does not purge operational audit/report history and is not the permanent certification-evidence destination.
+
+If an authenticated Pages project read returns 403, the same protected job now collects independent GET-only diagnostics: pinned account details, paginated accessible account IDs, pinned-account Pages project discovery, each approved project candidate, pinned D1 metadata and Access audience presence. It also attempts metadata for **only the authenticated token**, using the ID from successful account-token verification held in memory. Token enumeration, token values/rotation endpoints, unknown account reads and discovered-project follow-up reads remain refused. The token ID is replaced by `{authenticated-token}` in request/error evidence. Only recognized permission names, account-scope IDs/flags, numeric provider error codes and fingerprints are retained; token names, creator emails, raw policy values and provider messages are excluded.
+
+Each diagnostic read records its own denial without stopping other read probes. A complete project list can corroborate a wrong project pin; readable token policies can corroborate an undeclared Pages permission. A 403 alone cannot distinguish permission, scope or other authorization conditions, and denied discovery never proves an account/project absent. Diagnostics do not clear the original blocker, modify resource pins or certify infrastructure. No broader permission, token replacement or Owner dashboard inspection is requested until the available read evidence has been inspected.
+
+The Owner has confirmed **Pages → Edit** on the existing token and the expected account scope, without changing permissions. The next diagnostic run compares the canonical Pages list (without query parameters) with paginated discovery and probes GET-only domain and single-item deployment lists for the three pinned project candidates. This distinguishes project metadata denial from readable subresources and a name-independent Pages service denial. It records validated Cloudflare Ray IDs/server timestamps and fixed error-category labels for escalation, plus token verification validity times and boolean credential-framing checks. No provider error text, credential bytes, arbitrary response headers or deployment content is retained. Requests still use the original protected secret; they do not rewrite credentials or fall back to another identity. Upload-token, download/source-content, build, rollback and other mutation/value endpoints remain refused.
+
+Cloudflare's [Pages REST API guide](https://developers.cloudflare.com/pages/configuration/api/) documents Account API Tokens and Pages-specific permissions; [Pages authorization roles](https://developers.cloudflare.com/workers/authorization/workers/#cloudflare-pages) distinguish Pages roles from Workers or Developer Platform roles. Existing account/D1/Access success corroborates token authentication and account access, but cannot prove where an unreadable Pages project is hosted. If every Pages endpoint remains denied and self-token policy metadata remains unavailable, project ownership and the service's effective authorization decision require an Owner dashboard read or Cloudflare support investigation with the sanitized Ray evidence. Do not infer general Account API Token incompatibility or ask for broader privileges from code 10000 alone.
+
+## How to interpret the result
+
+`READ_ONLY_METADATA_MATCH` means these pinned metadata checks matched. It never means admission, sessions, database schema, migrations, backups, live lifecycle or production certification passed. `READ_ONLY_VERIFICATION_BLOCKED` identifies observations needing reconciliation without changing them.
+
+The portable `scripts/lib/edge-executor.mjs` and signed-receipt application gate remain intact. This first stage deliberately does not call its ADMIT/REVOKE provider ports or sign a receipt. Reviewed live provider wiring, safe individual session behavior, signing-key custody, actual schema/backups, hosted individual acceptance and signed source round trips remain later gates with separate authorization. PR #18 remains draft; PR #17/#18 merge and production release remain held.
+
+References: [GitHub manual workflow requirements](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow), [GitHub environment approval](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/review-deployments), [Pages project metadata](https://developers.cloudflare.com/api/resources/pages/subresources/projects/methods/get/), [D1 metadata](https://developers.cloudflare.com/api/resources/d1/subresources/database/methods/get/), [existing admission architecture](admission-execution.md).
+
+## Approved training configuration correction
+
+The separate `acceptance-training-correction.yml` workflow stages the Owner-approved training-only correction. Approve its protected `creatorloop-acceptance` job after validation. The original read-only workflow remains GET-only.
+
+The correction authenticates the existing Account API Token, corroborates the production reference and training identity, and checks training configuration again immediately before its one permitted PATCH. That PATCH can only target `creatorloop-operator-training` in the pinned account. Its payload is limited to the approved training AUD, Access team domain and `OPERATIONS_DB` binding. Existing D1 sibling bindings are preserved; unrelated environment variables and secrets are omitted from the PATCH and checked afterward. Configuration and deployment-reference hashes must remain unchanged outside the approved fields. Provider failure or an uncertain write outcome stops execution without retry or rollback writes. A configuration already matching the approved values requires no PATCH.
+
+Only `source.config.preview_deployment_setting = none` counts as explicit evidence to leave previews unchanged. Missing, empty, `all` or `custom` preview configuration requires the approved training preview values. The correction never changes preview branch rules, `CONSOLE_ENVIRONMENT`, Access policies, token permissions, application code or deployment settings.
+
+After a verified correction, the same protected job runs the established GET-only infrastructure checks and retains sanitized evidence for 14 days. Approval of this workflow does not authorize a deployment, remote D1 query/migration, backup export/restore or individual admission. Fresh protected backups, independent restore verification and migration rehearsal remain the next separately controlled infrastructure gate. No remote migration is part of this workflow.

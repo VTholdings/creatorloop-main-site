@@ -2,7 +2,7 @@ name: CreatorLoop Console CI
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, operator-approval-reference-ui]
   push:
     branches: [main]
 

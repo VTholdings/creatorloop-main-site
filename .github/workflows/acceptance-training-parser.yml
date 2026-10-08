@@ -1,0 +1,88 @@
+# Fresh parser attempt after hosted-runner acquisition failure; run 37362163168 remains closed.
+name: CreatorLoop acceptance - training read-only parser diagnostic
+run-name: Training EXPLAIN-only parser diagnostic approval for ${{ github.sha }}
+on:
+  push:
+    branches: [team-access-directory]
+    paths:
+      - .github/workflows/acceptance-training-parser.yml
+      - scripts/lib/training-parser.mjs
+      - scripts/lib/training-parser-authorization.mjs
+      - scripts/diagnostics/training-parser-live.mjs
+      - tests/training-parser.test.js
+permissions:
+  contents: read
+  actions: read
+  issues: read
+concurrency:
+  group: creatorloop-acceptance-training-parser
+  cancel-in-progress: false
+jobs:
+  validate:
+    if: github.repository == 'VTholdings/creatorloop-main-site' && github.ref == 'refs/heads/team-access-directory'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      main_sha: ${{ steps.references.outputs.main_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm test
+      - run: npm run check
+      - id: references
+        run: echo "main_sha=$(git rev-parse refs/remotes/origin/main)" >> "$GITHUB_OUTPUT"
+  training-parser:
+    name: Protected TRAINING parser diagnostic - EXPLAIN only, zero writes
+    needs: validate
+    if: github.repository == 'VTholdings/creatorloop-main-site' && github.ref == 'refs/heads/team-access-directory' && github.event_name == 'push' && github.run_attempt == 1
+    environment:
+      name: creatorloop-acceptance
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Fence first attempt and exact checkout
+        run: |
+          test "$GITHUB_RUN_ATTEMPT" = 1
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse refs/remotes/origin/team-access-directory)" = "$GITHUB_SHA"
+      - name: Retrieve sanitized training rollback receipt only - no backup or production artifact
+        uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '11366196374'
+          run-id: 37358040555
+          github-token: ${{ github.token }}
+          path: training-parser-source
+          merge-multiple: true
+      - name: Require separate Owner approval and exact saved PR attestation before training reads
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+          EXPECTED_MAIN_SHA: ${{ needs.validate.outputs.main_sha }}
+          ACCEPTANCE_ENVIRONMENT: creatorloop-acceptance
+          TRAINING_PARSER_SCOPE: TRAINING_EXPLAIN_ONLY
+        run: node scripts/diagnostics/training-parser-live.mjs
+      - name: Retain sanitized observations only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: creatorloop-training-parser-${{ github.sha }}
+          path: training-parser-evidence/TRAINING.json
+          if-no-files-found: warn
+          retention-days: 90
+      - name: Preserve all holds
+        if: always()
+        run: echo 'Read-only training parser diagnostic only. No migration SQL, corrective write, restore, production access, deployment, merge, executor activation, operator admission or later gate. No retry. PR 18 remains draft.' >> "$GITHUB_STEP_SUMMARY"
