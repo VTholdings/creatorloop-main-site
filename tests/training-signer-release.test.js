@@ -26,7 +26,7 @@ test('validated payload still rejects an unverified external signature; no priva
 async function releaseFixture(){
  const proposal=JSON.parse(await readFile('docs/proposals/step18-training-readiness-release.json','utf8'));
  const config={env_vars:{UNRELATED_PUBLIC:{type:'plain_text',value:'preserve'}},d1_databases:{OPERATIONS_DB:{id:proposal.training.databaseId}}};
- return {proposal,publicKeys:[publicJwk],project:{name:proposal.training.project,id:proposal.training.projectId,source:{config:{preview_deployment_setting:'all'}},deployment_configs:{production:structuredClone(config),preview:structuredClone(config)}},peerEvidence:{independentlyVerified:true,databaseId:proposal.proposedPublicVariables.PEER_DATABASE_ID,audience:proposal.proposedPublicVariables.PEER_ACCESS_AUD,deploymentId:proposal.proposedPublicVariables.PEER_DEPLOYMENT_ID},observedAt:200,applicationSha:'a'.repeat(40),executionSha:'b'.repeat(40),now:200};
+ return {proposal,publicKeys:[publicJwk],project:{name:proposal.training.project,id:proposal.training.projectId,source:{config:{preview_deployment_setting:'all'}},deployment_configs:{production:structuredClone(config),preview:structuredClone(config)}},peerEvidence:{independentlyVerified:true,databaseId:proposal.proposedPublicVariables.PEER_DATABASE_ID,audience:proposal.proposedPublicVariables.PEER_ACCESS_AUD,deploymentId:proposal.proposedPublicVariables.PEER_DEPLOYMENT_ID},observedAt:200,applicationSha:proposal.applicationReleaseSha,executionSha:'b'.repeat(40),now:200};
 }
 test('release preparation preserves unrelated public configuration and exact TRAINING binding in both enabled slots',async()=>{
  const f=await releaseFixture(),before=JSON.stringify(f.project),plan=await prepareTrainingRelease(f);
@@ -45,4 +45,15 @@ test('release templates remain inactive and preserve protected gates and TRAININ
  await assert.rejects(readFile('.github/workflows/step18-training-release-workflow.yml','utf8'),{code:'ENOENT'});
  const staging=await readFile('docs/proposals/step18-training-staging.toml','utf8');
  assert.match(staging,/CONSOLE_ENVIRONMENT = "TRAINING"/);assert.match(staging,/database_id = "12dbfa51-ca9c-475b-bb1b-ca90ac8bd7f0"/);assert.doesNotMatch(staging,/^ADMISSION_VERIFIER_KEYS\s*=/m);
+});
+
+test('release application SHA must match the exact reviewed proposal, not an arbitrary valid hash',async()=>{
+ const f=await releaseFixture();f.applicationSha='c'.repeat(40);
+ await assert.rejects(prepareTrainingRelease(f),/REVIEWED_APPLICATION_SHA_MISMATCH/);
+});
+test('release variable patch rejects extra credentials and substituted Access team domain',async()=>{
+ for(const change of [p=>p.proposedPublicVariables.CUSTOM_SYNC_TOKEN='FICTIONAL-NOT-A-CREDENTIAL',p=>p.proposedPublicVariables.CLOUDFLARE_ACCESS_TEAM_DOMAIN='other.cloudflareaccess.com']){
+  const f=await releaseFixture();f.applicationSha=f.proposal.applicationReleaseSha;change(f.proposal);
+  await assert.rejects(prepareTrainingRelease(f),/PUBLIC_RELEASE_VARIABLES_REFUSED/);
+ }
 });
