@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
 import { fixture,call } from './helpers/operator-fixture.js';
 import { onRequest } from '../functions/api/console/[[path]].js';
+import {verifier} from './helpers/admission-fixture.js';
 const OWNER='team@creatorloop.net';
 const draft={action:'addPending',fullName:'Fictional Employee',email:'new.employee@example.com',role:'OPERATOR',employmentStatus:'PENDING_START',scopes:[{campaignId:'CMP-100',recordId:'CR-200'}]};
 async function setup(migrate=true) {
@@ -15,7 +16,7 @@ async function setup(migrate=true) {
 }
 async function request(env,method='GET',path='team',body,email=OWNER,origin='https://ops.creatorloop.net') {
  const headers=method==='GET'?{}:{'Content-Type':'application/json',...(origin===null?{}:{Origin:origin})};
- const response=await onRequest({env,data:{loginEmail:email},params:{path:path.split('/')},request:new Request('https://ops.creatorloop.net/api/console/'+path,{method,headers,body:body===undefined?undefined:JSON.stringify(body)})});
+ const response=await onRequest({env,data:{loginEmail:email},params:{path:path.split('?')[0].split('/')},request:new Request('https://ops.creatorloop.net/api/console/'+path,{method,headers,body:body===undefined?undefined:JSON.stringify(body)})});
  return {status:response.status,body:await response.json()};
 }
 test('team migration preserves every existing table row and registers separately',async()=>{
@@ -57,6 +58,34 @@ test('missing metadata migration keeps directory read-only and fails writes clos
  const {env}=await setup(false);
  assert.equal((await request(env)).body.metadataReady,false);
  assert.equal((await request(env,'POST','team',draft)).status,503);
+});
+test('TRAINING directory points to the dedicated protected training host, never production or a supplied origin',async()=>{
+ const f=await setup();
+ try{
+  await verifier(f,'TRAINING');
+  const result=await request(f.env,'GET','team?loginUrl=https://ops.creatorloop.net',undefined,OWNER,'https://attacker.example');
+  assert.equal(result.status,200);
+  assert.equal(result.body.environment,'TRAINING');
+  assert.equal(result.body.loginUrl,'https://creatorloop-operator-training.pages.dev');
+  const ready=await request(f.env,'GET','readiness');
+  assert.equal(ready.status,200);assert.deepEqual(ready.body.missingMigrations,[]);
+  assert.equal(ready.body.applicationGatesPrepared,true);
+  assert.equal(ready.body.liveAcceptanceComplete,false);assert.equal(ready.body.productionCertified,false);
+ }finally{f.db.close();}
+});
+test('TRAINING Add User explicitly creates a TRAINING profile while leaving the migration default and inactive admission intact',async()=>{
+ const f=await setup();
+ try{
+  await verifier(f,'TRAINING');
+  const added=await request(f.env,'POST','team',draft);
+  assert.equal(added.status,201);
+  const profile=f.db.prepare('SELECT * FROM console_team_profiles WHERE operator_id=?').get(added.body.id);
+  assert.equal(profile.environment,'TRAINING');assert.equal(profile.lifecycle_status,'INVITED');
+  assert.equal(f.db.prepare('SELECT account_status FROM operators WHERE id=?').get(added.body.id).account_status,'DISABLED');
+  assert.equal(f.db.prepare('SELECT count(*) n FROM console_access_grants WHERE operator_id=?').get(added.body.id).n,0);
+  assert.equal(f.db.prepare('PRAGMA table_info(console_team_profiles)').all().find(c=>c.name==='environment').dflt_value,"'PRODUCTION'");
+  assert.equal((await request(f.env,'GET','me',undefined,draft.email)).status,403);
+ }finally{f.db.close();}
 });
 test('Add User is atomic, inactive, individually attributable and creates no grants or delegation',async()=>{
  const {env,db}=await setup();

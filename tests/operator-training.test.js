@@ -36,3 +36,13 @@ test('invalid explicit environment cannot fall back to production reads, edits o
   }
  }assert.notEqual(db.prepare("SELECT notes FROM creator_enrollments WHERE id='CR-200'").get().notes,'blocked');}finally{db.close();}
 });
+test('invalid or unverified TRAINING isolation is rejected before any database lookup, bootstrap or activity write',async()=>{
+ const {onRequest}=await import('../functions/api/console/[[path]].js');
+ let touches=0;
+ const db={prepare(){touches++;throw Error('Database must not be reached');},batch(){touches++;throw Error('Database must not be reached');}};
+ for(const environment of ['TRAINING','',null,'training','TRAIINING'])for(const method of ['GET','POST']){
+  const env={OPERATIONS_DB:db,CONSOLE_ENVIRONMENT:environment,BOOTSTRAP_ADMIN_EMAIL:'team@creatorloop.net'};
+  const result=await onRequest({env,data:{loginEmail:'team@creatorloop.net'},params:{path:['team']},request:new Request('https://creatorloop-operator-training.pages.dev/api/console/team',{method,headers:method==='POST'?{Origin:'https://creatorloop-operator-training.pages.dev'}:{},...(method==='POST'?{body:'{}'}:{})})});
+  assert.equal(result.status,503,environment);assert.equal(touches,0);
+ }
+});

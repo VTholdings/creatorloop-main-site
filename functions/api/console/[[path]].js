@@ -489,9 +489,12 @@ const conditionalAssignmentOutbox = (db,user,entityType,id,action,payload,mutati
 
 export async function onRequest(context) {
   if (!context.env.OPERATIONS_DB) return json({error:'Operations database is not configured'},503);
+  // Fence isolation before actor lookup, bootstrap, or activity writes.
+  if(context.env.CONSOLE_ENVIRONMENT!==undefined&&!['TRAINING','PRODUCTION'].includes(context.env.CONSOLE_ENVIRONMENT))return json({error:'Invalid Console environment'},503);
+  if(context.env.CONSOLE_ENVIRONMENT==='TRAINING'&&!admissionConfiguration(context.env))return json({error:'Verified isolated training configuration is pending'},503);
   if (context.request.method !== 'GET' && !sameOrigin(context.request)) return json({error:'Origin rejected'},403);
   const user=await actor(context);
-  if(!user)return json(context.data.reauthenticate?{error:'Your access changed. Sign out and authenticate again at ops.creatorloop.net.',code:'REAUTHENTICATE'}:{error:'Authorized operator account required'},403);
+  if(!user)return json(context.data.reauthenticate?{error:'Your access changed. Sign out and authenticate again at '+(context.env.CONSOLE_ENVIRONMENT==='TRAINING'?'creatorloop-operator-training.pages.dev':'ops.creatorloop.net')+'.',code:'REAUTHENTICATE'}:{error:'Authorized operator account required'},403);
   context.data.requestPermission=user;
   const parts=pathParts(context), db=context.env.OPERATIONS_DB;
   let campaignId=params(context.request).get('campaignId');
