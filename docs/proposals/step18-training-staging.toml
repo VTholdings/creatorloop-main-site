@@ -1,0 +1,21 @@
+# PREPARATION ONLY: not active root configuration, not a deployment command.
+# Copy into a separately reviewed clean staging tree ONLY after exact authorization.
+# Public ADMISSION_VERIFIER_KEYS must be registered/validated before release;
+# it is deliberately absent because no approved key exists.
+name = "creatorloop-operator-training"
+compatibility_date = "2026-09-27"
+pages_build_output_dir = "."
+
+[vars]
+CONSOLE_ENVIRONMENT = "TRAINING"
+CLOUDFLARE_ACCESS_TEAM_DOMAIN = "shiny-wildflower-143c.cloudflareaccess.com"
+CLOUDFLARE_ACCESS_AUD = "a6b7d2d9e2a0bbe45ac1f1155cbd32593467eac2d66c01aa67d36fb290b7a38d"
+CONSOLE_DATABASE_ID = "12dbfa51-ca9c-475b-bb1b-ca90ac8bd7f0"
+CONSOLE_DEPLOYMENT_ID = "9863d88c-8025-414c-9524-078ee470e9e7"
+PEER_DATABASE_ID = "c4993a97-5835-4c6c-af06-7020fa8d4f2a"
+PEER_ACCESS_AUD = "c54a2a0bc9a1ae7ccde868a309822a6fadf74f6c04e7b34b48a32bab839757d9"
+PEER_DEPLOYMENT_ID = "28239f49-aedc-448e-978d-36b0b9359fa0"
+
+[[d1_databases]]
+binding = "OPERATIONS_DB"
+database_id = "12dbfa51-ca9c-475b-bb1b-ca90ac8bd7f0"

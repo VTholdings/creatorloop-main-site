@@ -1,0 +1,63 @@
+# PREPARATION TEMPLATE ONLY. Not installed under .github/workflows.
+# The external private runner, release port and exact approval references do not exist yet.
+name: CreatorLoop protected TRAINING release preparation
+on:
+  workflow_dispatch:
+    inputs:
+      application_sha:
+        description: Exact reviewed application SHA
+        required: true
+      configuration_hash:
+        description: Exact reviewed TRAINING configuration SHA-256
+        required: true
+      owner_decision_ref:
+        description: Protected exact run/source/config authorization reference
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: creatorloop-training-protected-release
+  cancel-in-progress: false
+jobs:
+  validate:
+    if: github.repository == 'VTholdings/creatorloop-main-site' && github.ref == 'refs/heads/team-access-directory' && github.run_attempt == 1
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm test && npm run check
+  protected-release:
+    needs: validate
+    environment: creatorloop-acceptance
+    # Deliberately unprovisioned label. Do not register/authorize a runner through this template.
+    runs-on: [self-hosted, creatorloop-training-approved-private-release]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require verified external release port
+        env:
+          APPLICATION_SHA: ${{ inputs.application_sha }}
+          CONFIGURATION_HASH: ${{ inputs.configuration_hash }}
+          OWNER_DECISION_REF: ${{ inputs.owner_decision_ref }}
+          EXECUTION_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          test "$GITHUB_RUN_ATTEMPT" = 1
+          test "$(git rev-parse HEAD)" = "$EXECUTION_SHA"
+          test "$(git rev-parse refs/remotes/origin/team-access-directory)" = "$EXECUTION_SHA"
+          test -n "$OWNER_DECISION_REF"
+          test -x /opt/creatorloop-approved/bin/training-release
+          # Port must validate protected approval, fresh metadata, exact config hash,
+          # staging/source SHA and TRAINING target before any private provider action.
+          # No token/key values are passed as arguments; custody is external.
+          /opt/creatorloop-approved/bin/training-release
