@@ -1,0 +1,69 @@
+# PREPARATION TEMPLATE ONLY. Not installed under .github/workflows.
+# Stage 1 approved GitHub-hosted model. No secrets, credentials or live release wiring.
+name: CreatorLoop protected TRAINING release preparation
+on:
+  workflow_dispatch:
+    inputs:
+      application_sha:
+        description: Exact reviewed application SHA
+        required: true
+      configuration_hash:
+        description: Exact reviewed TRAINING configuration SHA-256
+        required: true
+      owner_decision_ref:
+        description: Protected exact run/source/config authorization reference
+        required: true
+      owner_reviewer_id:
+        description: Actual Owner-appointed GitHub reviewer numeric ID
+        required: true
+      approved_port_sha256:
+        description: Exact reviewed repository release-port file SHA-256
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: creatorloop-training-protected-release
+  cancel-in-progress: false
+jobs:
+  validate:
+    if: github.repository == 'VTholdings/creatorloop-main-site' && github.ref == 'refs/heads/team-access-directory' && github.run_attempt == 1
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm test && npm run check
+      - name: Check already-provisioned protected environment before referencing it
+        env:
+          APPOINTED_OWNER_REVIEWER_ID: ${{ inputs.owner_reviewer_id }}
+        run: node scripts/execution/github-training-preflight.mjs release preflight
+  protected-release:
+    needs: validate
+    environment: creatorloop-training-release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Recheck controls and require exact reviewed release port
+        env:
+          APPLICATION_SHA: ${{ inputs.application_sha }}
+          CONFIGURATION_HASH: ${{ inputs.configuration_hash }}
+          OWNER_DECISION_REF: ${{ inputs.owner_decision_ref }}
+          APPOINTED_OWNER_REVIEWER_ID: ${{ inputs.owner_reviewer_id }}
+          APPROVED_PORT_SHA256: ${{ inputs.approved_port_sha256 }}
+        # Missing port or preparation-only mode fails closed. No deployment command.
+        # Exact protected source/config authorization and real release wiring remain required.
+        run: node scripts/execution/github-training-preflight.mjs release check-port

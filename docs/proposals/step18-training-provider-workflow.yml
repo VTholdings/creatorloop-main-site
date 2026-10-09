@@ -1,0 +1,65 @@
+# PREPARATION TEMPLATE ONLY. Not installed under .github/workflows.
+# No live ADMIT/REVOKE dispatch, credentials or signing key access.
+name: CreatorLoop protected TRAINING provider preparation
+on:
+  workflow_dispatch:
+    inputs:
+      intended_operation:
+        description: Future exact approved individual operation
+        required: true
+        type: choice
+        options: [ADMIT, REVOKE]
+      owner_decision_ref:
+        description: Exact protected request/version authorization reference
+        required: true
+      owner_reviewer_id:
+        description: Actual Owner-appointed GitHub reviewer numeric ID
+        required: true
+      approved_port_sha256:
+        description: Exact reviewed repository provider-port file SHA-256
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: creatorloop-training-protected-provider
+  cancel-in-progress: false
+jobs:
+  preflight:
+    if: github.repository == 'VTholdings/creatorloop-main-site' && github.ref == 'refs/heads/team-access-directory' && github.run_attempt == 1
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Require existing protected environment before referencing it
+        env:
+          APPOINTED_OWNER_REVIEWER_ID: ${{ inputs.owner_reviewer_id }}
+        run: node scripts/execution/github-training-preflight.mjs provider preflight
+  provider-execution:
+    needs: preflight
+    environment: creatorloop-training-provider-execution
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Recheck controls and require exact reviewed provider port
+        env:
+          INTENDED_OPERATION: ${{ inputs.intended_operation }}
+          OWNER_DECISION_REF: ${{ inputs.owner_decision_ref }}
+          APPOINTED_OWNER_REVIEWER_ID: ${{ inputs.owner_reviewer_id }}
+          APPROVED_PORT_SHA256: ${{ inputs.approved_port_sha256 }}
+        # Preparation-only refusal is deliberate; no policy/admission operation enabled.
+        run: node scripts/execution/github-training-preflight.mjs provider check-port
