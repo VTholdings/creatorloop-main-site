@@ -8,7 +8,7 @@
 
 | Sequence | Who acts | Complete in the same coordinated setup session |
 |---|---|---|
-| 1 | Owner + custodian + service administrator | Name distinct signing custodian/provider executor and approved private hosts. Establish actual administrative separation and protected evidence storage. Use existing approved private infrastructure; do not provision an alternate platform by assumption. |
+| 1 | Owner + custodian + GitHub administrator | Name the private-workstation signing custodian and separate GitHub-hosted execution administrator. Establish actual separation and restricted evidence storage; configure only the two approved isolated GitHub environments through the authorized administrator. |
 | 2 | Custodian + independent verifier | Generate/reuse the separately authorized TRAINING RSA key externally; export public JWK/fingerprint; verify a new nonce challenge. |
 | 3 | Owner + provider/release capability administrator | Privately provision/authorize exact short-lived capabilities, validate their effective permissions and fixed-target restrictions without expansion. |
 | 4 | Owner + synthetic participant | Approve/create one dedicated individual TRAINING email using the existing approved IdP. Approve fictional scope and subject-only cross-application revocation; retain exact subject once individually observed. |
@@ -21,6 +21,36 @@ A custodian/provider pair cannot establish separation by signing a checklist alo
 Record named custodian, distinct execution service principal and responsible administrator, private signing host/key store reference, execution host reference, evidence destination, and admin boundaries. These are real designations, not dummy IDs. Owner approval of the actual infrastructure is required before key creation there. External ports use nonsecret references; all secret resolution occurs in private custody.
 
 No OS accounts/services are created by this runbook. An approved administrator must configure necessary accounts/key-store ACLs and private service execution; Manus will not perform that on an unidentified or Manus-controlled host. If the infrastructure is not yet prepared, the Owner supplies its approved host and administrator within this session.
+
+### Approved Stage 1 execution settings — October 8, 14:16 HST
+
+Owner approved private-workstation signing custody and a separate **ephemeral GitHub-hosted `ubuntu-latest`** executor in `VTholdings/creatorloop-main-site`. No private key enters GitHub. The public repository is not a restricted custody/evidence store. The assigned custodian/workstation administrator, executor administrator, designated reviewer and restricted evidence-store reference still must be supplied; approval of the model is not evidence that they exist.
+
+**The authorized GitHub administrator—not Manus—creates/configures the following empty environments.** Open [repository environment settings](https://github.com/VTholdings/creatorloop-main-site/settings/environments). No secret or key is added at Stage 1; the existing `creatorloop-acceptance` environment and its credential stay unchanged.
+
+| Exact setting | `creatorloop-training-provider-execution` | `creatorloop-training-release` |
+|---|---|---|
+| Required reviewer | The one actual Owner-designated user | The one actual Owner-designated user |
+| Prevent self-review | Enabled | Enabled |
+| Allow administrators to bypass configured protection rules | **Deselected**; save protection rules | **Deselected**; save protection rules |
+| Deployment branches and tags | Selected branches and tags | Selected branches and tags |
+| Allowed rule | One **Branch** rule: `team-access-directory` | One **Branch** rule: `team-access-directory` |
+| Other branch/tag rules | None | None |
+| Secrets now | None; do not copy the existing API token | None; do not copy the existing API token |
+
+Use a named reviewer distinct from the actor triggering a protected run; with self-review prevention enabled, a user cannot approve their own run. One reviewer is enough for GitHub's environment gate; this does not replace independent signing custody. Keep administrator bypass disabled rather than using it to unstick a job.
+
+For administrators using the existing secure GitHub API process, `prepareGithubEnvironmentConfiguration()` in `scripts/lib/training-github-environments.mjs` produces the exact PUT environment and POST branch-rule bodies after receiving the **actual appointed reviewer's login and numeric ID**. It refuses missing/malformed input and does not perform a request; shape validation does not prove that a named person is appointed by the Owner. Public account ID can be obtained read-only with `gh api users/ACTUAL_APPOINTED_LOGIN`; a user lookup proves account identity, not Owner appointment. No reviewer is assumed from the old environment.
+
+Environment PUT body: `wait_timer: 0`, `prevent_self_review: true`, `reviewers: [{type: "User", id: ACTUAL_APPOINTED_ID}]`, `deployment_branch_policy: {protected_branches: false, custom_branch_policies: true}`. Branch POST body: `{name: "team-access-directory", type: "branch"}`. Actual numeric reviewer ID must be inserted before applying; a placeholder is not an executable payload. Do not add duplicate rules when reconciling an existing environment; verify first through the approved administrator process.
+
+**Bypass is a separate documented UI operation:** the environment PUT request schema does not document a bypass-write parameter. Do not invent one. Deselect **Allow administrators to bypass configured protection rules** and **Save protection rules**. GET readback currently exposes `can_admins_bypass`; the verifier requires it to be exactly `false`, otherwise the setting is BLOCKED rather than inferred.
+
+After administrator completion, Manus performs fresh GET-only reconciliation of each environment and its branch policies against the appointed reviewer ID. The readback must show one required reviewer with self-review prevention, administrator bypass false and exactly the allowed branch rule. A screenshot can corroborate the operation, but no standalone checklist boolean is substituted for readback. The initial read-only snapshot found both new environments **NOT FOUND**; they were not implicitly created.
+
+Inactive release/provider templates remain in `docs/proposals`, not `.github/workflows`. Preflight GETs verify the environment already exists and is protected **before** a job references it, avoiding GitHub's implicit creation of an unprotected environment. They recheck exact run attempt, hosted context, latest execution SHA and settings. Preparation mode does not load credentials or invoke admission/release ports; `check-port` deliberately refuses execution even if an approved file hash matches. Actual protected port wiring and activation belong to the later exact authorization, not this settings preparation.
+
+Official setting references: [GitHub environment REST API](https://docs.github.com/en/rest/deployments/environments) and [environment configuration UI](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments).
 
 ## 2. Owner-controlled RSA custody: exact commands, never run by Manus
 

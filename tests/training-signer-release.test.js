@@ -40,7 +40,8 @@ test('unknown preview state, stale evidence, wrong DB/peer and unrecognized cred
 
 test('release templates remain inactive and preserve protected gates and TRAINING-only bindings',async()=>{
  const workflow=await readFile('docs/proposals/step18-training-release-workflow.yml','utf8');
- assert.match(workflow,/environment: creatorloop-acceptance/);assert.match(workflow,/contents: read/);assert.match(workflow,/persist-credentials: false/);assert.match(workflow,/test -x \/opt\/creatorloop-approved\/bin\/training-release/);
+ assert.match(workflow,/environment: creatorloop-training-release/);assert.match(workflow,/contents: read/);assert.match(workflow,/persist-credentials: false/);assert.match(workflow,/runs-on: ubuntu-latest/);assert.match(workflow,/github-training-preflight.mjs release check-port/);
+ assert.doesNotMatch(workflow,/self-hosted|\/opt\/creatorloop-approved|environment: creatorloop-acceptance/);
  assert.doesNotMatch(workflow,/CLOUDFLARE_API_TOKEN|ADMISSION_SIGNING_KEY|revoke_tokens|wrangler pages deploy/);
  await assert.rejects(readFile('.github/workflows/step18-training-release-workflow.yml','utf8'),{code:'ENOENT'});
  const staging=await readFile('docs/proposals/step18-training-staging.toml','utf8');
