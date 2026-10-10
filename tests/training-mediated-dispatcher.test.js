@@ -1,22 +1,31 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
-import {createMediatedDispatcher,EXECUTOR_ACCOUNT,DISPATCH_WORKFLOWS,dispatchHash,validateDispatchRequest} from '../scripts/lib/training-mediated-dispatcher.mjs';
+import {createMediatedDispatcher,OWNER_RESERVED_ACCOUNT,DISPATCH_WORKFLOWS,dispatchHash,validateDispatchRequest} from '../scripts/lib/training-mediated-dispatcher.mjs';
 import {createGithubDispatchTransport} from '../scripts/lib/training-github-dispatch-transport.mjs';
 import {verifyMediatedWorkflowRun} from '../scripts/lib/training-mediated-run.mjs';
 import {openDispatchAuditStore} from '../scripts/lib/training-dispatch-audit-store.mjs';
 import {readFile,mkdtemp,chmod,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
+const EXECUTOR_ACCOUNT={id:777777,login:'FICTIONAL-INDEPENDENT-EXECUTOR'};
 function fixture(lane='provider',overrides={}) {
  const request={dispatchId:'11111111-1111-1111-1111-111111111111',decisionRef:'OWNER-FICTIONAL-DECISION',lane,executionSha:'a'.repeat(40),inputs:{...(lane==='provider'?{intended_operation:'ADMIT'}:{application_sha:'b'.repeat(40),configuration_hash:'c'.repeat(64)}),owner_decision_ref:'OWNER-FICTIONAL-DECISION',owner_reviewer_id:'245245322',approved_port_sha256:'d'.repeat(64)}};
  const principal={...EXECUTOR_ACCOUNT,authenticationRef:'FICTIONAL-AUTH',authenticatedAt:200};
+ const approvedExecutor={protocol:'CREATORLOOP_APPROVED_EXECUTOR_POLICY_V1',account:{...EXECUTOR_ACCOUNT},reviewerId:245245322,humanCustodianRef:'FICTIONAL-INDEPENDENT-HUMAN',signerCustodianRef:'FICTIONAL-OWNER-CUSTODIAN',separationEvidenceRef:'FICTIONAL-NOT-LIVE-SEPARATION-EVIDENCE'};
  const content='FICTIONAL-REVIEWED-WORKFLOW-NOT-ACTIVE\n';
- const approval={protocol:'CREATORLOOP_MEDIATED_DISPATCH_APPROVAL_V1',repository:'VTholdings/creatorloop-main-site',branch:'team-access-directory',workflowFile:DISPATCH_WORKFLOWS[lane],dispatchId:request.dispatchId,decisionRef:request.decisionRef,requestHash:dispatchHash(request),executionSha:request.executionSha,workflowSha256:createHash('sha256').update(content).digest('hex'),callerId:principal.id,callerLogin:principal.login,reviewerId:245245322,humanCustodianRef:'FICTIONAL-INDEPENDENT-HUMAN',approvedAt:100,expiresAt:300};
+ const approval={protocol:'CREATORLOOP_MEDIATED_DISPATCH_APPROVAL_V1',repository:'VTholdings/creatorloop-main-site',branch:'team-access-directory',workflowFile:DISPATCH_WORKFLOWS[lane],dispatchId:request.dispatchId,decisionRef:request.decisionRef,requestHash:dispatchHash(request),executionSha:request.executionSha,workflowSha256:createHash('sha256').update(content).digest('hex'),callerId:principal.id,callerLogin:principal.login,reviewerId:245245322,humanCustodianRef:'FICTIONAL-INDEPENDENT-HUMAN',executorPolicyHash:dispatchHash(approvedExecutor),approvedAt:100,expiresAt:300};
  const reads=[],sends=[],audits=[],claims=new Set();
  const ports={now:()=>200,authenticateCaller:async()=>principal,verifyOwnerDecision:async()=>approval,readGithub:async path=>{reads.push(path);if(path.includes('/git/ref/'))return {object:{sha:request.executionSha}};if(path.includes('/contents/'))return {encoding:'base64',path:`.github/workflows/${DISPATCH_WORKFLOWS[lane]}`,content:Buffer.from(content).toString('base64')};return {default_branch:'main'};},claimOnce:async c=>{if(claims.has(c.dispatchId))return null;claims.add(c.dispatchId);return {...c,claimRef:'FICTIONAL-DURABLE-CLAIM'};},appendAudit:async r=>{audits.push(r);return {recordHash:r.recordHash,auditRef:'FICTIONAL-RESTRICTED-AUDIT'};},dispatchGithub:async c=>{sends.push(c);return {status:200,runId:123};},...overrides};
- return {request,principal,approval,reads,sends,audits,ports,dispatch:createMediatedDispatcher(ports)};
+ ports.approvedExecutor=approvedExecutor;
+ return {request,principal,approval,approvedExecutor,reads,sends,audits,ports,dispatch:createMediatedDispatcher(ports)};
 }
+test('Owner-controlled Ian account and missing/unbound executor policy cannot authorize dispatch',async()=>{
+ const f=fixture();assert.throws(()=>createMediatedDispatcher({...f.ports,approvedExecutor:undefined}),/INDEPENDENT_EXECUTOR/);
+ assert.throws(()=>createMediatedDispatcher({...f.ports,approvedExecutor:{...f.approvedExecutor,account:{...OWNER_RESERVED_ACCOUNT}}}),/INDEPENDENT_EXECUTOR/);
+ Object.assign(f.principal,OWNER_RESERVED_ACCOUNT);await assert.rejects(f.dispatch({request:f.request}),/AUTHENTICATION/);assert.equal(f.sends.length,0);
+ const g=fixture();delete g.approval.executorPolicyHash;await assert.rejects(g.dispatch({request:g.request}),/CUSTODY_POLICY/);assert.equal(g.reads.length,0);
+});
 test('exact provider/release mediated dispatch retains caller, exact inputs and hash-chained audit without claiming acceptance',async()=>{
  for(const lane of ['provider','release']){
   const f=fixture(lane),out=await f.dispatch({request:f.request,callerContext:{}});
@@ -83,10 +92,11 @@ test('transport unknown outcome is redacted and response size is bounded',async(
 test('workflow-side binding requires pinned bot and exact independently approved run/source/inputs',async()=>{
  const f=fixture(),inputs={...f.request.inputs,dispatch_id:f.request.dispatchId,expected_execution_sha:f.request.executionSha};
  const context={repository:'VTholdings/creatorloop-main-site',ref:'refs/heads/team-access-directory',eventName:'workflow_dispatch',runAttempt:'1',runnerEnvironment:'github-hosted',executionSha:f.request.executionSha,workflowSha:f.request.executionSha,runId:'123',actorId:'99',actorLogin:'fictional-dispatch[bot]'};
- const policy={protocol:'CREATORLOOP_MEDIATED_RUN_POLICY_V1',appBotId:99,appBotLogin:context.actorLogin,executorAccountId:EXECUTOR_ACCOUNT.id,reviewerId:245245322};
- const verifyRunApproval=async()=>({runId:'123',dispatchId:f.request.dispatchId,requestHash:dispatchHash(f.request),executionSha:f.request.executionSha,workflowFile:DISPATCH_WORKFLOWS.provider,callerId:EXECUTOR_ACCOUNT.id,appBotId:99,expiresAt:300});
+ const policy={protocol:'CREATORLOOP_MEDIATED_RUN_POLICY_V1',appBotId:99,appBotLogin:context.actorLogin,approvedExecutor:f.approvedExecutor,reviewerId:245245322};
+ const verifyRunApproval=async()=>({runId:'123',dispatchId:f.request.dispatchId,requestHash:dispatchHash(f.request),executionSha:f.request.executionSha,workflowFile:DISPATCH_WORKFLOWS.provider,callerId:EXECUTOR_ACCOUNT.id,executorPolicyHash:dispatchHash(f.approvedExecutor),appBotId:99,expiresAt:300});
  const config={context,inputs,policy,lane:'provider',verifyRunApproval,now:()=>200};assert.equal((await verifyMediatedWorkflowRun(config)).mediatedRunVerified,true);
  for(const override of [{context:{...context,actorId:String(EXECUTOR_ACCOUNT.id)}},{inputs:{...inputs,expected_execution_sha:'b'.repeat(40)}},{verifyRunApproval:async()=>null}])await assert.rejects(verifyMediatedWorkflowRun({...config,...override}));
+ await assert.rejects(verifyMediatedWorkflowRun({...config,policy:{...policy,approvedExecutor:{...f.approvedExecutor,account:{...OWNER_RESERVED_ACCOUNT}}}}),/INDEPENDENT_EXECUTOR/);
 });
 test('integration templates remain inactive and require dispatcher checks before/after environment gate',async()=>{
  for(const lane of ['provider','release']){
