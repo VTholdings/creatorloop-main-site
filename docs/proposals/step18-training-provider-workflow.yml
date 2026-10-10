@@ -18,6 +18,12 @@ on:
       approved_port_sha256:
         description: Exact reviewed repository provider-port file SHA-256
         required: true
+      dispatch_id:
+        description: Owner-approved one-time mediated dispatch correlation UUID
+        required: true
+      expected_execution_sha:
+        description: Exact approved TRAINING workflow execution SHA
+        required: true
 permissions:
   contents: read
 concurrency:
@@ -37,6 +43,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Verify pinned dispatcher identity and independent run approval
+        env:
+          MEDIATED_WORKFLOW_INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: node scripts/execution/github-mediated-run-check.mjs provider
       - name: Require existing protected environment before referencing it
         env:
           APPOINTED_OWNER_REVIEWER_ID: ${{ inputs.owner_reviewer_id }}
@@ -55,6 +65,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Recheck mediated binding after protected environment approval
+        env:
+          MEDIATED_WORKFLOW_INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: node scripts/execution/github-mediated-run-check.mjs provider
       - name: Recheck controls and require exact reviewed provider port
         env:
           INTENDED_OPERATION: ${{ inputs.intended_operation }}
