@@ -54,6 +54,9 @@ jobs:
   provider-execution:
     needs: preflight
     environment: creatorloop-training-provider-execution
+    permissions:
+      contents: read
+      id-token: write
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -69,6 +72,10 @@ jobs:
         env:
           MEDIATED_WORKFLOW_INPUTS_JSON: ${{ toJSON(inputs) }}
         run: node scripts/execution/github-mediated-run-check.mjs provider
+      - name: Verify exact managed OIDC run after protected approval
+        env:
+          MEDIATED_WORKFLOW_INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: node scripts/execution/github-managed-training-job.mjs provider
       - name: Recheck controls and require exact reviewed provider port
         env:
           INTENDED_OPERATION: ${{ inputs.intended_operation }}

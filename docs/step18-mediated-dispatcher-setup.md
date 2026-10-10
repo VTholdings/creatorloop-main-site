@@ -1,5 +1,7 @@
 # Step 18 — mediated dispatcher setup and protected integration
 
+**October 10 managed-host authorization:** the Linux private-server setup below is historical, not a remaining staffing prerequisite. Use [the managed commissioning handoff](step18-managed-commissioning.md) for current Workers/Durable Object/R2 setup, exact resource references and independent deployment/credential authority requirements. Existing dispatcher contracts and Owner Mac signer are retained.
+
 **Status:** credential-free implementation preparation. No App, private App key/token, service, workflow registration, permission change or dispatch was created. `kailuatester-del` stays **Read**. The Owner's Mac signer core remains pinned to `739dbef-v1`; never automatically load this repository code into signing custody.
 
 **October 10 final Owner direction:** transfer of `kailuatester-del` to the separate VT contractor and account/signing-custody separation are accepted as Owner attestations. Do not request another confirmation form. Earlier Owner-controlled-Ian classification is historical and superseded. The obsolete account blacklist is removed; the account is selectable only by an explicit reviewed executor policy, never by default. Actual execution host/credential/approval boundaries still require technical enforcement before activation.

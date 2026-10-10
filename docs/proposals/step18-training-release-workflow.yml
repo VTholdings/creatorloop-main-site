@@ -56,6 +56,9 @@ jobs:
   protected-release:
     needs: validate
     environment: creatorloop-training-release
+    permissions:
+      contents: read
+      id-token: write
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -71,6 +74,10 @@ jobs:
         env:
           MEDIATED_WORKFLOW_INPUTS_JSON: ${{ toJSON(inputs) }}
         run: node scripts/execution/github-mediated-run-check.mjs release
+      - name: Verify exact managed OIDC run after protected approval
+        env:
+          MEDIATED_WORKFLOW_INPUTS_JSON: ${{ toJSON(inputs) }}
+        run: node scripts/execution/github-managed-training-job.mjs release
       - name: Recheck controls and require exact reviewed release port
         env:
           APPLICATION_SHA: ${{ inputs.application_sha }}
