@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
-import {createMediatedDispatcher,OWNER_RESERVED_ACCOUNT,DISPATCH_WORKFLOWS,dispatchHash,validateDispatchRequest} from '../scripts/lib/training-mediated-dispatcher.mjs';
+import {createMediatedDispatcher,TRANSFERRED_EXECUTOR_ACCOUNT,DISPATCH_WORKFLOWS,dispatchHash,validateDispatchRequest} from '../scripts/lib/training-mediated-dispatcher.mjs';
 import {createGithubDispatchTransport} from '../scripts/lib/training-github-dispatch-transport.mjs';
 import {verifyMediatedWorkflowRun} from '../scripts/lib/training-mediated-run.mjs';
 import {openDispatchAuditStore} from '../scripts/lib/training-dispatch-audit-store.mjs';
@@ -20,11 +20,13 @@ function fixture(lane='provider',overrides={}) {
  ports.approvedExecutor=approvedExecutor;
  return {request,principal,approval,approvedExecutor,reads,sends,audits,ports,dispatch:createMediatedDispatcher(ports)};
 }
-test('Owner-controlled Ian account and missing/unbound executor policy cannot authorize dispatch',async()=>{
+test('post-transfer account has no default grant and still requires independently corroborated executor policy',async()=>{
  const f=fixture();assert.throws(()=>createMediatedDispatcher({...f.ports,approvedExecutor:undefined}),/INDEPENDENT_EXECUTOR/);
- assert.throws(()=>createMediatedDispatcher({...f.ports,approvedExecutor:{...f.approvedExecutor,account:{...OWNER_RESERVED_ACCOUNT}}}),/INDEPENDENT_EXECUTOR/);
- Object.assign(f.principal,OWNER_RESERVED_ACCOUNT);await assert.rejects(f.dispatch({request:f.request}),/AUTHENTICATION/);assert.equal(f.sends.length,0);
+ assert.throws(()=>createMediatedDispatcher({...f.ports,approvedExecutor:{...f.approvedExecutor,humanCustodianRef:f.approvedExecutor.signerCustodianRef}}),/INDEPENDENT_EXECUTOR/);
+ Object.assign(f.principal,TRANSFERRED_EXECUTOR_ACCOUNT);await assert.rejects(f.dispatch({request:f.request}),/AUTHENTICATION/);assert.equal(f.sends.length,0);
  const g=fixture();delete g.approval.executorPolicyHash;await assert.rejects(g.dispatch({request:g.request}),/CUSTODY_POLICY/);assert.equal(g.reads.length,0);
+ const h=fixture();Object.assign(h.principal,TRANSFERRED_EXECUTOR_ACCOUNT);h.approvedExecutor.account={...TRANSFERRED_EXECUTOR_ACCOUNT};h.approval.callerId=h.principal.id;h.approval.callerLogin=h.principal.login;h.approval.executorPolicyHash=dispatchHash(h.approvedExecutor);
+ const dispatch=createMediatedDispatcher({...h.ports,approvedExecutor:h.approvedExecutor});assert.equal((await dispatch({request:h.request})).dispatchAccepted,true);
 });
 test('exact provider/release mediated dispatch retains caller, exact inputs and hash-chained audit without claiming acceptance',async()=>{
  for(const lane of ['provider','release']){
@@ -96,7 +98,7 @@ test('workflow-side binding requires pinned bot and exact independently approved
  const verifyRunApproval=async()=>({runId:'123',dispatchId:f.request.dispatchId,requestHash:dispatchHash(f.request),executionSha:f.request.executionSha,workflowFile:DISPATCH_WORKFLOWS.provider,callerId:EXECUTOR_ACCOUNT.id,executorPolicyHash:dispatchHash(f.approvedExecutor),appBotId:99,expiresAt:300});
  const config={context,inputs,policy,lane:'provider',verifyRunApproval,now:()=>200};assert.equal((await verifyMediatedWorkflowRun(config)).mediatedRunVerified,true);
  for(const override of [{context:{...context,actorId:String(EXECUTOR_ACCOUNT.id)}},{inputs:{...inputs,expected_execution_sha:'b'.repeat(40)}},{verifyRunApproval:async()=>null}])await assert.rejects(verifyMediatedWorkflowRun({...config,...override}));
- await assert.rejects(verifyMediatedWorkflowRun({...config,policy:{...policy,approvedExecutor:{...f.approvedExecutor,account:{...OWNER_RESERVED_ACCOUNT}}}}),/INDEPENDENT_EXECUTOR/);
+ await assert.rejects(verifyMediatedWorkflowRun({...config,policy:{...policy,approvedExecutor:{...f.approvedExecutor,humanCustodianRef:f.approvedExecutor.signerCustodianRef}}}),/INDEPENDENT_EXECUTOR/);
 });
 test('integration templates remain inactive and require dispatcher checks before/after environment gate',async()=>{
  for(const lane of ['provider','release']){

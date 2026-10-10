@@ -2,8 +2,9 @@ import {createHash} from 'node:crypto';
 import {TRAINING_REPOSITORY,TRAINING_BRANCH} from './training-github-environments.mjs';
 import {refuse} from './training-execution-contract.mjs';
 
-// Owner-controlled account reserved for Ian; not an independent execution identity.
-export const OWNER_RESERVED_ACCOUNT=Object.freeze({login:'kailuatester-del',id:340701664});
+// Owner-confirmed transfer to contractor. This is an identity reference, not a
+// default operational grant; reviewed custody policy and actual host controls remain required.
+export const TRANSFERRED_EXECUTOR_ACCOUNT=Object.freeze({login:'kailuatester-del',id:340701664});
 export const DISPATCH_WORKFLOWS=Object.freeze({provider:'step18-training-provider-workflow.yml',release:'step18-training-release-workflow.yml'});
 const hex=(value,size)=>typeof value==='string'&&new RegExp(`^[a-f0-9]{${size}}$`).test(value);
 const id=value=>typeof value==='string'&&/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(value);
@@ -16,7 +17,7 @@ export function canonical(value) {
 }
 export const dispatchHash=value=>createHash('sha256').update(canonical(value)).digest('hex');
 export function validateApprovedExecutorPolicy(policy) {
- if(!keys(policy,['protocol','account','reviewerId','humanCustodianRef','signerCustodianRef','separationEvidenceRef'])||policy.protocol!=='CREATORLOOP_APPROVED_EXECUTOR_POLICY_V1'||!keys(policy.account,['login','id'])||!Number.isSafeInteger(policy.account.id)||policy.account.id<=0||typeof policy.account.login!=='string'||!/^[A-Za-z0-9-]{1,39}$/.test(policy.account.login)||policy.account.id===OWNER_RESERVED_ACCOUNT.id||policy.account.login.toLowerCase()===OWNER_RESERVED_ACCOUNT.login||!Number.isSafeInteger(policy.reviewerId)||policy.reviewerId<=0||policy.account.id===policy.reviewerId||!reference(policy.humanCustodianRef)||!reference(policy.signerCustodianRef)||policy.humanCustodianRef===policy.signerCustodianRef||!reference(policy.separationEvidenceRef))refuse('REVIEWED_INDEPENDENT_EXECUTOR_POLICY_REQUIRED');
+ if(!keys(policy,['protocol','account','reviewerId','humanCustodianRef','signerCustodianRef','separationEvidenceRef'])||policy.protocol!=='CREATORLOOP_APPROVED_EXECUTOR_POLICY_V1'||!keys(policy.account,['login','id'])||!Number.isSafeInteger(policy.account.id)||policy.account.id<=0||typeof policy.account.login!=='string'||!/^[A-Za-z0-9-]{1,39}$/.test(policy.account.login)||!Number.isSafeInteger(policy.reviewerId)||policy.reviewerId<=0||policy.account.id===policy.reviewerId||!reference(policy.humanCustodianRef)||!reference(policy.signerCustodianRef)||policy.humanCustodianRef===policy.signerCustodianRef||!reference(policy.separationEvidenceRef))refuse('REVIEWED_INDEPENDENT_EXECUTOR_POLICY_REQUIRED');
  // References bind the contract, not proof of operational separation by themselves.
  // The private authenticated Owner approval source must corroborate this policy hash.
  return structuredClone(policy);
