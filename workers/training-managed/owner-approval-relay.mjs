@@ -10,6 +10,7 @@ export function createOwnerApprovalRelay({fetchImpl=fetch,now=()=>Math.floor(Dat
   const c=JSON.parse(env.OWNER_MAILBOX_CONFIG_JSON||'null');
   if(c?.protocol!=='CREATORLOOP_OWNER_OUTBOUND_MAILBOX_CONFIG_V1'||c.environment!=='TRAINING'||typeof c.origin!=='string'||!c.origin.startsWith('https://')||new URL(c.origin).origin!==c.origin||typeof c.issuer!=='string'||!c.issuer||!c.identityConfig||!Array.isArray(c.publicKeys)||!c.publicKeys.length||Object.keys(env).some(k=>/PRIVATE_KEY|PROVIDER_TOKEN|DEPLOY_TOKEN|CLOUDFLARE_API_TOKEN/.test(k)))refuse('OWNER_PUBLIC_ONLY_MAILBOX_CONFIG_REQUIRED');
   const controls=c.identityConfig.workloadControls;
+  if(!/^[a-f0-9]{64}$/.test(c.ownerAccessAudience||'')||c.ownerAccessAudience===c.identityConfig.accessAudience||c.ownerAccessAudience===c.identityConfig.oidcAudience)refuse('DEDICATED_OWNER_MAILBOX_AUDIENCE_REQUIRED');
   if(c.origin===c.identityConfig.gatewayOrigin||typeof c.administrationRef!=='string'||!c.administrationRef||c.administrationRef!==controls?.approvalEvidenceCustodyRef||c.administrationRef===c.identityConfig.approvedExecutor?.workloadRef)refuse('OWNER_MAILBOX_SEPARATE_CUSTODY_REQUIRED');
   await validatePublicVerifierKeys(c.publicKeys);
   const url=new URL(request.url);if(url.origin!==c.origin||url.search||request.method!=='POST'||!['/v1/read','/v1/owner/pending','/v1/owner/respond','/v1/owner/export'].includes(url.pathname))return json({error:'Owner mailbox route refused'},404);
@@ -17,7 +18,7 @@ export function createOwnerApprovalRelay({fetchImpl=fetch,now=()=>Math.floor(Dat
   const accessToken=request.headers.get('Cf-Access-Jwt-Assertion'),jobToken=request.headers.get('Authorization')?.replace(/^Bearer /,'');
   const state=env.MAILBOX_STATE.get(env.MAILBOX_STATE.idFromName('creatorloop-training-owner-mailbox-v1'));
   if(url.pathname.startsWith('/v1/owner/')){
-   const principal=await accessPrincipal(accessToken,c.identityConfig,{fetchImpl,now:now()});if(principal.role!=='owner'||principal.id!==c.identityConfig.approvedExecutor.reviewerId)refuse('OWNER_ONLY_MAILBOX_OPERATION');
+   const principal=await accessPrincipal(accessToken,{...c.identityConfig,accessAudience:c.ownerAccessAudience},{fetchImpl,now:now()});if(principal.role!=='owner'||principal.id!==c.identityConfig.approvedExecutor.reviewerId)refuse('OWNER_ONLY_MAILBOX_OPERATION');
    if(url.pathname==='/v1/owner/pending'){if(!exact(body,[]))refuse('EMPTY_OWNER_POLL_REQUIRED');return json({pending:await state.pending()});}
    if(url.pathname==='/v1/owner/export'){if(!exact(body,[]))refuse('EMPTY_OWNER_EXPORT_REQUIRED');return json(await state.exportCustody());}
    if(!exact(body,['id','jws']))refuse('EXACT_OWNER_RESPONSE_REQUIRED');
