@@ -7,12 +7,15 @@ import {createGithubDispatchTransport} from '../../scripts/lib/training-github-d
 import {createTrainingProvider} from '../../scripts/lib/creatorloop-training-provider.mjs';
 import {createTrainingTransport} from '../../scripts/lib/creatorloop-training-transport.mjs';
 import {TRAINING_TARGET,validateManifest,validateRequest,sha256,refuse} from '../../scripts/lib/training-execution-contract.mjs';
+import {isWorkloadPolicy,authorityBindingMatches,approvalProtocol} from '../../scripts/lib/training-workload-policy.mjs';
+import {refuseRuntimeManagementBindings} from './workload-controls.mjs';
 const json=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{'Content-Type':'application/json','Cache-Control':'no-store'}});
 export function createCapability({fetchImpl=fetch,now=()=>Math.floor(Date.now()/1000)}={}){
  fetchImpl=noRedirectFetch(fetchImpl);
  return {async fetch(request,env){
   try{
    const c=configuration(env),url=new URL(request.url);
+   refuseRuntimeManagementBindings(env,c);
    if(request.method!=='POST'||url.search||!['/v1/approve','/v1/dispatch','/v1/run-check','/v1/provider','/v1/custody/export'].includes(url.pathname))return json({error:'Private route refused'},404);
    const body=await boundedJson(new Response(request.body,{status:200}),32768);
    if(url.pathname==='/v1/custody/export'){
@@ -33,13 +36,15 @@ export function createCapability({fetchImpl=fetch,now=()=>Math.floor(Date.now()/
     const principal=await accessPrincipal(request.headers.get('Cf-Access-Jwt-Assertion'),c,{fetchImpl,now:now()});
     if(principal.role!=='owner'||!exact(body,['request']))refuse('OWNER_EXACT_APPROVAL_REQUIRED');
     const r=validateDispatchRequest(body.request);
+    if(isWorkloadPolicy(c.approvedExecutor)&&r.executionSha!==c.workloadControls.expectedSourceSha)refuse('WORKLOAD_REVIEWED_SOURCE_REQUIRED');
     const approval=await evidence('dispatchApproval',{request:r,requestHash:dispatchHash(r),reviewerId:principal.id,executorPolicyHash:dispatchHash(c.approvedExecutor)});
-    if(approval?.reviewerId!==principal.id||approval.requestHash!==dispatchHash(r)||approval.executorPolicyHash!==dispatchHash(c.approvedExecutor)||approval.humanCustodianRef!==c.approvedExecutor.humanCustodianRef||approval.dispatchId!==r.dispatchId||approval.decisionRef!==r.decisionRef||approval.callerId!==c.approvedExecutor.account.id||approval.callerLogin!==c.approvedExecutor.account.login||approval.expiresAt<=now())refuse('INDEPENDENT_OWNER_APPROVAL_NOT_CORROBORATED');
+    if(approval?.protocol!==approvalProtocol(c.approvedExecutor)||!authorityBindingMatches(approval,c.approvedExecutor)||approval.reviewerId!==principal.id||approval.requestHash!==dispatchHash(r)||approval.executorPolicyHash!==dispatchHash(c.approvedExecutor)||approval.dispatchId!==r.dispatchId||approval.decisionRef!==r.decisionRef||approval.callerId!==c.approvedExecutor.account.id||approval.callerLogin!==c.approvedExecutor.account.login||!Number.isInteger(approval.approvedAt)||!Number.isInteger(approval.expiresAt)||approval.approvedAt>now()||approval.expiresAt-approval.approvedAt>300||approval.expiresAt<=now())refuse('INDEPENDENT_OWNER_APPROVAL_NOT_CORROBORATED');
     return json(await state.putDecision({request:r,approval}));
    }
    if(url.pathname==='/v1/dispatch'){
     const token=request.headers.get('Cf-Access-Jwt-Assertion');
     const r=validateDispatchRequest(body);
+    if(isWorkloadPolicy(c.approvedExecutor)&&r.executionSha!==c.workloadControls.expectedSourceSha)refuse('WORKLOAD_REVIEWED_SOURCE_REQUIRED');
     const stored=await state.decision(r.dispatchId);
     if(dispatchHash(stored.request)!==dispatchHash(r))refuse('IMMUTABLE_DISPATCH_DECISION_MISMATCH');
     const decision=async()=>{
@@ -59,6 +64,7 @@ export function createCapability({fetchImpl=fetch,now=()=>Math.floor(Date.now()/
     return json(await dispatcher({request:r}));
    }
    if(!exact(body,['dispatchId','lane','executionSha']))refuse('EXACT_JOB_REQUEST_REQUIRED');
+   if(isWorkloadPolicy(c.approvedExecutor)&&body.executionSha!==c.workloadControls.expectedSourceSha)refuse('WORKLOAD_REVIEWED_SOURCE_REQUIRED');
    const token=request.headers.get('Authorization')?.replace(/^Bearer /,'');
    const job=await githubJob(token,c,body.lane,body.executionSha,{fetchImpl,now:now()});
    const stored=await state.decision(body.dispatchId);
@@ -68,12 +74,14 @@ export function createCapability({fetchImpl=fetch,now=()=>Math.floor(Date.now()/
    if(!accepted)refuse('EXACT_RETAINED_DISPATCH_RUN_REQUIRED');
    const runProof=await evidence('runApproval',{dispatchId:body.dispatchId,runId:job.runId,requestHash:dispatchHash(stored.request),executionSha:body.executionSha,executorPolicyHash:dispatchHash(c.approvedExecutor)});
    if(runProof?.dispatchId!==body.dispatchId||runProof.runId!==job.runId||runProof.executionSha!==body.executionSha||runProof.workflowFile!==DISPATCH_WORKFLOWS[body.lane]||runProof.callerId!==c.approvedExecutor.account.id||runProof.requestHash!==dispatchHash(stored.request)||runProof.executorPolicyHash!==dispatchHash(c.approvedExecutor)||runProof.appBotId!==c.appBotId||!Number.isInteger(runProof.expiresAt)||runProof.expiresAt<=now())refuse('CURRENT_INDEPENDENT_RUN_APPROVAL_REQUIRED');
+   if(isWorkloadPolicy(c.approvedExecutor)&&!authorityBindingMatches(runProof,c.approvedExecutor))refuse('CURRENT_WORKLOAD_RUN_BINDING_REQUIRED');
    if(url.pathname==='/v1/run-check')return json({dispatchId:body.dispatchId,runId:job.runId,executionSha:body.executionSha,mediatedRunVerified:true,protectedExecutionAccepted:false});
    if(body.lane!=='provider')refuse('PROVIDER_LANE_ONLY');
    const bundle=await evidence('executionBundle',{dispatchId:body.dispatchId,runId:job.runId,requestHash:dispatchHash(stored.request)});
    const m=bundle?.manifest,r=bundle?.request;
    validateManifest(m,now());validateRequest(r,m,now());
    if(m.executionSha!==body.executionSha||m.ownerDecisionRef!==stored.request.decisionRef||m.operation!==stored.request.inputs.intended_operation)refuse('EXACT_PROVIDER_RUN_OPERATION_REQUIRED');
+   if(isWorkloadPolicy(c.approvedExecutor)&&(m.executorPrincipal!==c.approvedExecutor.workloadRef||m.signerPrincipal!==c.approvedExecutor.signerCustodianRef))refuse('EXACT_WORKLOAD_AND_MAC_PRINCIPALS_REQUIRED');
    await state.claimJob({key:dispatchHash({requestId:r.id,requestVersion:r.requestVersion,operation:r.operation}),dispatchId:body.dispatchId,expiresAt:Math.min(job.expiresAt,m.expiresAt)});
    const append=async(outcome)=>{
     const retained=await state.retainedEvents(body.dispatchId),last=retained.at(-1);

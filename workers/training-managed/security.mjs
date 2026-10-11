@@ -1,6 +1,8 @@
 import {dispatchHash,validateApprovedExecutorPolicy,TRANSFERRED_EXECUTOR_ACCOUNT,DISPATCH_WORKFLOWS} from '../../scripts/lib/training-mediated-dispatcher.mjs';
 import {TRAINING_REPOSITORY,TRAINING_BRANCH} from '../../scripts/lib/training-github-environments.mjs';
 import {refuse} from '../../scripts/lib/training-execution-contract.mjs';
+import {isWorkloadPolicy} from '../../scripts/lib/training-workload-policy.mjs';
+import {validateWorkloadControls} from './workload-controls.mjs';
 export const bytes=s=>Uint8Array.from(atob(s.replace(/-/g,'+').replace(/_/g,'/').padEnd(Math.ceil(s.length/4)*4,'=')),c=>c.charCodeAt(0));
 export const b64=buffer=>btoa(String.fromCharCode(...new Uint8Array(buffer))).replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_');
 const enc=new TextEncoder();
@@ -20,14 +22,21 @@ export async function boundedJson(response,max=65536){
 }
 export function configuration(env){
  const c=JSON.parse(env.MANAGED_CONFIG_JSON||'null');
- if(c?.protocol!=='CREATORLOOP_MANAGED_TRAINING_V1'||c.environment!=='TRAINING'||!/^https:\/\/[a-z0-9-]+\.cloudflareaccess\.com$/.test(c.accessIssuer||'')||typeof c.accessAudience!=='string'||!c.accessAudience||!Array.isArray(c.identities)||c.identities.length!==2||!Number.isSafeInteger(c.appId)||c.appId<=0||!Number.isSafeInteger(c.installationId)||c.installationId<=0||!Number.isSafeInteger(c.repositoryId)||c.repositoryId<=0||!Number.isSafeInteger(c.ownerId)||c.ownerId<=0||!Number.isSafeInteger(c.appBotId)||c.appBotId<=0||typeof c.appBotLogin!=='string'||!c.appBotLogin.endsWith('[bot]')||typeof c.gatewayOrigin!=='string'||new URL(c.gatewayOrigin).origin!==c.gatewayOrigin||!c.gatewayOrigin.startsWith('https://'))refuse('EXACT_MANAGED_COMMISSIONING_CONFIG_REQUIRED');
+ if(!['CREATORLOOP_MANAGED_TRAINING_V1','CREATORLOOP_MANAGED_TRAINING_V2'].includes(c?.protocol)||c.environment!=='TRAINING'||!/^https:\/\/[a-z0-9-]+\.cloudflareaccess\.com$/.test(c.accessIssuer||'')||typeof c.accessAudience!=='string'||!c.accessAudience||!Array.isArray(c.identities)||c.identities.length!==2||!Number.isSafeInteger(c.appId)||c.appId<=0||!Number.isSafeInteger(c.installationId)||c.installationId<=0||!Number.isSafeInteger(c.repositoryId)||c.repositoryId<=0||!Number.isSafeInteger(c.ownerId)||c.ownerId<=0||!Number.isSafeInteger(c.appBotId)||c.appBotId<=0||typeof c.appBotLogin!=='string'||!c.appBotLogin.endsWith('[bot]')||typeof c.gatewayOrigin!=='string'||new URL(c.gatewayOrigin).origin!==c.gatewayOrigin||!c.gatewayOrigin.startsWith('https://'))refuse('EXACT_MANAGED_COMMISSIONING_CONFIG_REQUIRED');
  validateApprovedExecutorPolicy(c.approvedExecutor);
+ if(c.protocol==='CREATORLOOP_MANAGED_TRAINING_V2'){
+  validateWorkloadControls(c.workloadControls,c.approvedExecutor);
+  const owner=c.identities.find(i=>i.role==='owner'),service=c.identities.find(i=>i.role==='executor');
+  if(!isWorkloadPolicy(c.approvedExecutor)||c.approvedExecutor.account.id!==c.appBotId||c.approvedExecutor.account.login!==c.appBotLogin||!exact(owner,['role','subject','email','githubId'])||typeof owner.subject!=='string'||!owner.subject||typeof owner.email!=='string'||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(owner.email)||owner.email!==owner.email.toLowerCase()||owner.githubId!==c.approvedExecutor.reviewerId||!exact(service,['role','type','clientId','githubId'])||service.type!=='access-service-token'||typeof service.clientId!=='string'||!/^[a-f0-9]{32}\.access$/.test(service.clientId)||service.githubId!==c.appBotId||owner.subject===service.clientId)refuse('EXACT_CONSTRAINED_WORKLOAD_IDENTITY_REQUIRED');
+ }else{
+ if(isWorkloadPolicy(c.approvedExecutor))refuse('WORKLOAD_REQUIRES_EXPLICIT_V2_CONFIG');
  if(c.approvedExecutor.account.id!==TRANSFERRED_EXECUTOR_ACCOUNT.id||c.approvedExecutor.account.login!==TRANSFERRED_EXECUTOR_ACCOUNT.login)refuse('EXACT_TRANSFERRED_EXECUTOR_REQUIRED');
  for(const role of ['owner','executor']){
   const identity=c.identities.find(i=>i.role===role);
   if(!identity||typeof identity.subject!=='string'||!identity.subject||typeof identity.email!=='string'||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identity.email)||identity.email!==identity.email.toLowerCase()||identity.githubId!==(role==='owner'?c.approvedExecutor.reviewerId:c.approvedExecutor.account.id))refuse('ACTUAL_MANAGED_IDENTITY_MAPPING_REQUIRED');
  }
  if(c.identities[0].subject===c.identities[1].subject||c.identities[0].email===c.identities[1].email)refuse('MANAGED_IDENTITY_SEPARATION_REQUIRED');
+ }
  if(typeof c.oidcAudience!=='string'||!c.oidcAudience||c.oidcAudience===c.accessAudience)refuse('DEDICATED_JOB_AUDIENCE_REQUIRED');
  return c;
 }
@@ -45,6 +54,12 @@ export async function verifyJwt(token,{issuer,audience,jwks,now}){
 }
 export async function accessPrincipal(token,c,{fetchImpl=fetch,now=Math.floor(Date.now()/1000)}={}){
  const payload=await verifyJwt(token,{issuer:c.accessIssuer,audience:c.accessAudience,jwks:await keys(c.accessIssuer+'/cdn-cgi/access/certs',fetchImpl),now});
+ if(isWorkloadPolicy(c.approvedExecutor)){
+  const service=c.identities.find(i=>i.role==='executor'),owner=c.identities.find(i=>i.role==='owner');
+  if(payload.type==='app'&&payload.sub===''&&!Object.hasOwn(payload,'email')&&payload.common_name===service.clientId)return {role:'executor',id:c.approvedExecutor.account.id,login:c.approvedExecutor.account.login,authenticationRef:'access-service:'+dispatchHash({clientId:payload.common_name,iat:payload.iat}),authenticatedAt:now};
+  if(payload.type!=='app'||Object.hasOwn(payload,'common_name')||payload.sub!==owner.subject||payload.email!==owner.email)refuse('EXACT_OWNER_OR_WORKLOAD_TOKEN_REQUIRED');
+  return {role:'owner',id:owner.githubId,authenticationRef:'access:'+dispatchHash({sub:payload.sub,iat:payload.iat}),authenticatedAt:now};
+ }
  const match=c.identities.find(i=>i.subject===payload.sub&&i.email===payload.email);
  if(!match)refuse('INDIVIDUAL_MANAGED_IDENTITY_REQUIRED');
  return {role:match.role,id:match.githubId,login:match.role==='executor'?c.approvedExecutor.account.login:undefined,authenticationRef:'access:'+dispatchHash({sub:payload.sub,iat:payload.iat}),authenticatedAt:now};
@@ -63,6 +78,7 @@ export async function githubJob(token,c,lane,executionSha,{fetchImpl=fetch,now=M
 export async function independentEvidence(c,purpose,query,{fetchImpl=fetch,now=Math.floor(Date.now()/1000),identityToken,identityType}={}){
  const port=c.evidencePorts?.[purpose];
  if(!port||typeof port.url!=='string'||!port.url.startsWith('https://')||new URL(port.url).username||new URL(port.url).password||!Array.isArray(port.publicKeys)||!port.publicKeys.length||typeof port.issuer!=='string'||!port.issuer)refuse('ACTUAL_INDEPENDENT_EVIDENCE_PORT_REQUIRED');
+ if(isWorkloadPolicy(c.approvedExecutor)&&(port.administrationRef!==c.workloadControls.approvalEvidenceCustodyRef||new URL(port.url).origin===c.gatewayOrigin||port.administrationRef===c.approvedExecutor.workloadRef))refuse('OWNER_SEPARATE_EVIDENCE_AUTHORITY_REQUIRED');
  const sensitive=!['commissioning','runApproval','runtime'].includes(purpose);
  if(sensitive&&(typeof identityToken!=='string'||!identityToken||!['access','oidc'].includes(identityType)))refuse('AUTHENTICATED_INDEPENDENT_READ_REQUIRED');
  const nonce=crypto.randomUUID(),queryHash=dispatchHash(query);

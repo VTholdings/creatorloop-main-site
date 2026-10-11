@@ -3,6 +3,7 @@ import {lstatSync,realpathSync,openSync,closeSync,chmodSync} from 'node:fs';
 import {resolve,dirname} from 'node:path';
 import {dispatchHash} from './training-mediated-dispatcher.mjs';
 import {refuse} from './training-execution-contract.mjs';
+import {auditProjectionFields} from './training-workload-policy.mjs';
 
 // Explicit private-store provisioning only. No import side effects or default path.
 // SQLite transactions enforce durable uniqueness; hash links detect accidental changes,
@@ -31,8 +32,8 @@ export function openDispatchAuditStore(path) {
   }),
   appendAudit:async record=>transaction(()=>{
    const {recordHash,...projection}=record||{};
-   const fields=['protocol','dispatchId','decisionRef','requestHash','bodyHash','workflowFile','branch','executionSha','callerLogin','callerId','humanCustodianRef','claimRef','observedAt','outcome','previousHash',...(Object.hasOwn(projection,'runId')?['runId']:[])];
-   if(Object.keys(projection).sort().join('|')!==fields.sort().join('|')||projection.protocol!=='CREATORLOOP_MEDIATED_DISPATCH_AUDIT_V1'||recordHash!==dispatchHash(projection))refuse('EXACT_HASHED_DISPATCH_AUDIT_REQUIRED');
+   const fields=auditProjectionFields(projection);
+   if(Object.keys(projection).sort().join('|')!==fields.sort().join('|')||recordHash!==dispatchHash(projection))refuse('EXACT_HASHED_DISPATCH_AUDIT_REQUIRED');
    const claim=db.prepare('SELECT * FROM dispatch_claims WHERE dispatch_id=?').get(projection.dispatchId);
    if(!claim||claim.request_hash!==projection.requestHash||claim.decision_ref!==projection.decisionRef)refuse('DURABLE_AUDIT_CLAIM_BINDING_REQUIRED');
    const previous=db.prepare('SELECT record_hash FROM dispatch_audit WHERE dispatch_id=? ORDER BY sequence DESC LIMIT 1').get(projection.dispatchId);

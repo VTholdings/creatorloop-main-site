@@ -1,6 +1,7 @@
 import {createHash} from 'node:crypto';
 import {TRAINING_REPOSITORY,TRAINING_BRANCH} from './training-github-environments.mjs';
 import {refuse} from './training-execution-contract.mjs';
+import {isWorkloadPolicy,validateWorkloadPolicy,executorAuthorityBinding,authorityBindingMatches,approvalProtocol,auditProtocol} from './training-workload-policy.mjs';
 
 // Owner-confirmed transfer to contractor. This is an identity reference, not a
 // default operational grant; reviewed custody policy and actual host controls remain required.
@@ -17,6 +18,7 @@ export function canonical(value) {
 }
 export const dispatchHash=value=>createHash('sha256').update(canonical(value)).digest('hex');
 export function validateApprovedExecutorPolicy(policy) {
+ if(isWorkloadPolicy(policy))return validateWorkloadPolicy(policy);
  if(!keys(policy,['protocol','account','reviewerId','humanCustodianRef','signerCustodianRef','separationEvidenceRef'])||policy.protocol!=='CREATORLOOP_APPROVED_EXECUTOR_POLICY_V1'||!keys(policy.account,['login','id'])||!Number.isSafeInteger(policy.account.id)||policy.account.id<=0||typeof policy.account.login!=='string'||!/^[A-Za-z0-9-]{1,39}$/.test(policy.account.login)||!Number.isSafeInteger(policy.reviewerId)||policy.reviewerId<=0||policy.account.id===policy.reviewerId||!reference(policy.humanCustodianRef)||!reference(policy.signerCustodianRef)||policy.humanCustodianRef===policy.signerCustodianRef||!reference(policy.separationEvidenceRef))refuse('REVIEWED_INDEPENDENT_EXECUTOR_POLICY_REQUIRED');
  // References bind the contract, not proof of operational separation by themselves.
  // The private authenticated Owner approval source must corroborate this policy hash.
@@ -31,8 +33,8 @@ export function validateDispatchRequest(request) {
  return structuredClone(request);
 }
 function approvalValid(approval,request,principal,executorPolicy,now) {
- if(approval?.executorPolicyHash!==dispatchHash(executorPolicy)||approval.humanCustodianRef!==executorPolicy.humanCustodianRef||approval.reviewerId!==executorPolicy.reviewerId)refuse('EXECUTOR_CUSTODY_POLICY_NOT_CORROBORATED');
- if(!approval||approval.protocol!=='CREATORLOOP_MEDIATED_DISPATCH_APPROVAL_V1'||approval.repository!==TRAINING_REPOSITORY||approval.branch!==TRAINING_BRANCH||approval.workflowFile!==DISPATCH_WORKFLOWS[request.lane]||approval.dispatchId!==request.dispatchId||approval.decisionRef!==request.decisionRef||approval.requestHash!==dispatchHash(request)||approval.executionSha!==request.executionSha||!hex(approval.workflowSha256,64)||approval.callerId!==principal.id||approval.callerLogin!==principal.login||approval.reviewerId!==Number(request.inputs.owner_reviewer_id)||approval.reviewerId===principal.id||!reference(approval.humanCustodianRef)||!Number.isInteger(approval.approvedAt)||!Number.isInteger(approval.expiresAt)||approval.approvedAt>now||approval.expiresAt<=now||approval.expiresAt-approval.approvedAt>300)refuse('CURRENT_EXACT_OWNER_DISPATCH_APPROVAL_REQUIRED');
+ if(approval?.executorPolicyHash!==dispatchHash(executorPolicy)||!authorityBindingMatches(approval,executorPolicy)||approval.reviewerId!==executorPolicy.reviewerId)refuse('EXECUTOR_CUSTODY_POLICY_NOT_CORROBORATED');
+ if(!approval||approval.protocol!==approvalProtocol(executorPolicy)||approval.repository!==TRAINING_REPOSITORY||approval.branch!==TRAINING_BRANCH||approval.workflowFile!==DISPATCH_WORKFLOWS[request.lane]||approval.dispatchId!==request.dispatchId||approval.decisionRef!==request.decisionRef||approval.requestHash!==dispatchHash(request)||approval.executionSha!==request.executionSha||!hex(approval.workflowSha256,64)||approval.callerId!==principal.id||approval.callerLogin!==principal.login||approval.reviewerId!==Number(request.inputs.owner_reviewer_id)||approval.reviewerId===principal.id||!Number.isInteger(approval.approvedAt)||!Number.isInteger(approval.expiresAt)||approval.approvedAt>now||approval.expiresAt<=now||approval.expiresAt-approval.approvedAt>300)refuse('CURRENT_EXACT_OWNER_DISPATCH_APPROVAL_REQUIRED');
  return approval;
 }
 export function createMediatedDispatcher({approvedExecutor,authenticateCaller,verifyOwnerDecision,readGithub,dispatchGithub,claimOnce,appendAudit,now=()=>Math.floor(Date.now()/1000)}) {
@@ -76,7 +78,7 @@ export function createMediatedDispatcher({approvedExecutor,authenticateCaller,ve
   if(!reservation||reservation.dispatchId!==r.dispatchId||reservation.requestHash!==binding.requestHash||!reference(reservation.claimRef))refuse('DURABLE_ONE_TIME_DISPATCH_CLAIM_REQUIRED');
   let previousHash=null;
   const audit=async(outcome,extra={})=>{
-   const record={protocol:'CREATORLOOP_MEDIATED_DISPATCH_AUDIT_V1',dispatchId:r.dispatchId,decisionRef:r.decisionRef,requestHash:binding.requestHash,bodyHash:binding.bodyHash,workflowFile:DISPATCH_WORKFLOWS[r.lane],branch:TRAINING_BRANCH,executionSha:r.executionSha,callerLogin:principal.login,callerId:principal.id,humanCustodianRef:first.humanCustodianRef,claimRef:reservation.claimRef,observedAt:now(),outcome,previousHash,...extra};
+   const record={protocol:auditProtocol(executorPolicy),dispatchId:r.dispatchId,decisionRef:r.decisionRef,requestHash:binding.requestHash,bodyHash:binding.bodyHash,workflowFile:DISPATCH_WORKFLOWS[r.lane],branch:TRAINING_BRANCH,executionSha:r.executionSha,callerLogin:principal.login,callerId:principal.id,...executorAuthorityBinding(executorPolicy),claimRef:reservation.claimRef,observedAt:now(),outcome,previousHash,...extra};
    const recordHash=dispatchHash(record);let ack;
    try{ack=await appendAudit({...record,recordHash});}catch{refuse('DURABLE_DISPATCH_AUDIT_FAILED_NO_RETRY');}
    if(ack?.recordHash!==recordHash||!reference(ack.auditRef))refuse('DURABLE_DISPATCH_AUDIT_ACK_REQUIRED_NO_RETRY');

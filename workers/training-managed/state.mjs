@@ -1,5 +1,6 @@
 import {dispatchHash} from '../../scripts/lib/training-mediated-dispatcher.mjs';
 import {refuse} from '../../scripts/lib/training-execution-contract.mjs';
+import {auditProjectionFields} from '../../scripts/lib/training-workload-policy.mjs';
 
 export function createManagedState({sql,transactionSync,bucket,now=()=>Math.floor(Date.now()/1000)}) {
  if(!sql||typeof transactionSync!=='function'||typeof bucket?.put!=='function')refuse('MANAGED_DURABLE_STORAGE_REQUIRED');
@@ -51,8 +52,8 @@ export function createManagedState({sql,transactionSync,bucket,now=()=>Math.floo
   },
   async appendAudit(record){
    const {recordHash,...projection}=record||{};
-   const fields=['protocol','dispatchId','decisionRef','requestHash','bodyHash','workflowFile','branch','executionSha','callerLogin','callerId','humanCustodianRef','claimRef','observedAt','outcome','previousHash',...(Object.hasOwn(projection,'runId')?['runId']:[])];
-   if(Object.keys(projection).sort().join('|')!==fields.sort().join('|')||projection.protocol!=='CREATORLOOP_MEDIATED_DISPATCH_AUDIT_V1'||recordHash!==dispatchHash(projection)||!Number.isInteger(projection.observedAt)||projection.observedAt>now())refuse('EXACT_SANITIZED_AUDIT_REQUIRED');
+   const fields=auditProjectionFields(projection);
+   if(Object.keys(projection).sort().join('|')!==fields.sort().join('|')||recordHash!==dispatchHash(projection)||!Number.isInteger(projection.observedAt)||projection.observedAt>now())refuse('EXACT_SANITIZED_AUDIT_REQUIRED');
    const sequence=transactionSync(()=>{
     const claim=rows('SELECT * FROM claims WHERE dispatch_id=?',projection.dispatchId)[0];
     if(!claim||claim.request_hash!==projection.requestHash||claim.decision_ref!==projection.decisionRef)refuse('MANAGED_AUDIT_CLAIM_MISMATCH');
