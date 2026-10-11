@@ -1,0 +1,49 @@
+{
+  "accountId": "2a3b96a0b37850cd03107131baa66b6d",
+  "bundleBytes": 45156,
+  "bundleSha256": "38e59684938369ab0c6ccede0ad633607fc4ee05abbc06c1c7aec04977c3fe08",
+  "noDataWrite": true,
+  "noInvocation": true,
+  "noSecrets": true,
+  "observedAt": "2026-10-11T04:28:03.918Z",
+  "protocol": "CREATORLOOP_OWNER_MAILBOX_BOOTSTRAP_V1",
+  "results": [
+    {
+      "errors": [],
+      "operation": "AUTHORIZED_INITIAL_FAIL_CLOSED_UPLOAD",
+      "result": {
+        "created_on": "2026-10-11T04:28:02.269616Z",
+        "deployment_id": "829c4ba9eeda4fb98ffa35d2b0a874b2",
+        "etag": "704e61955093a70d81686667b022f5b4bc56fcc5dcf79c45e577064724ef6ccb",
+        "handlers": [
+          "fetch"
+        ],
+        "id": "creatorloop-training-owner-approval-mailbox",
+        "migration_tag": "training-owner-approval-mailbox-v1",
+        "modified_on": "2026-10-11T04:28:02.269616Z",
+        "named_handlers": [
+          {
+            "handlers": [
+              "class"
+            ],
+            "name": "OwnerApprovalMailbox"
+          }
+        ]
+      },
+      "status": 200,
+      "success": true
+    },
+    {
+      "errors": [],
+      "operation": "DISABLE_WORKERS_DEV_AND_PREVIEWS",
+      "result": {
+        "enabled": false,
+        "previews_enabled": false
+      },
+      "status": 200,
+      "success": true
+    }
+  ],
+  "sourceSha": "006a5a1ab86d8d750ea6f6782c42955a21500a53",
+  "worker": "creatorloop-training-owner-approval-mailbox"
+}

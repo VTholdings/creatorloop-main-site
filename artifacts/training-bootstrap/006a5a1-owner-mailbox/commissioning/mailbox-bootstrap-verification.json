@@ -1,0 +1,64 @@
+{
+  "protocol": "CREATORLOOP_VERIFIED_OWNER_MAILBOX_BOOTSTRAP_V1",
+  "outcome": "PASS",
+  "scope": "Initial active but fail-closed registration only; not live approval activation or Step 18 acceptance",
+  "ownerAuthorization": "2026-10-10T18:26:50-10:00 exact TRAINING-only initial deployment",
+  "accountId": "2a3b96a0b37850cd03107131baa66b6d",
+  "worker": "creatorloop-training-owner-approval-mailbox",
+  "sourceSha": "006a5a1ab86d8d750ea6f6782c42955a21500a53",
+  "createdOn": "2026-10-11T04:28:02.269616Z",
+  "versionId": "829c4ba9-eeda-4fb9-8ffa-35d2b0a874b2",
+  "versionNumber": 1,
+  "deploymentId": "9dfc3ff1-baaf-4e10-b1c8-50256097799c",
+  "percentage": 100,
+  "executionObservedAt": "2026-10-11T04:28:03.918Z",
+  "verificationWindowUTC": ["2026-10-11T04:28:43.201Z", "2026-10-11T04:29:06.811Z"],
+  "module": {
+    "name": "owner-approval.js",
+    "bytes": 45156,
+    "sha256": "38e59684938369ab0c6ccede0ad633607fc4ee05abbc06c1c7aec04977c3fe08",
+    "matchesApproved": true,
+    "providerEtag": "704e61955093a70d81686667b022f5b4bc56fcc5dcf79c45e577064724ef6ccb",
+    "note": "Hash verified over exact named module after removal of HTTP multipart framing. Provider ETag is not module SHA256."
+  },
+  "compatibilityDate": "2025-10-08",
+  "compatibilityFlags": ["nodejs_compat"],
+  "migrationTag": "training-owner-approval-mailbox-v1",
+  "bindings": [
+    {"name": "MAILBOX_STATE", "type": "durable_object_namespace", "class_name": "OwnerApprovalMailbox", "namespace_id": "49d93c4da2f94ec59c9c0e9c95ad0345"},
+    {"name": "OWNER_MAILBOX_CONFIG_JSON", "type": "plain_text", "text": "{}"}
+  ],
+  "durableObject": {
+    "namespaceId": "49d93c4da2f94ec59c9c0e9c95ad0345",
+    "name": "creatorloop-training-owner-approval-mailbox_OwnerApprovalMailbox",
+    "class": "OwnerApprovalMailbox",
+    "useSQLite": true,
+    "instanceCreatedOrInvoked": false
+  },
+  "privateAccess": {
+    "workersDevEnabled": false,
+    "previewUrlsEnabled": false,
+    "versionHasPreview": false,
+    "customDomainCount": 0,
+    "matchingZoneRouteCount": 0,
+    "zoneIdsChecked": ["752d0295a15ee275d9c2e3fd3f6fc2bc", "e1966184e1f6ee609c6c8b4b94a8125c", "719e550387ee15a57abe651d72415c72"],
+    "allRouteReadsSucceeded": true
+  },
+  "secretBindingCount": 0,
+  "tailConsumers": [],
+  "logpush": false,
+  "mutationOperations": [
+    {"method": "PUT", "operation": "INITIAL_FAIL_CLOSED_UPLOAD", "status": 200, "success": true},
+    {"method": "POST", "operation": "DISABLE_WORKERS_DEV_AND_PREVIEWS", "status": 200, "success": true}
+  ],
+  "readbackDiagnostic": "One unsupported content-path GET returned 405. Corrected to documented GET script path during the same verification phase. No runtime invocation or mutation retry occurred.",
+  "holdsPreserved": {
+    "noInvocation": true,
+    "noApprovalOrExecutionDataWrite": true,
+    "noKeyOrCredentialProvisioning": true,
+    "noAccessPolicyOrPublicHostname": true,
+    "noExistingWorkerR2OrMacSignerChange": true,
+    "noAdmissionProtectedMergeOrProductionChange": true
+  },
+  "nextPrerequisite": "Actual Owner-approved relay HTTPS origin and identity/trust configuration, separate effective deploy control and Mac-only private observer/evidence signing ports. No endpoint or public key provisioned by this bootstrap."
+}
