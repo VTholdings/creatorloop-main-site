@@ -1,0 +1,36 @@
+{
+  "protocol": "CREATORLOOP_TRAINING_R2_BUCKET_VERIFICATION_V1",
+  "authorization": "Owner October 10 2026 17:13 HST; exact empty-bucket creation only",
+  "accountId": "2a3b96a0b37850cd03107131baa66b6d",
+  "preflight": {"status": 200, "exactMatchingBuckets": 0},
+  "creation": {
+    "status": 200,
+    "success": true,
+    "requestBody": {"name": "creatorloop-training-execution-evidence", "storageClass": "Standard"},
+    "locationHintSupplied": false
+  },
+  "observedAt": "2026-10-11T03:14:45.874Z",
+  "bucket": {
+    "name": "creatorloop-training-execution-evidence",
+    "creation_date": "2026-10-11T03:14:17.525Z",
+    "location": "EEUR",
+    "storage_class": "Standard",
+    "jurisdiction": "default"
+  },
+  "publicAccess": {
+    "managedDomainEnabled": false,
+    "customDomainCount": 0,
+    "enabledCustomDomainCount": 0
+  },
+  "contents": {"returnedObjectCount": 0, "isTruncated": null, "cursorPresent": false},
+  "allReadsSuccessful": true,
+  "verified": true,
+  "outcome": "PASS",
+  "limits": {
+    "noDataUploaded": true,
+    "noRetentionConfigured": true,
+    "noSecretsInstalled": true,
+    "noWorkersDeployed": true,
+    "noProtectedAdmissionOrMerge": true
+  }
+}

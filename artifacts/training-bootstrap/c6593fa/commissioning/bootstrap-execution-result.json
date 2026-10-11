@@ -1,0 +1,85 @@
+{
+  "accountId": "2a3b96a0b37850cd03107131baa66b6d",
+  "custodyBytesSha": "3da0bd3699969b6bf282729419a046da07ecf0cb",
+  "observedAt": "2026-10-11T03:42:05.535Z",
+  "protocol": "CREATORLOOP_AUTHORIZED_PRIVATE_BOOTSTRAP_V1",
+  "readbackPerformed": false,
+  "results": [
+    {
+      "bundleSha256": "4d9e3ac0849a5bbf24b8eb55081aeaf5d15e430cd8cbbe3e1b01e4c93dc85e9d",
+      "errors": [],
+      "operation": "AUTHORIZED_INITIAL_FAIL_CLOSED_UPLOAD",
+      "result": {
+        "created_on": "2026-10-11T03:42:03.446355Z",
+        "deployment_id": "82084e3fddbd483d861a40a9068c375b",
+        "etag": "3d4dd61e1c5659f8f579b12a4323d1411bb00ee2fa4e6f69cd9078d18f9fb20f",
+        "handlers": [
+          "fetch"
+        ],
+        "id": "creatorloop-training-execution-capability",
+        "migration_tag": "training-execution-state-v1",
+        "modified_on": "2026-10-11T03:42:03.446355Z",
+        "named_handlers": [
+          {
+            "handlers": [
+              "class"
+            ],
+            "name": "TrainingExecutionState"
+          }
+        ]
+      },
+      "status": 200,
+      "success": true,
+      "worker": "creatorloop-training-execution-capability"
+    },
+    {
+      "errors": [],
+      "operation": "DISABLE_WORKERS_DEV_AND_PREVIEWS",
+      "result": {
+        "enabled": false,
+        "previews_enabled": false
+      },
+      "status": 200,
+      "success": true,
+      "worker": "creatorloop-training-execution-capability"
+    },
+    {
+      "bundleSha256": "935e1dd202fd5081ef75e406318d2c59cc493c282affa0082194c39afa32dc19",
+      "errors": [],
+      "operation": "AUTHORIZED_INITIAL_FAIL_CLOSED_UPLOAD",
+      "result": {
+        "created_on": "2026-10-11T03:42:04.768929Z",
+        "deployment_id": "06e92da667ea4dcba3369f9f47516065",
+        "etag": "06af0eb1de77d43bbcaa22ad8de1d6974305b394add163d5d92c9fc49f3a024b",
+        "handlers": [
+          "fetch"
+        ],
+        "id": "creatorloop-training-execution-gateway",
+        "modified_on": "2026-10-11T03:42:04.768929Z",
+        "named_handlers": [
+          {
+            "handlers": [
+              "class"
+            ],
+            "name": "createGateway"
+          }
+        ]
+      },
+      "status": 200,
+      "success": true,
+      "worker": "creatorloop-training-execution-gateway"
+    },
+    {
+      "errors": [],
+      "operation": "DISABLE_WORKERS_DEV_AND_PREVIEWS",
+      "result": {
+        "enabled": false,
+        "previews_enabled": false
+      },
+      "status": 200,
+      "success": true,
+      "worker": "creatorloop-training-execution-gateway"
+    }
+  ],
+  "sourceSha": "c6593fa363c82e27e45e083ca79935898dfc625e"
+}

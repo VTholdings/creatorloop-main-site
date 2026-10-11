@@ -1,0 +1,90 @@
+{
+  "protocol": "CREATORLOOP_VERIFIED_PRIVATE_BOOTSTRAP_V1",
+  "outcome": "PASS",
+  "scope": "Initial private fail-closed registration only; not operational Step 18 acceptance",
+  "ownerAuthorization": "2026-10-10 17:28 HST exact bootstrap operations",
+  "accountId": "2a3b96a0b37850cd03107131baa66b6d",
+  "sourceSha": "c6593fa363c82e27e45e083ca79935898dfc625e",
+  "vtCustodyBytesCommit": "3da0bd3699969b6bf282729419a046da07ecf0cb",
+  "vtCustodyBytesBranch": "manus/step18-bootstrap-bytes-c6593fa",
+  "executionObservedAt": "2026-10-11T03:42:05.535Z",
+  "readbackWindowUTC": ["2026-10-11T03:42:52.671Z", "2026-10-11T03:43:58.973Z"],
+  "workers": [
+    {
+      "name": "creatorloop-training-execution-capability",
+      "createdOn": "2026-10-11T03:42:03.446355Z",
+      "versionId": "82084e3f-ddbd-483d-861a-40a9068c375b",
+      "deploymentId": "cfdfb195-2c75-4254-9512-a37301b25e2e",
+      "percentage": 100,
+      "sourceSha256": "4d9e3ac0849a5bbf24b8eb55081aeaf5d15e430cd8cbbe3e1b01e4c93dc85e9d",
+      "moduleBytes": 110262,
+      "sourceMatchesApproved": true,
+      "providerEtag": "3d4dd61e1c5659f8f579b12a4323d1411bb00ee2fa4e6f69cd9078d18f9fb20f",
+      "compatibilityDate": "2025-10-08",
+      "compatibilityFlags": ["nodejs_compat"],
+      "migrationTag": "training-execution-state-v1",
+      "bindings": [
+        {"name": "MANAGED_CONFIG_JSON", "type": "plain_text", "text": "{}"},
+        {"name": "WORKER_VERSION_METADATA", "type": "version_metadata"},
+        {"name": "STATE", "type": "durable_object_namespace", "class_name": "TrainingExecutionState", "namespace_id": "e50fca7a2c6948e48c56441be8066edb"},
+        {"name": "EVIDENCE", "type": "r2_bucket", "bucket_name": "creatorloop-training-execution-evidence"}
+      ],
+      "workersDevEnabled": false,
+      "previewUrlsEnabled": false,
+      "customDomainCount": 0,
+      "secretBindingCount": 0,
+      "tailConsumers": [],
+      "logpush": false
+    },
+    {
+      "name": "creatorloop-training-execution-gateway",
+      "createdOn": "2026-10-11T03:42:04.768929Z",
+      "versionId": "06e92da6-67ea-4dcb-a336-9f9f47516065",
+      "deploymentId": "6b76df24-5eb3-4a89-8437-5eb8030c87e1",
+      "percentage": 100,
+      "sourceSha256": "935e1dd202fd5081ef75e406318d2c59cc493c282affa0082194c39afa32dc19",
+      "moduleBytes": 44681,
+      "sourceMatchesApproved": true,
+      "providerEtag": "06af0eb1de77d43bbcaa22ad8de1d6974305b394add163d5d92c9fc49f3a024b",
+      "compatibilityDate": "2025-10-08",
+      "compatibilityFlags": ["nodejs_compat"],
+      "bindings": [
+        {"name": "MANAGED_CONFIG_JSON", "type": "plain_text", "text": "{}"},
+        {"name": "CAPABILITY", "type": "service", "service": "creatorloop-training-execution-capability", "environment": "production"}
+      ],
+      "serviceEnvironmentNote": "Cloudflare uses production as the default service slot label; target is exclusively the new TRAINING-named capability Worker, not the production Console.",
+      "workersDevEnabled": false,
+      "previewUrlsEnabled": false,
+      "customDomainCount": 0,
+      "secretBindingCount": 0,
+      "tailConsumers": [],
+      "logpush": false
+    }
+  ],
+  "durableObject": {
+    "namespaceId": "e50fca7a2c6948e48c56441be8066edb",
+    "name": "creatorloop-training-execution-capability_TrainingExecutionState",
+    "script": "creatorloop-training-execution-capability",
+    "class": "TrainingExecutionState",
+    "useSQLite": true,
+    "instanceCreatedOrInvoked": false
+  },
+  "routeReadback": {
+    "allExactAccountZonesChecked": true,
+    "zoneIds": ["752d0295a15ee275d9c2e3fd3f6fc2bc", "e1966184e1f6ee609c6c8b4b94a8125c", "719e550387ee15a57abe651d72415c72"],
+    "matchingZoneRoutes": 0,
+    "allReadsSucceeded": true
+  },
+  "sourceVerificationNote": "Content download uses HTTP multipart framing. Hash of the envelope is not a module hash; extracting only the named module bytes produced exact approved hashes for both Workers. No code change occurred.",
+  "executionLimits": {
+    "noWorkerOrDOInvocation": true,
+    "noExecutionDataWrite": true,
+    "noR2UploadOrRetentionChange": true,
+    "noSecretOrKeyProvisioning": true,
+    "noAccessPolicyOrDNSChange": true,
+    "noConsoleDatabaseMigration": true,
+    "noGitHubProtectedMerge": true,
+    "noAdmissionOrProductionChange": true
+  },
+  "transportNote": "Initial transfer attempts failed before mutations. Configured official MCP CLI input-file transfer delivered exact approved multipart bytes; four authorized mutation operations each succeeded once. No failed mutation was retried. Temporary noncredential one-use transport was closed. VT repository retains byte copies independently of Cloudflare."
+}
