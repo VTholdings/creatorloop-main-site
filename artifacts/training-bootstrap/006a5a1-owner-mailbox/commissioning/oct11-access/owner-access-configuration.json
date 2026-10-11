@@ -1,0 +1,56 @@
+{
+  "protocol": "CREATORLOOP_OWNER_MAILBOX_ACCESS_PREPARATION_V1",
+  "executable": false,
+  "accountId": "2a3b96a0b37850cd03107131baa66b6d",
+  "application": {
+    "name": "CreatorLoop TRAINING Owner Approval",
+    "type": "self_hosted",
+    "domain": "approval-training.creatorloop.net/v1/owner/*",
+    "allowed_idps": [
+      "3603807b-f1a4-4bbc-8524-f091bcbbb921"
+    ],
+    "auto_redirect_to_identity": true,
+    "allow_authenticate_via_warp": false,
+    "app_launcher_visible": false,
+    "session_duration": "30m",
+    "http_only_cookie_attribute": true,
+    "path_cookie_attribute": true,
+    "same_site_cookie_attribute": "strict",
+    "options_preflight_bypass": false,
+    "policies": [
+      {
+        "name": "Exact VT Owner only",
+        "decision": "allow",
+        "precedence": 1,
+        "include": [
+          {
+            "email": {
+              "email": "team@creatorloop.net"
+            }
+          }
+        ],
+        "exclude": [
+          {
+            "email": {
+              "email": "support@creatorloop.net"
+            }
+          }
+        ],
+        "require": [],
+        "session_duration": "30m"
+      }
+    ]
+  },
+  "hostnameActivation": {
+    "hostname": "approval-training.creatorloop.net",
+    "service": "creatorloop-training-owner-approval-mailbox",
+    "zone_id": "752d0295a15ee275d9c2e3fd3f6fc2bc",
+    "enabled": true,
+    "previews_enabled": false
+  },
+  "holds": [
+    "Access create requires exact Owner authorization",
+    "No hostname activation or Worker configuration change",
+    "No automatic login, token acquisition, signing, admission or provider operation"
+  ]
+}
