@@ -1,0 +1,19 @@
+import {configuration} from '../../workers/training-managed/security.mjs';
+import {validatePublicVerifierKeys} from './creatorloop-training-signer.mjs';
+import {dispatchHash} from './training-mediated-dispatcher.mjs';
+import {refuse} from './training-execution-contract.mjs';
+export const OWNER_MAILBOX_TARGET=Object.freeze({accountId:'2a3b96a0b37850cd03107131baa66b6d',zoneId:'752d0295a15ee275d9c2e3fd3f6fc2bc',hostname:'approval-training.creatorloop.net',origin:'https://approval-training.creatorloop.net',email:'team@creatorloop.net',retiredEmail:'support@creatorloop.net',worker:'creatorloop-training-owner-approval-mailbox',accessIssuer:'https://shiny-wildflower-143c.cloudflareaccess.com',idpId:'3603807b-f1a4-4bbc-8524-f091bcbbb921',issuer:'VT-CREATORLOOP-TRAINING-OWNER-MAC-EVIDENCE-V1'});
+export function prepareOwnerMailboxAccess(){
+ const t=OWNER_MAILBOX_TARGET;
+ return {protocol:'CREATORLOOP_OWNER_MAILBOX_ACCESS_PREPARATION_V1',executable:false,accountId:t.accountId,application:{name:'CreatorLoop TRAINING Owner Approval',type:'self_hosted',domain:t.hostname+'/v1/owner/*',allowed_idps:[t.idpId],auto_redirect_to_identity:true,allow_authenticate_via_warp:false,app_launcher_visible:false,session_duration:'30m',http_only_cookie_attribute:true,path_cookie_attribute:true,same_site_cookie_attribute:'strict',options_preflight_bypass:false,policies:[{name:'Exact VT Owner only',decision:'allow',precedence:1,include:[{email:{email:t.email}}],exclude:[{email:{email:t.retiredEmail}}],require:[],session_duration:'30m'}]},hostnameActivation:{hostname:t.hostname,service:t.worker,zone_id:t.zoneId,enabled:true,previews_enabled:false},holds:['Access create requires exact Owner authorization','No hostname activation or Worker configuration change','No automatic login, token acquisition, signing, admission or provider operation']};
+}
+export async function prepareOwnerMailboxPublicConfiguration({identityConfig,ownerAccessAudience,publicKeys,evidenceAdministrationRef}){
+ const t=OWNER_MAILBOX_TARGET,c=configuration({MANAGED_CONFIG_JSON:JSON.stringify(identityConfig)});
+ const owner=c.identities.find(i=>i.role==='owner');
+ if(c.protocol!=='CREATORLOOP_MANAGED_TRAINING_V2'||c.accessIssuer!==t.accessIssuer||owner.email!==t.email||c.gatewayOrigin===t.origin||c.workloadControls.approvalEvidenceCustodyRef!==evidenceAdministrationRef||typeof evidenceAdministrationRef!=='string'||!evidenceAdministrationRef||evidenceAdministrationRef===c.approvedExecutor.workloadRef)refuse('EXACT_OWNER_MAILBOX_TRUST_REQUIRED');
+ if(!/^[a-f0-9]{64}$/.test(ownerAccessAudience||'')||ownerAccessAudience===c.accessAudience||ownerAccessAudience===c.oidcAudience)refuse('DEDICATED_OWNER_MAILBOX_AUDIENCE_REQUIRED');
+ const keys=await validatePublicVerifierKeys(publicKeys);
+ const relay={protocol:'CREATORLOOP_OWNER_OUTBOUND_MAILBOX_CONFIG_V1',environment:'TRAINING',origin:t.origin,issuer:t.issuer,administrationRef:evidenceAdministrationRef,ownerAccessAudience,identityConfig:structuredClone(c),publicKeys:keys};
+ const evidencePorts=Object.fromEntries(['commissioning','dispatchApproval','runApproval','executionBundle','providerApproval','providerCapability','providerScope','currentRequest','runtime','session','custodyExport'].map(p=>[p,{url:t.origin+'/v1/read',issuer:t.issuer,publicKeys:structuredClone(keys),administrationRef:evidenceAdministrationRef}]));
+ return {protocol:'CREATORLOOP_OWNER_MAILBOX_PUBLIC_CONFIG_PLAN_V1',executable:false,relay,relayConfigHash:dispatchHash(relay),evidencePorts,publicKeyFingerprints:keys.map(k=>({kid:k.kid,sha256:dispatchHash({e:k.e,kty:k.kty,n:k.n})})),authorizationStillRequired:['actual Owner subject and app bot/workload IDs corroboration','exact mailbox and consumer reviewed config/version approval','actual Mac private ports and effective deploy isolation','Owner-owned key custody and positive signature verification']};
+}

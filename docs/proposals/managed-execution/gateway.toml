@@ -1,0 +1,20 @@
+# INACTIVE REVIEW TEMPLATE. Do not deploy under engineering authority.
+# Administrator must set exact approved public configuration and authenticated route.
+name = "creatorloop-training-execution-gateway"
+account_id = "2a3b96a0b37850cd03107131baa66b6d"
+main = "../../../workers/training-managed/gateway.mjs"
+compatibility_date = "2025-10-08"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = false
+preview_urls = false
+
+[[services]]
+binding = "CAPABILITY"
+service = "creatorloop-training-execution-capability"
+
+[vars]
+# Fail closed until real public commissioning config/identity/evidence pins are reviewed.
+MANAGED_CONFIG_JSON = "{}"
+
+[observability]
+enabled = false
