@@ -1,6 +1,7 @@
 import {configuration,accessPrincipal,githubJob,independentEvidence,boundedJson,exact,noRedirectFetch} from './security.mjs';
 import {installationCapability} from './app-capability.mjs';
 import {verifyManagedCommissioning} from './commissioning.mjs';
+import {authorizeCustodyExport} from './custody-export.mjs';
 import {createMediatedDispatcher,validateDispatchRequest,dispatchHash,DISPATCH_WORKFLOWS} from '../../scripts/lib/training-mediated-dispatcher.mjs';
 import {createGithubDispatchTransport} from '../../scripts/lib/training-github-dispatch-transport.mjs';
 import {createTrainingProvider} from '../../scripts/lib/creatorloop-training-provider.mjs';
@@ -12,8 +13,16 @@ export function createCapability({fetchImpl=fetch,now=()=>Math.floor(Date.now()/
  return {async fetch(request,env){
   try{
    const c=configuration(env),url=new URL(request.url);
-   if(request.method!=='POST'||url.search||!['/v1/approve','/v1/dispatch','/v1/run-check','/v1/provider'].includes(url.pathname))return json({error:'Private route refused'},404);
+   if(request.method!=='POST'||url.search||!['/v1/approve','/v1/dispatch','/v1/run-check','/v1/provider','/v1/custody/export'].includes(url.pathname))return json({error:'Private route refused'},404);
    const body=await boundedJson(new Response(request.body,{status:200}),32768);
+   if(url.pathname==='/v1/custody/export'){
+    const authority=await authorizeCustodyExport({request,body,env,config:c,fetchImpl,now:now()});
+    if(!env.STATE?.idFromName||!env.STATE?.get)refuse('CUSTODY_STATE_NOT_PROVISIONED');
+    const state=env.STATE.get(env.STATE.idFromName('creatorloop-training-execution-v1'));
+    const result=await state.exportCustody({request:body,authority});
+    if(authority.expiresAt<=now())refuse('CUSTODY_EXPORT_AUTHORIZATION_EXPIRED');
+    return json(result);
+   }
    await verifyManagedCommissioning(env,c,{fetchImpl,now:now()});
    if(!env.STATE?.idFromName||!env.STATE?.get)refuse('MANAGED_STATE_NOT_COMMISSIONED');
    const state=env.STATE.get(env.STATE.idFromName('creatorloop-training-execution-v1'));
