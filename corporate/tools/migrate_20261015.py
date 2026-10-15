@@ -1,5 +1,6 @@
 """Bounded Owner-approved migration. Credentials are never serialized or logged."""
 import hashlib
+from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
@@ -104,7 +105,10 @@ def preflight():
     token = api('GET', '/user/tokens/verify')
     if token.get('status') != 'active':
         raise RuntimeError('Migration token is not active')
-    log('TOKEN_ACTIVE', expires_on=token.get('expires_on'))
+    now = datetime.now(timezone.utc)
+    log('TOKEN_ACTIVE', not_before=token.get('not_before'), expires_on=token.get('expires_on'), checked_at=now.isoformat())
+    if token.get('not_before') and datetime.fromisoformat(token['not_before'].replace('Z', '+00:00')) > now:
+        raise RuntimeError('Token start time is in the future; no resource requests or mutations attempted')
     diagnostics = []
     for path in [f'/accounts/{ACCOUNT}/pages/projects/{OLD}',
                  f'/accounts/{ACCOUNT}/pages/projects',
