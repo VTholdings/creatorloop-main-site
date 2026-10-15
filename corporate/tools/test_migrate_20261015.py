@@ -36,6 +36,15 @@ class MigrationSafety(unittest.TestCase):
         edge = b'<script src="https://static.cloudflareinsights.com/beacon.min.js/known-version" data-cf-beacon="edge"></script>\n'
         self.assertEqual(m.normalized_html(source + edge), source)
 
+    def test_email_obfuscation_is_decoded_without_hiding_changed_copy(self):
+        address = 'team@creatorloop.net'
+        encoded = bytes([0x42] + [b ^ 0x42 for b in address.encode()]).hex()
+        source = '<a class="email" href="mailto:' + address + '">' + address + '</a>\n'
+        edge = '<a class="email" href="/cdn-cgi/l/email-protection#' + encoded + '"><span class="__cf_email__" data-cfemail="' + encoded + '">[email&#160;protected]</span></a>\n'
+        decoder = '<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script>'
+        self.assertEqual(m.normalized_html((edge + decoder).encode()), source.encode())
+        self.assertNotEqual(m.normalized_html(('Changed copy' + edge + decoder).encode()), source.encode())
+
     def test_staging_rejects_existing_runtime_bindings_without_mutation(self):
         for unsafe in [{'source': {'type': 'github'}}, {'domains': ['other.example']},
                        {'deployment_configs': {'production': {'d1_databases': {'DB': {}}}}}]:

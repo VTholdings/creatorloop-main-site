@@ -80,10 +80,19 @@ def git_bytes(path, ref=ACCEPTED):
     return subprocess.check_output(['git', 'show', f'{ref}:{path}'])
 
 def normalized_html(body):
-    # The existing zone injects this Cloudflare Web Analytics script at the edge.
-    # Remove only this known host/path from comparison, retaining every source byte otherwise.
+    # Invert only the existing Cloudflare edge transforms. Accepted source is never edited.
     text = body.decode('utf-8')
     text = re.sub(r'<script\b(?=[^>]*\bsrc=[\"\']https://static\.cloudflareinsights\.com/beacon\.min\.js)[^>]*></script>\n?', '', text)
+    def email(encoded):
+        raw = bytes.fromhex(encoded)
+        if len(raw) < 2:
+            raise RuntimeError('Malformed Cloudflare email encoding')
+        return bytes(b ^ raw[0] for b in raw[1:]).decode('utf-8')
+    text = re.sub(r'href=([\"\'])/cdn-cgi/l/email-protection#([0-9a-fA-F]+)\1',
+        lambda match: 'href=' + match[1] + 'mailto:' + email(match[2]) + match[1], text)
+    text = re.sub(r'<span\b(?=[^>]*\bclass=[\"\']__cf_email__[\"\'])(?=[^>]*\bdata-cfemail=[\"\']([0-9a-fA-F]+)[\"\'])[^>]*>[^<]*</span>',
+        lambda match: email(match[1]), text)
+    text = re.sub(r'<script\b(?=[^>]*\bsrc=[\"\']/cdn-cgi/scripts/[0-9a-fA-F]+/cloudflare-static/email-decode\.min\.js[\"\'])[^>]*></script>\n?', '', text)
     return text.encode('utf-8')
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -108,6 +117,7 @@ def http(host, path, redirect=True):
             'normalized_sha256': hashlib.sha256(normalized).hexdigest(),
             'size': len(body), 'content_type': content_type,
             'robots_header': response.headers.get('X-Robots-Tag'),
+            'edge_email_obfuscation': b'__cf_email__' in body,
             'final_host': final_url.hostname, 'final_path': final_url.path,
             'location_host': location.hostname, 'location_path': location.path}
 
@@ -157,7 +167,7 @@ def preflight():
         'root_http': http(ROOT, '/')}
     if snapshot['root_http']['normalized_sha256'] != hashlib.sha256(git_bytes('index.html', LIVE_SHA)).hexdigest():
         raise RuntimeError('Live root HTML differs from pinned Loop source')
-    snapshot['comparison_normalization'] = 'Only existing Cloudflare Web Analytics beacon script; all remaining HTML bytes must match pinned source'
+    snapshot['comparison_normalization'] = 'Only existing Cloudflare Web Analytics beacon and reversible email obfuscation; all remaining HTML bytes must match pinned source'
     save('before.json', snapshot)
     log('PREFLIGHT_PASS', deployment_id=snapshot['old_project']['canonical_deployment_id'],
         root_http=snapshot['root_http']['status'], phase=os.environ.get('MIGRATION_PHASE'))
@@ -205,8 +215,17 @@ def verify_corporate(host, files):
     checks = {}
     for name, body in files.items():
         path = '/' if name == 'index.html' else '/' + name
-        result = ready_http(host, path)
+        for attempt in range(13):
+            result = ready_http(host, path)
+            old_loop = hashlib.sha256(git_bytes('index.html', LIVE_SHA)).hexdigest()
+            if name == 'index.html' and result['status'] == 200 and result['normalized_sha256'] == old_loop and attempt < 12:
+                # Domain activation and routing propagation are not an atomic event.
+                time.sleep(5)
+                continue
+            break
+        checks[path] = result
         if result['status'] != 200 or result['normalized_sha256'] != hashlib.sha256(body).hexdigest():
+            save('corporate-mismatch-' + host + '.json', {'checks': checks, 'expected_sha256': hashlib.sha256(body).hexdigest()})
             raise RuntimeError(f'Corporate HTTP/source mismatch: {host}{path} status {result["status"]}')
         if name == 'index.html' and result['robots_header'] and 'noindex' in result['robots_header'].lower():
             raise RuntimeError('Corporate response has an unexpected noindex header')
@@ -434,8 +453,13 @@ def execute(before):
     verify_corporate(CORP + '.pages.dev', files)
     unchanged(before)
     verify_loop(ROOT)
-    if any(d['name'] == LOOP for d in before['dns']) or any(d['name'] == LOOP for d in before['old_domains']):
-        raise RuntimeError('Loop hostname already exists; refusing to duplicate or replace it')
+    existing_dns = [d for d in before['dns'] if d['name'] == LOOP]
+    existing_domain = [d for d in before['old_domains'] if d['name'] == LOOP]
+    if bool(existing_dns) != bool(existing_domain):
+        raise RuntimeError('Loop hostname has incomplete pre-existing configuration; refusing replacement')
+    if existing_dns and (len(existing_dns) != 1 or existing_dns[0]['type'] != 'CNAME'
+                        or existing_dns[0]['content'] != OLD + '.pages.dev' or not existing_dns[0]['proxied']):
+        raise RuntimeError('Existing Loop hostname differs from approved target')
     root_touched = False
     loop_touched = False
     loop_pass = False
@@ -444,7 +468,7 @@ def execute(before):
     signal.signal(signal.SIGTERM, interrupted)
     signal.signal(signal.SIGINT, interrupted)
     try:
-        loop_touched = True
+        loop_touched = not bool(existing_domain)
         ensure_domain(OLD, LOOP)
         set_dns(LOOP, OLD + '.pages.dev')
         loop_domain = wait_domain(OLD, LOOP)
