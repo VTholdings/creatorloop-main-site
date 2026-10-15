@@ -1,0 +1,267 @@
+/* Owner-approved composition: centered editorial type, globe left, brass right,
+   relationship rail on a reflective stage. This stylesheet is self-contained. */
+:root {
+  color-scheme: dark;
+  --ink: #020d16;
+  --ivory: #fff9ee;
+  --champagne: #ffe5a5;
+  --brass: #c88c3b;
+}
+
+* { box-sizing: border-box; }
+html { background: var(--ink); }
+body { margin: 0; color: var(--ivory); font-family: Arial, Helvetica, sans-serif; }
+svg { display: block; overflow: hidden; }
+p, h1, h2, ul { margin: 0; }
+ul { padding: 0; list-style: none; }
+.brand-artwork-source { position: absolute; width: 0; height: 0; pointer-events: none; }
+
+.corporate-page { min-height: 100svh; display: flex; flex-direction: column; }
+.scene {
+  flex: 1;
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 4.3vw 32px;
+  background: var(--ink) url("assets/global-infrastructure.webp") center center / cover no-repeat;
+}
+.scene::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(ellipse at 50% 40%, #020d161a 10%, transparent 68%);
+}
+.identity { width: 100%; text-align: center; }
+.monogram { width: clamp(100px, 11.6vw, 178px); height: auto; margin: 0 auto 5px; }
+.wordmark {
+  font-size: clamp(30px, 3.25vw, 50px);
+  font-weight: 400;
+  line-height: 1.15;
+  letter-spacing: .09em;
+  white-space: nowrap;
+}
+.wordmark span { color: #efbf79; }
+.wordmark sup { font-size: .25em; vertical-align: top; letter-spacing: 0; }
+.positioning {
+  margin-top: 7px;
+  font-size: clamp(12px, 1vw, 16px);
+  line-height: 1.6;
+  letter-spacing: .32em;
+  text-wrap: balance;
+}
+main { width: 100%; max-width: 1440px; text-align: center; }
+.introduction { padding-top: 20px; }
+h1 {
+  font-family: "Times New Roman", Times, serif;
+  font-size: clamp(48px, 6.12vw, 96px);
+  line-height: .94;
+  font-weight: 400;
+  letter-spacing: -.028em;
+  text-shadow: 0 2px 15px #0009;
+}
+h1 > span { display: block; }
+h1 > span:last-child { color: #edc083; }
+@supports (background-clip: text) {
+  h1 > span:last-child {
+    background: linear-gradient(175deg, #fff1ce 10%, #edbb7a 57%, #bf7724 100%);
+    background-clip: text;
+    color: transparent;
+  }
+}
+.description {
+  max-width: 850px;
+  margin: 20px auto 0;
+  font-size: clamp(18px, 1.49vw, 24px);
+  line-height: 1.4;
+  letter-spacing: .012em;
+  text-wrap: balance;
+  text-shadow: 0 2px 8px #000;
+}
+.curation {
+  margin: 12px auto 10px;
+  color: var(--champagne);
+  font-size: clamp(14px, 1.25vw, 20px);
+  line-height: 1.6;
+  letter-spacing: .19em;
+  text-wrap: balance;
+}
+.capabilities {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 28px;
+  padding: 15px 10px;
+  border-block: 1px solid var(--brass);
+  background: #020d16b8;
+  color: var(--champagne);
+  font-size: clamp(12px, .97vw, 16px);
+  line-height: 1.5;
+  letter-spacing: .22em;
+  box-shadow: 0 1px 10px #0006;
+}
+.capabilities li { display: flex; align-items: center; gap: 28px; }
+.capabilities li + li::before { content: "·"; }
+.relationships { padding-top: 24px; }
+.relationships h2 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 17px;
+  color: var(--champagne);
+  font-size: clamp(12px, .95vw, 15px);
+  font-weight: 400;
+  line-height: 1.6;
+  letter-spacing: .24em;
+}
+.relationships h2::before, .relationships h2::after {
+  content: "";
+  width: min(9vw, 140px);
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--brass));
+  flex-shrink: 0;
+}
+.relationships h2::after { transform: rotate(180deg); }
+.email {
+  display: inline-block;
+  max-width: 100%;
+  margin-top: 2px;
+  color: var(--ivory);
+  font-size: clamp(23px, 1.83vw, 30px);
+  line-height: 1.5;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.email:hover { color: var(--champagne); text-decoration: underline; text-underline-offset: .2em; }
+.email:focus-visible { outline: 2px solid var(--champagne); outline-offset: 5px; border-radius: 2px; }
+.partners {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 24px 0;
+  margin: 10px auto 0;
+  max-width: 1100px;
+}
+.partner {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex: 0 1 300px;
+  min-width: 0;
+  padding: 0 36px;
+  position: relative;
+}
+.partner + .partner::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  height: 76%;
+  width: 1px;
+  background: #e6b367;
+}
+.partner-logo { max-width: 100%; height: 193px; width: auto; object-fit: contain; }
+.partner-logo--srs { aspect-ratio: 241 / 200; }
+.partner-logo--pnb { aspect-ratio: 188 / 193; }
+/* Future original partner <img> assets use this same class without filters. */
+img.partner-logo { display: block; }
+footer {
+  display: grid;
+  grid-template-columns: minmax(max-content, 1fr) auto 1fr;
+  align-items: center;
+  gap: 16px 24px;
+  padding: 20px 4.3vw 30px;
+  border-top: 1px solid var(--brass);
+  background: #010911;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.copyright { white-space: nowrap; }
+.copyright span { color: var(--champagne); }
+.closing { color: var(--champagne); letter-spacing: .25em; font-size: 12px; text-align: center; }
+
+/* Landscape laptops retain the whole hierarchy without microscopic type. */
+@media (min-width: 1000px) and (max-height: 950px) {
+  .scene { padding-top: 8px; padding-bottom: 20px; }
+  .monogram { width: 104px; margin-bottom: 2px; }
+  .wordmark { font-size: 38px; }
+  .positioning { font-size: 12px; margin-top: 5px; }
+  .introduction { padding-top: 18px; }
+  h1 { font-size: clamp(60px, 5.5vw, 78px); }
+  .description { font-size: 19px; margin-top: 18px; max-width: 760px; }
+  .curation { font-size: 14px; margin-top: 12px; }
+  .capabilities { padding-block: 12px; gap: 12px 20px; font-size: 12px; letter-spacing: .17em; }
+  .capabilities li { gap: 20px; }
+  .relationships { padding-top: 20px; }
+  .relationships h2 { font-size: 12px; }
+  .email { font-size: 25px; }
+  .partners { margin-top: 8px; }
+  .partner { flex-basis: 250px; }
+  .partner-logo { height: 138px; }
+  footer { padding-block: 16px; }
+}
+
+@media (max-width: 1100px) {
+  footer { grid-template-columns: 1fr; gap: 8px; justify-items: center; padding-block: 19px; }
+}
+@media (max-width: 999px) {
+  .scene { padding: 24px 5vw 40px; background-position: center top; }
+  .scene::before { background: linear-gradient(#020d1633, #020d1680 24%, #020d1666 70%, #020d161a); }
+  .monogram { width: 122px; }
+  .wordmark { font-size: 38px; }
+  .positioning { font-size: 12px; letter-spacing: .22em; }
+  .introduction { padding-top: 28px; }
+  h1 { font-size: clamp(42px, 6.1vw, 62px); line-height: 1; }
+  .description { max-width: 660px; font-size: 19px; }
+  .curation { max-width: 680px; font-size: 14px; letter-spacing: .15em; margin-top: 20px; }
+  .capabilities { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; font-size: 12px; letter-spacing: .13em; }
+  .capabilities li { display: block; }
+  .capabilities li + li::before { content: none; }
+  .relationships h2 { font-size: 12px; letter-spacing: .16em; }
+  .relationships h2::before, .relationships h2::after { width: 5vw; }
+  .partner-logo { height: 165px; }
+  .partner { flex-basis: 250px; }
+}
+
+@media (max-width: 600px) {
+  .scene { padding: 20px 20px 34px; background-size: auto 100%; }
+  .scene::before { background: linear-gradient(#020d1673, #020d16b0 18%, #020d16a3 70%, #020d1633); }
+  .monogram { width: 100px; }
+  .wordmark { font-size: clamp(27px, 7.7vw, 37px); letter-spacing: .075em; }
+  .positioning { max-width: 330px; margin: 8px auto 0; font-size: 12px; line-height: 1.7; letter-spacing: .13em; }
+  .introduction { padding-top: 25px; }
+  h1 { font-size: clamp(34px, 8.6vw, 50px); line-height: 1.04; letter-spacing: -.03em; }
+  h1 span { text-wrap: balance; }
+  .description { font-size: 17px; line-height: 1.5; margin-top: 20px; }
+  .curation { font-size: 12px; line-height: 1.8; letter-spacing: .13em; margin-top: 18px; }
+  .capabilities { gap: 12px 10px; font-size: 12px; line-height: 1.6; letter-spacing: .075em; padding: 16px 4px; }
+  .relationships { padding-top: 24px; }
+  .relationships h2 { line-height: 1.8; letter-spacing: .13em; }
+  .relationships h2::before, .relationships h2::after { display: none; }
+  .email { font-size: clamp(22px, 6vw, 27px); margin-top: 5px; }
+  .partners { gap: 20px 0; margin-top: 20px; }
+  .partner { flex-basis: 50%; padding-inline: 12px; }
+  .partner-logo { height: auto; max-height: 150px; width: 100%; }
+  .partner-logo--pnb { width: 80%; }
+  footer { padding: 20px; font-size: 12px; }
+  .copyright { white-space: normal; text-align: center; }
+  .closing { max-width: 340px; font-size: 12px; letter-spacing: .15em; text-wrap: balance; }
+}
+
+@media (max-width: 359px) {
+  .scene { padding-inline: 16px; }
+  .capabilities { grid-template-columns: 1fr; }
+  .partner { flex-basis: 100%; }
+  .partner + .partner::before { display: none; }
+  .partner-logo { width: auto; max-width: 190px; height: 145px; }
+}
+
+@media (forced-colors: active) {
+  h1 > span:last-child { background: none; color: CanvasText; }
+  .scene { background: Canvas; }
+  .email { text-decoration: underline; }
+}

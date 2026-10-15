@@ -1,0 +1,39 @@
+{
+  "status": "PASS",
+  "scope": "Automated source, accessibility-structure, asset and offline-package checks only",
+  "checks": {
+    "required_copy": true,
+    "semantic_structure": true,
+    "no_unapproved_controls": true,
+    "only_email_link": true,
+    "no_private_or_other_public_paths": true,
+    "zoom_enabled": true,
+    "named_partner_marks": true,
+    "visible_keyboard_focus": true,
+    "no_content_clipping_hack": true,
+    "responsive_rules_present": true,
+    "readable_mobile_body": true,
+    "staging_noindex": true,
+    "all_assets_present": true,
+    "offline_preview_self_contained": true,
+    "offline_assets_match_source": true,
+    "shared_brand_artwork_resolves": true,
+    "package_hashes_match": true,
+    "changes_isolated_to_corporate_directory": true
+  },
+  "responsive_browser_qa": "NOT RUN — supported browser-control skill unavailable",
+  "owner_visual_qa": "PENDING — qa/owner-preview.html",
+  "viewport_qa_targets": [
+    "1920×1080",
+    "1536×1024",
+    "1440×900",
+    "1366×768",
+    "1280×720",
+    "1024×768",
+    "768×1024",
+    "390×844",
+    "320×568",
+    "200% zoom"
+  ],
+  "production_deployment": "NOT AUTHORIZED / NOT PERFORMED"
+}
