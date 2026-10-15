@@ -12,7 +12,9 @@ concurrency:
   cancel-in-progress: false
 jobs:
   migrate:
-    if: github.repository == 'VTholdings/creatorloop-main-site'
+    # One-time Owner-approved migration completed PASS in run 38798800329.
+    # Preserve this workflow for audit; a new execution requires a new authorized change.
+    if: ${{ false }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:

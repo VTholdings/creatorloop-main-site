@@ -1,0 +1,163 @@
+{
+  "accepted_branch_unchanged": true,
+  "accepted_sha": "f9461cb6cc6851bbbe3b5b7a94d4eb255b5c0845",
+  "completed_at_hst": "2026-10-15T10:05:59-10:00",
+  "completed_at_utc": "2026-10-15T20:05:59Z",
+  "corporate": {
+    "deployment_id": "edb54291-2aca-401c-b190-214d121bdd55",
+    "domain": {
+      "certificate_authority": "google",
+      "created_on": "2026-10-15T20:03:26.509345Z",
+      "domain_id": "c6a1fa78-7053-43f5-ae0b-9d865dbf1ee7",
+      "id": "c6a1fa78-7053-43f5-ae0b-9d865dbf1ee7",
+      "name": "creatorloop.net",
+      "status": "active",
+      "validation_data": {
+        "method": "http",
+        "status": "active"
+      },
+      "verification_data": {
+        "status": "active"
+      },
+      "zone_tag": "752d0295a15ee275d9c2e3fd3f6fc2bc"
+    },
+    "project_id": "33f7d5c3-6b18-42cf-bff2-6186def27482",
+    "url": "https://creatorloop.net"
+  },
+  "dns": {
+    "creatorloop.net": [
+      {
+        "comment": null,
+        "content": "creatorloop-corporate.pages.dev",
+        "created_on": "2026-07-25T00:47:07.416033Z",
+        "id": "61e9410ed97b1f252159d65935437557",
+        "meta": {},
+        "modified_on": "2026-10-15T20:03:26.934776Z",
+        "name": "creatorloop.net",
+        "proxiable": true,
+        "proxied": true,
+        "settings": {
+          "flatten_cname": false
+        },
+        "tags": [],
+        "ttl": 1,
+        "type": "CNAME"
+      },
+      {
+        "comment": null,
+        "content": "mx2.privateemail.com",
+        "created_on": "2026-07-25T00:34:18.121087Z",
+        "id": "c05c7982931ef98a039d101d11b2c112",
+        "meta": {},
+        "modified_on": "2026-07-25T00:34:18.121087Z",
+        "name": "creatorloop.net",
+        "priority": 10,
+        "proxiable": false,
+        "proxied": false,
+        "settings": {},
+        "tags": [],
+        "ttl": 1,
+        "type": "MX"
+      },
+      {
+        "comment": null,
+        "content": "mx1.privateemail.com",
+        "created_on": "2026-07-25T00:34:18.113133Z",
+        "id": "86499588b928847f02a32d3a8abda1be",
+        "meta": {},
+        "modified_on": "2026-07-25T00:34:18.113133Z",
+        "name": "creatorloop.net",
+        "priority": 10,
+        "proxiable": false,
+        "proxied": false,
+        "settings": {},
+        "tags": [],
+        "ttl": 1,
+        "type": "MX"
+      },
+      {
+        "comment": null,
+        "content": "\"v=spf1 include:spf.privateemail.com ~all\"",
+        "created_on": "2026-07-25T00:34:18.106153Z",
+        "id": "c501ac331594425af0b0023e34bbcf29",
+        "meta": {},
+        "modified_on": "2026-07-25T00:34:18.106153Z",
+        "name": "creatorloop.net",
+        "proxiable": false,
+        "proxied": false,
+        "settings": {},
+        "tags": [],
+        "ttl": 1,
+        "type": "TXT"
+      }
+    ],
+    "loop.creatorloop.net": [
+      {
+        "comment": null,
+        "content": "creatorloop-main-site.pages.dev",
+        "created_on": "2026-10-15T19:53:21.124182Z",
+        "id": "c6cec3782867687195c9eb217a972c42",
+        "meta": {},
+        "modified_on": "2026-10-15T19:53:21.124182Z",
+        "name": "loop.creatorloop.net",
+        "proxiable": true,
+        "proxied": true,
+        "settings": {
+          "flatten_cname": false
+        },
+        "tags": [],
+        "ttl": 1,
+        "type": "CNAME"
+      }
+    ]
+  },
+  "execution_commit": "5de7f1e43877d51a92c4329dc09533840ac080c8",
+  "loop": {
+    "deployment_id": "0efd311e-e0af-4b47-87e0-7ff969952603",
+    "project_id": "0de7e394-f731-4307-9138-ed9b7d4a6e05",
+    "source_sha": "f4814ed44f2ecfe8ad00414999fa850967db4df0",
+    "url": "https://loop.creatorloop.net"
+  },
+  "main_sha_unchanged": "f4814ed44f2ecfe8ad00414999fa850967db4df0",
+  "one_time_workflow_closed": true,
+  "only_source_change": "Remove staging noindex directive",
+  "ops": {
+    "deployment_id": "fcff287f-8ef7-4421-9e95-bfb9130a4fab",
+    "unchanged": true,
+    "url": "https://ops.creatorloop.net"
+  },
+  "public_loop_link_in_corporate_page": false,
+  "rollback": {
+    "old_deployment_id": "0efd311e-e0af-4b47-87e0-7ff969952603",
+    "old_project": "creatorloop-main-site",
+    "old_root_dns": {
+      "comment": null,
+      "content": "creatorloop-main-site.pages.dev",
+      "created_on": "2026-07-25T00:47:07.416033Z",
+      "id": "61e9410ed97b1f252159d65935437557",
+      "meta": {},
+      "modified_on": "2026-10-15T19:58:29.599175Z",
+      "name": "creatorloop.net",
+      "proxiable": true,
+      "proxied": true,
+      "settings": {
+        "flatten_cname": false
+      },
+      "tags": [],
+      "ttl": 1,
+      "type": "CNAME"
+    },
+    "sequence": [
+      "Detach root from corporate project",
+      "Associate root with existing Loop project",
+      "Restore root CNAME to creatorloop-main-site.pages.dev",
+      "Wait for active domain and verify original Loop files"
+    ]
+  },
+  "source_integrity": "All four required files verified against accepted source with only staging robots meta removed",
+  "status": "PASS",
+  "training_unchanged": true,
+  "workflow_artifact_id": 12002868649,
+  "workflow_run_id": 38798800329,
+  "workflow_run_url": "https://github.com/VTholdings/creatorloop-main-site/actions/runs/38798800329"
+}

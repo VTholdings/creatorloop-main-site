@@ -1,0 +1,507 @@
+{
+  "accepted_sha": "f9461cb6cc6851bbbe3b5b7a94d4eb255b5c0845",
+  "account_id": "2a3b96a0b37850cd03107131baa66b6d",
+  "captured_at": "2026-10-15T19:35:12Z",
+  "comparison_normalization": "Only existing Cloudflare Web Analytics beacon script; all remaining HTML bytes must match pinned source",
+  "dns": [
+    {
+      "comment": null,
+      "content": "privateemail.com",
+      "created_on": "2026-07-25T00:34:18.140087Z",
+      "id": "e301f389a697a51cd886fe69e9c2f755",
+      "meta": {},
+      "modified_on": "2026-07-25T00:34:18.140087Z",
+      "name": "autoconfig.creatorloop.net",
+      "proxiable": true,
+      "proxied": true,
+      "settings": {
+        "flatten_cname": false
+      },
+      "tags": [],
+      "ttl": 1,
+      "type": "CNAME"
+    },
+    {
+      "comment": null,
+      "content": "privateemail.com",
+      "created_on": "2026-07-25T00:34:18.095768Z",
+      "id": "7a90e949ed2aca986ec9bdba267518f3",
+      "meta": {},
+      "modified_on": "2026-07-25T00:34:18.095768Z",
+      "name": "autodiscover.creatorloop.net",
+      "proxiable": true,
+      "proxied": true,
+      "settings": {
+        "flatten_cname": false
+      },
+      "tags": [],
+      "ttl": 1,
+      "type": "CNAME"
+    },
+    {
+      "comment": null,
+      "content": "creatorloop-main-site.pages.dev",
+      "created_on": "2026-07-25T00:47:07.416033Z",
+      "id": "61e9410ed97b1f252159d65935437557",
+      "meta": {},
+      "modified_on": "2026-07-25T00:47:07.416033Z",
+      "name": "creatorloop.net",
+      "proxiable": true,
+      "proxied": true,
+      "settings": {
+        "flatten_cname": false
+      },
+      "tags": [],
+      "ttl": 1,
+      "type": "CNAME"
+    },
+    {
+      "comment": null,
+      "content": "creator-loop-landing-page.pages.dev",
+      "created_on": "2026-09-23T15:34:05.577461Z",
+      "id": "2bd03081253ec2c6d115d878bc897757",
+      "meta": {},
+      "modified_on": "2026-09-23T15:34:05.577461Z",
+      "name": "join.creatorloop.net",
+      "proxiable": true,
+      "proxied": true,
+      "settings": {
+        "flatten_cname": false
+      },
+      "tags": [],
+      "ttl": 1,
+      "type": "CNAME"
+    },
+    {
+      "comment": null,
+      "content": "privateemail.com",
+      "created_on": "2026-07-25T00:34:18.084961Z",
+      "id": "4a1539540cae6c6033c4cd2b1430cea6",
+      "meta": {},
+      "modified_on": "2026-07-25T00:34:18.084961Z",
+      "name": "mail.creatorloop.net",
+      "proxiable": true,
+      "proxied": true,
+      "settings": {
+        "flatten_cname": false
+      },
+      "tags": [],
+      "ttl": 1,
+      "type": "CNAME"
+    },
+    {
+      "comment": null,
+      "content": "creatorloop-operations-console.pages.dev",
+      "created_on": "2026-09-28T02:38:59.957052Z",
+      "id": "5e5de36c479c4e99ca2c58de78199b07",
+      "meta": {},
+      "modified_on": "2026-09-28T02:38:59.957052Z",
+      "name": "ops.creatorloop.net",
+      "proxiable": true,
+      "proxied": true,
+      "settings": {
+        "flatten_cname": false
+      },
+      "tags": [],
+      "ttl": 1,
+      "type": "CNAME"
+    },
+    {
+      "comment": null,
+      "content": "mx2.privateemail.com",
+      "created_on": "2026-07-25T00:34:18.121087Z",
+      "id": "c05c7982931ef98a039d101d11b2c112",
+      "meta": {},
+      "modified_on": "2026-07-25T00:34:18.121087Z",
+      "name": "creatorloop.net",
+      "priority": 10,
+      "proxiable": false,
+      "proxied": false,
+      "settings": {},
+      "tags": [],
+      "ttl": 1,
+      "type": "MX"
+    },
+    {
+      "comment": null,
+      "content": "mx1.privateemail.com",
+      "created_on": "2026-07-25T00:34:18.113133Z",
+      "id": "86499588b928847f02a32d3a8abda1be",
+      "meta": {},
+      "modified_on": "2026-07-25T00:34:18.113133Z",
+      "name": "creatorloop.net",
+      "priority": 10,
+      "proxiable": false,
+      "proxied": false,
+      "settings": {},
+      "tags": [],
+      "ttl": 1,
+      "type": "MX"
+    },
+    {
+      "comment": null,
+      "content": "0 443 privateemail.com",
+      "created_on": "2026-07-25T00:34:18.170816Z",
+      "data": {
+        "port": 443,
+        "priority": 0,
+        "target": "privateemail.com",
+        "weight": 0
+      },
+      "id": "e02517c71e40b0503da87568ef142210",
+      "meta": {},
+      "modified_on": "2026-07-25T00:34:18.170816Z",
+      "name": "_autodiscover._tcp.creatorloop.net",
+      "priority": 0,
+      "proxiable": false,
+      "proxied": false,
+      "settings": {},
+      "tags": [],
+      "ttl": 1,
+      "type": "SRV"
+    },
+    {
+      "comment": null,
+      "content": "\"v=spf1 include:spf.privateemail.com ~all\"",
+      "created_on": "2026-07-25T00:34:18.106153Z",
+      "id": "c501ac331594425af0b0023e34bbcf29",
+      "meta": {},
+      "modified_on": "2026-07-25T00:34:18.106153Z",
+      "name": "creatorloop.net",
+      "proxiable": false,
+      "proxied": false,
+      "settings": {},
+      "tags": [],
+      "ttl": 1,
+      "type": "TXT"
+    },
+    {
+      "comment": null,
+      "content": "\"mx2.privateemail.com\"",
+      "created_on": "2026-07-25T00:34:18.162342Z",
+      "id": "56b77f9976d3c7aae5fbb6827a4923cc",
+      "meta": {},
+      "modified_on": "2026-07-25T00:34:18.162342Z",
+      "name": "default._domainkey.creatorloop.net",
+      "proxiable": false,
+      "proxied": false,
+      "settings": {},
+      "tags": [],
+      "ttl": 1,
+      "type": "TXT"
+    },
+    {
+      "comment": null,
+      "content": "\"mx1.privateemail.com\"",
+      "created_on": "2026-07-25T00:34:18.150233Z",
+      "id": "4657dbdc50382cd5b5f7ad1a00977721",
+      "meta": {},
+      "modified_on": "2026-07-25T00:34:18.150233Z",
+      "name": "default._domainkey.creatorloop.net",
+      "proxiable": false,
+      "proxied": false,
+      "settings": {},
+      "tags": [],
+      "ttl": 1,
+      "type": "TXT"
+    },
+    {
+      "comment": null,
+      "content": "100::",
+      "created_on": "2026-10-11T20:30:44.9932Z",
+      "id": "e1de3fba401f502cd58fc561a015767e",
+      "meta": {
+        "origin_worker_id": "f642b6191ccbff2f4b94562c9936031f29cc0fcf",
+        "read_only": true
+      },
+      "modified_on": "2026-10-11T20:30:44.9932Z",
+      "name": "approval-training.creatorloop.net",
+      "proxiable": true,
+      "proxied": true,
+      "settings": {},
+      "tags": [],
+      "ttl": 1,
+      "type": "AAAA"
+    }
+  ],
+  "old_domains": [
+    {
+      "certificate_authority": "google",
+      "created_on": "2026-07-25T00:47:08.225988Z",
+      "domain_id": "1dae2701-a234-4483-be25-514ccd6959d4",
+      "id": "1dae2701-a234-4483-be25-514ccd6959d4",
+      "name": "creatorloop.net",
+      "status": "active",
+      "validation_data": {
+        "method": "http",
+        "status": "active"
+      },
+      "verification_data": {
+        "status": "active"
+      },
+      "zone_tag": "752d0295a15ee275d9c2e3fd3f6fc2bc"
+    }
+  ],
+  "old_project": {
+    "build_config": {
+      "build_command": "",
+      "destination_dir": "",
+      "root_dir": "",
+      "web_analytics_tag": null,
+      "web_analytics_token": null
+    },
+    "canonical_deployment_id": "0efd311e-e0af-4b47-87e0-7ff969952603",
+    "canonical_sha": "f4814ed44f2ecfe8ad00414999fa850967db4df0",
+    "deployment_configs": {
+      "preview": {
+        "always_use_latest_compatibility_date": false,
+        "build_image_major_version": 3,
+        "compatibility_date": "2026-09-27",
+        "compatibility_flags": [],
+        "d1_databases": {
+          "OPERATIONS_DB": {
+            "id": "c4993a97-5835-4c6c-af06-7020fa8d4f2a"
+          }
+        },
+        "env_vars": {
+          "CLOUDFLARE_ACCESS_AUD": {
+            "type": "plain_text"
+          },
+          "CLOUDFLARE_ACCESS_TEAM_DOMAIN": {
+            "type": "plain_text"
+          }
+        },
+        "fail_open": true,
+        "usage_model": "standard",
+        "wrangler_config_hash": "9d6ee2ad1dda58bc80bc1dde470e7fd3fd001e172897448929bc6f3ef3c2019b"
+      },
+      "production": {
+        "always_use_latest_compatibility_date": false,
+        "build_image_major_version": 3,
+        "compatibility_date": "2026-09-27",
+        "compatibility_flags": [],
+        "d1_databases": {
+          "OPERATIONS_DB": {
+            "id": "c4993a97-5835-4c6c-af06-7020fa8d4f2a"
+          }
+        },
+        "env_vars": {
+          "CLOUDFLARE_ACCESS_AUD": {
+            "type": "plain_text"
+          },
+          "CLOUDFLARE_ACCESS_TEAM_DOMAIN": {
+            "type": "plain_text"
+          },
+          "CONTROL_SYSTEM_SYNC_SECRET": {
+            "type": "secret_text"
+          }
+        },
+        "fail_open": true,
+        "usage_model": "standard",
+        "wrangler_config_hash": "9d6ee2ad1dda58bc80bc1dde470e7fd3fd001e172897448929bc6f3ef3c2019b"
+      }
+    },
+    "domains": [
+      "creatorloop-main-site.pages.dev",
+      "creatorloop.net"
+    ],
+    "id": "0de7e394-f731-4307-9138-ed9b7d4a6e05",
+    "name": "creatorloop-main-site",
+    "production_branch": "main",
+    "source": {
+      "config": {
+        "deployments_enabled": true,
+        "owner": "VTholdings",
+        "owner_id": "306346249",
+        "path_excludes": [],
+        "path_includes": [
+          "*"
+        ],
+        "pr_comments_enabled": true,
+        "preview_branch_excludes": [],
+        "preview_branch_includes": [
+          "*"
+        ],
+        "preview_deployment_setting": "all",
+        "production_branch": "main",
+        "production_deployments_enabled": true,
+        "repo_id": "1298726702",
+        "repo_name": "creatorloop-main-site"
+      },
+      "type": "github"
+    },
+    "subdomain": "creatorloop-main-site.pages.dev"
+  },
+  "ops": {
+    "http": {
+      "location_host": "shiny-wildflower-143c.cloudflareaccess.com",
+      "location_path": "/cdn-cgi/access/login/ops.creatorloop.net",
+      "status": 302
+    },
+    "project": {
+      "build_config": {
+        "build_command": "",
+        "destination_dir": "",
+        "root_dir": "",
+        "web_analytics_tag": null,
+        "web_analytics_token": null
+      },
+      "canonical_deployment_id": "fcff287f-8ef7-4421-9e95-bfb9130a4fab",
+      "canonical_sha": "f4814ed44f2ecfe8ad00414999fa850967db4df0",
+      "deployment_configs": {
+        "preview": {
+          "always_use_latest_compatibility_date": false,
+          "build_image_major_version": 3,
+          "compatibility_date": "2026-09-27",
+          "compatibility_flags": [],
+          "d1_databases": {
+            "OPERATIONS_DB": {
+              "id": "c4993a97-5835-4c6c-af06-7020fa8d4f2a"
+            }
+          },
+          "env_vars": {
+            "CLOUDFLARE_ACCESS_AUD": {
+              "type": "plain_text"
+            },
+            "CLOUDFLARE_ACCESS_TEAM_DOMAIN": {
+              "type": "plain_text"
+            }
+          },
+          "fail_open": true,
+          "usage_model": "standard",
+          "wrangler_config_hash": "9d6ee2ad1dda58bc80bc1dde470e7fd3fd001e172897448929bc6f3ef3c2019b"
+        },
+        "production": {
+          "always_use_latest_compatibility_date": false,
+          "build_image_major_version": 3,
+          "compatibility_date": "2026-09-27",
+          "compatibility_flags": [],
+          "d1_databases": {
+            "OPERATIONS_DB": {
+              "id": "c4993a97-5835-4c6c-af06-7020fa8d4f2a"
+            }
+          },
+          "env_vars": {
+            "CLOUDFLARE_ACCESS_AUD": {
+              "type": "plain_text"
+            },
+            "CLOUDFLARE_ACCESS_TEAM_DOMAIN": {
+              "type": "plain_text"
+            },
+            "CONTROL_SYSTEM_SYNC_SECRET": {
+              "type": "secret_text"
+            }
+          },
+          "fail_open": true,
+          "usage_model": "standard",
+          "wrangler_config_hash": "9d6ee2ad1dda58bc80bc1dde470e7fd3fd001e172897448929bc6f3ef3c2019b"
+        }
+      },
+      "domains": [
+        "creatorloop-operations-console.pages.dev",
+        "ops.creatorloop.net"
+      ],
+      "id": "28239f49-aedc-448e-978d-36b0b9359fa0",
+      "name": "creatorloop-operations-console",
+      "production_branch": "main",
+      "source": {
+        "config": {
+          "deployments_enabled": true,
+          "owner": "VTholdings",
+          "owner_id": "306346249",
+          "path_excludes": [],
+          "path_includes": [
+            "*"
+          ],
+          "pr_comments_enabled": true,
+          "preview_branch_excludes": [],
+          "preview_branch_includes": [
+            "*"
+          ],
+          "preview_deployment_setting": "all",
+          "production_branch": "main",
+          "production_deployments_enabled": true,
+          "repo_id": "1298726702",
+          "repo_name": "creatorloop-main-site"
+        },
+        "type": "github"
+      },
+      "subdomain": "creatorloop-operations-console.pages.dev"
+    }
+  },
+  "root_http": {
+    "content_type": "text/html; charset=utf-8",
+    "location_host": null,
+    "location_path": "",
+    "normalized_sha256": "d0d0c580394aa0a4f9220e27bb144e4be8708e03e423fc9fd18835f542adc0ac",
+    "robots_header": null,
+    "sha256": "df8826ecf632f6d3b1b41d21b82ed8c5af4d9fd9c08d750c5c1874a7ece531a1",
+    "size": 28155,
+    "status": 200
+  },
+  "training_project": {
+    "build_config": {
+      "destination_dir": "public",
+      "web_analytics_tag": null,
+      "web_analytics_token": null
+    },
+    "canonical_deployment_id": "7637de42-2d67-4623-bf62-6be6560120a8",
+    "canonical_sha": "f4814ed44f2ecfe8ad00414999fa850967db4df0",
+    "deployment_configs": {
+      "preview": {
+        "always_use_latest_compatibility_date": false,
+        "build_image_major_version": 3,
+        "compatibility_date": "2026-10-03",
+        "compatibility_flags": [],
+        "d1_databases": {
+          "OPERATIONS_DB": {
+            "id": "12dbfa51-ca9c-475b-bb1b-ca90ac8bd7f0"
+          }
+        },
+        "env_vars": {
+          "CLOUDFLARE_ACCESS_AUD": {
+            "type": "plain_text"
+          },
+          "CLOUDFLARE_ACCESS_TEAM_DOMAIN": {
+            "type": "plain_text"
+          }
+        },
+        "fail_open": true,
+        "usage_model": "standard"
+      },
+      "production": {
+        "always_use_latest_compatibility_date": false,
+        "build_image_major_version": 3,
+        "compatibility_date": "2026-09-27",
+        "compatibility_flags": [],
+        "d1_databases": {
+          "OPERATIONS_DB": {
+            "id": "12dbfa51-ca9c-475b-bb1b-ca90ac8bd7f0"
+          }
+        },
+        "env_vars": {
+          "CLOUDFLARE_ACCESS_AUD": {
+            "type": "plain_text"
+          },
+          "CLOUDFLARE_ACCESS_TEAM_DOMAIN": {
+            "type": "plain_text"
+          },
+          "CONSOLE_ENVIRONMENT": {
+            "type": "plain_text"
+          }
+        },
+        "fail_open": true,
+        "usage_model": "standard"
+      }
+    },
+    "domains": [
+      "creatorloop-operator-training.pages.dev"
+    ],
+    "id": "9863d88c-8025-414c-9524-078ee470e9e7",
+    "name": "creatorloop-operator-training",
+    "production_branch": "main",
+    "source": null,
+    "subdomain": "creatorloop-operator-training.pages.dev"
+  },
+  "zone_id": "752d0295a15ee275d9c2e3fd3f6fc2bc"
+}

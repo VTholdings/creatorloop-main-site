@@ -1,0 +1,31 @@
+{
+  "actions": [
+    {
+      "action": "detach_corporate_root",
+      "status": "PASS"
+    },
+    {
+      "action": "restore_loop_root_association",
+      "status": "PASS"
+    },
+    {
+      "action": "restore_root_dns",
+      "status": "PASS"
+    },
+    {
+      "action": "validate_restored_root",
+      "status": "PASS"
+    },
+    {
+      "action": "verify_restored_root",
+      "status": "PASS"
+    },
+    {
+      "action": "verify_original_projects_and_unrelated_dns",
+      "status": "PASS"
+    }
+  ],
+  "reason": "Strict comparison initially rejected Cloudflare email obfuscation; original root restored and verified before verification-only correction.",
+  "status": "PASS",
+  "workflow_run_id": 38797461203
+}
