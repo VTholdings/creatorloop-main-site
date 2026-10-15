@@ -2,6 +2,9 @@ name: CreatorLoop bounded corporate migration
 on:
   push:
     branches: [corporate/migration-20261015]
+    paths:
+      - .github/workflows/corporate-migration.yml
+      - corporate/tools/migrate_20261015.py
 permissions:
   contents: read
 concurrency:
@@ -11,9 +14,9 @@ jobs:
   migrate:
     if: github.repository == 'VTholdings/creatorloop-main-site'
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 45
     env:
-      MIGRATION_PHASE: stage
+      MIGRATION_PHASE: execute
       CLOUDFLARE_ACCOUNT_ID: 2a3b96a0b37850cd03107131baa66b6d
       WRANGLER_SEND_METRICS: 'false'
       CI: 'true'
@@ -25,6 +28,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Verify migration preservation and rollback guards
+        run: python3 corporate/tools/test_migrate_20261015.py
       - name: Validate credential and preserve current state
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CREATORLOOP_CF_MIGRATION_TOKEN }}
