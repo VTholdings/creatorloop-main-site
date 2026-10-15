@@ -41,8 +41,15 @@ def api(method, path, data=None):
         with urllib.request.urlopen(req, timeout=45) as response:
             result = json.load(response)
     except urllib.error.HTTPError as exc:
-        # Do not dump request, headers or error bodies.
-        raise RuntimeError(f'Cloudflare {method} {path.split("?")[0]} HTTP {exc.code}') from None
+        # Preserve only Cloudflare's nonsecret diagnostic fields, never headers or raw bodies.
+        try:
+            error_data = json.loads(exc.read())
+            diagnostics = [{'code': e.get('code'), 'message': str(e.get('message', ''))[:350]}
+                for e in error_data.get('errors', [])]
+        except Exception:
+            diagnostics = []
+        safe = json.dumps(diagnostics).replace(TOKEN, '[REDACTED]') if TOKEN else json.dumps(diagnostics)
+        raise RuntimeError(f'Cloudflare {method} {path.split("?")[0]} HTTP {exc.code}: {safe}') from None
     if not result.get('success'):
         raise RuntimeError(f'Cloudflare {method} failed; error codes {[e.get("code") for e in result.get("errors", [])]}')
     return result.get('result')
@@ -98,6 +105,20 @@ def preflight():
     if token.get('status') != 'active':
         raise RuntimeError('Migration token is not active')
     log('TOKEN_ACTIVE', expires_on=token.get('expires_on'))
+    diagnostics = []
+    for path in [f'/accounts/{ACCOUNT}/pages/projects/{OLD}',
+                 f'/accounts/{ACCOUNT}/pages/projects',
+                 f'/zones/{ZONE}/dns_records?name={ROOT}']:
+        try:
+            data = api('GET', path)
+            diagnostics.append({'path': path, 'status': 'PASS'})
+        except RuntimeError as exc:
+            diagnostics.append({'path': path, 'status': 'DENIED', 'error': str(exc)})
+    save('credential-preflight.json', {'checks': diagnostics})
+    for check in diagnostics:
+        log('CREDENTIAL_CHECK', **check)
+    if any(d['status'] != 'PASS' for d in diagnostics):
+        raise RuntimeError('Token permission/resource checks failed; no mutations attempted')
     old = project(OLD)
     if projection(old)['canonical_sha'] != LIVE_SHA:
         raise RuntimeError('Existing Loop production SHA changed; refusing migration')
