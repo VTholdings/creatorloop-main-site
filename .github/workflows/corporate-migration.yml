@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
-      MIGRATION_PHASE: preflight
+      MIGRATION_PHASE: stage
       CLOUDFLARE_ACCOUNT_ID: 2a3b96a0b37850cd03107131baa66b6d
       WRANGLER_SEND_METRICS: 'false'
       CI: 'true'
