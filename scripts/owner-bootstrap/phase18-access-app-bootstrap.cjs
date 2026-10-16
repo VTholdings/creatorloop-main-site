@@ -13,7 +13,7 @@ const SHA='b122268c0c061466f3d130082dac8dbb3db98871';
 const REGISTRATION='9d9f116d2508df5e4ca0a00f381cf0aa0a50b6b6';
 const WORKFLOW='phase18-dispatch-access-setup.yml';
 const WORKFLOW_HASH='fe47d1cc23d59d5c42c326beb8cfa626c9373153d99442770b5dd8e4370b5e1b';
-const KEY_HASH='c9e0a09cf18d01c8b752a718aaed0abdc626233f0faf7932310d9ef1487dbc3c';
+const KEY_HASH='c9e0a09cf18d01c8b752a718aaed0abdb626233f0faf7932310d9ef1487dbc3c';
 const SPKI_HASH='bca0fe5ab36dd06d23c4722536edfc08027075361690b0ad958b99a589f72c3e';
 const hash=b=>crypto.createHash('sha256').update(b).digest('hex');
 const stop=s=>{throw new Error(s);};
