@@ -57,13 +57,13 @@ async function main(){
  }
  const branch=await http('https://api.github.com/repos/'+REPO+'/branches/team-access-directory');
  if(branch.commit?.sha!==SHA)stop('REVIEWED_TRAINING_SHA_MOVED');
- let passphrase;
- try{passphrase=execFileSync('/usr/bin/osascript',['-e','text returned of (display dialog "Enter the EXISTING V2 GitHub App key encryption passphrase. This submits only the reviewed Access setup as App 5288606; Owner approval is still required in GitHub." default answer "" with hidden answer buttons {"Cancel", "Continue"} default button "Continue" with title "VT Phase 18 — Existing App Key")'],{encoding:'utf8',stdio:['ignore','pipe','pipe']}).replace(/\r?\n$/,'');}
+ let passphrase,passphraseBytes;
+ try{passphrase=execFileSync('/usr/bin/osascript',['-e','activate','-e','text returned of (display dialog "Enter the EXISTING V2 GitHub App key encryption passphrase. This submits only the reviewed Access setup as App 5288606; Owner approval is still required in GitHub." default answer "" with hidden answer buttons {"Cancel", "Continue"} default button "Continue" with title "VT Phase 18 — Existing App Key")'],{encoding:'utf8',stdio:['ignore','pipe','pipe'],timeout:300000,maxBuffer:8192}).replace(/\r?\n$/,'');}
  catch{stop('PRIVATE_INPUT_CANCELLED_NO_DISPATCH');}
  let privateKey;
- try{privateKey=crypto.createPrivateKey({key:encrypted,format:'pem',passphrase});}
+ try{passphraseBytes=Buffer.from(passphrase,'utf8');passphrase=undefined;privateKey=crypto.createPrivateKey({key:encrypted,format:'pem',passphrase:passphraseBytes});}
  catch{stop('EXISTING_V2_UNLOCK_FAILED_NO_DISPATCH');}
- finally{passphrase=undefined;encrypted.fill(0);}
+ finally{passphrase=undefined;passphraseBytes?.fill(0);passphraseBytes=undefined;encrypted.fill(0);}
  if(hash(crypto.createPublicKey(privateKey).export({format:'der',type:'spki'}))!==SPKI_HASH)stop('EXISTING_APP_KEY_PUBLIC_PAIR_MISMATCH');
  const now=Math.floor(Date.now()/1000);
  const enc=v=>Buffer.from(JSON.stringify(v)).toString('base64url');
