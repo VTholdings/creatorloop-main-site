@@ -54,3 +54,5 @@ test('existing attempt refuses before private prompt or network',async()=>{const
 test('changed reviewed source refuses before private prompt',async()=>{const r=await exercise('workflow-change');assert.equal(r.prompted,false);assert.equal(r.calls.filter(c=>c.method==='POST').length,0);assert.equal(r.code,1);});
 test('widened repository scope refuses before workflow dispatch',async()=>{const r=await exercise('wide-scope');assert.equal(r.calls.filter(c=>c.url.endsWith('/dispatches')).length,0);assert.equal(r.files.size,1);assert.equal(r.code,1);});
 test('uncertain POST is never retried and attempt marker remains',async()=>{const r=await exercise('uncertain');assert.equal(r.calls.filter(c=>c.url.endsWith('/dispatches')).length,1);assert.equal(r.files.size,1);assert.equal(r.code,1);assert.match(r.output,/POST_OUTCOME_UNCERTAIN_DO_NOT_RERUN/);});
+
+test('retained V2 custody baseline is pinned exactly',()=>{assert.ok(raw.includes("const KEY_HASH='c9e0a09cf18d01c8b752a718aaed0abdb626233f0faf7932310d9ef1487dbc3c';"));});
