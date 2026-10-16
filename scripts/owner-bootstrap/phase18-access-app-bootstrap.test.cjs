@@ -39,7 +39,7 @@ async function exercise(mode){
   return {ok:true,status:200,body:(async function*(){yield b;})()};
  };
  const processMock={platform:'darwin',version:'v22.23.3',env:{HOME:'/Users/tt1'},argv:['node','helper','PHASE18_ONE_ACCESS_SETUP_APP_DISPATCH'],getuid:()=>501,exitCode:0};
- const sandbox={require:n=>n==='node:fs'?fakefs:n==='node:crypto'?crypto:n==='node:child_process'?{execFileSync:()=>{prompted=true;return password+'\n';}}:null,process:processMock,fetch:fakeFetch,Buffer,AbortSignal,console:{log:t=>output.push(t),error:t=>output.push(t)}};
+ const sandbox={require:n=>n==='node:fs'?fakefs:n==='node:crypto'?{...crypto,createPrivateKey:options=>{assert.ok(Buffer.isBuffer(options.passphrase));return crypto.createPrivateKey(options);}}:n==='node:child_process'?{execFileSync:()=>{prompted=true;return password+'\n';}}:null,process:processMock,fetch:fakeFetch,Buffer,AbortSignal,console:{log:t=>output.push(t),error:t=>output.push(t)}};
  vm.runInNewContext(source,sandbox);
  for(let n=0;n<30;n++)await new Promise(resolve=>setImmediate(resolve));
  assert.ok(!output.join('\n').includes(password));
