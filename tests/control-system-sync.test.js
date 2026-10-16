@@ -215,6 +215,23 @@ test("workbook validation failures leave the whole mapped record unchanged", asy
   assert.deepEqual(writes,[]);
 });
 
+test('campaign Notes export preserves protected fields, rejects source conflicts and retries idempotently',async()=>{
+ const source=await readFile('assets/operations-control-system-sync.gs','utf8'),headers=['Campaign ID','Notes','Cash Budget ($)'];
+ let note='Original';const writes=[];
+ const sheet={getLastColumn:()=>3,getLastRow:()=>4,getRange(row,col,count){
+  if(row===3)return {getDisplayValues:()=>[headers]};
+  if(count)return {getDisplayValues:()=>[['CMP-100',note,'777']]};
+  assert.equal(col,2,'Only Notes may be written');return {getFormula:()=>'',getDataValidation:()=>null,setValue:value=>{writes.push(value);note=value;}};
+ }};
+ const context={SpreadsheetApp:{getActive:()=>({getSheetByName:name=>{assert.equal(name,'CAMPAIGNS');return sheet;}})}};
+ runInNewContext(source,context);
+ const change={entity_type:'CAMPAIGN',entity_id:'CMP-100',action:'NOTES_ONLY',payload:{id:'CMP-100',notes:'Reviewed',previousNotes:'Original'}};
+ context.applyConsoleChange_(change);assert.deepEqual(writes,['Reviewed']);context.applyConsoleChange_(change);assert.equal(writes.length,1);
+ note='Changed upstream';assert.throws(()=>context.applyConsoleChange_(change),/review conflict/);assert.equal(writes.length,1);
+ assert.throws(()=>context.applyConsoleChange_({...change,payload:{...change.payload,cashBudget:900}}),/Only reviewed/);
+ assert.throws(()=>context.applyConsoleChange_({...change,action:'UPSERT'}),/Only reviewed/);
+});
+
 test("new assignment rows inherit source formulas and validation without another record's business values",async () => {
   const source=await readFile('assets/operations-control-system-sync.gs','utf8');
   const headers=['Assignment ID','Status','Product Scope','Platform','Fixed Content Fee ($)'];

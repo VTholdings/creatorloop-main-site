@@ -1,0 +1,126 @@
+name: CreatorLoop acceptance - corrected training migrations 0005-0007
+run-name: Corrected training migration 0005-0007 approval for ${{ github.sha }}
+on:
+  push:
+    branches: [team-access-directory]
+    paths:
+      - .github/workflows/acceptance-training-case-free-migrations.yml
+      - scripts/lib/training-case-free-migrations.mjs
+      - scripts/lib/training-case-free-migration-authorization.mjs
+      - scripts/training-case-free-migrations/**
+      - tests/training-case-free-migrations.test.js
+permissions:
+  contents: read
+  actions: read
+  issues: read
+concurrency:
+  group: creatorloop-acceptance-training-case-free-migrations
+  cancel-in-progress: false
+jobs:
+  validate:
+    if: github.repository == 'VTholdings/creatorloop-main-site' && github.ref == 'refs/heads/team-access-directory'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      main_sha: ${{ steps.references.outputs.main_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm test
+      - run: npm run check
+      - run: python3 -m py_compile scripts/training-case-free-migrations/baseline.py
+      - id: references
+        run: echo "main_sha=$(git rev-parse refs/remotes/origin/main)" >> "$GITHUB_OUTPUT"
+  training-migrations:
+    name: Protected TRAINING corrected migrations 0005-0007 - separate Owner approval required
+    needs: validate
+    if: github.repository == 'VTholdings/creatorloop-main-site' && github.ref == 'refs/heads/team-access-directory' && github.event_name == 'push' && github.run_attempt == 1
+    environment:
+      name: creatorloop-acceptance
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Fence replay and stale requests
+        run: |
+          test "$GITHUB_RUN_ATTEMPT" = 1
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse refs/remotes/origin/team-access-directory)" = "$GITHUB_SHA"
+      - name: Retrieve accepted encrypted backup - no export
+        uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '11317109290'
+          run-id: 37242966914
+          github-token: ${{ github.token }}
+          path: training-case-free-migration-private
+          merge-multiple: true
+      - name: Retrieve accepted training Gate 2 receipt only
+        uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '11363258261'
+          run-id: 37353740653
+          github-token: ${{ github.token }}
+          path: training-case-free-migration-private/gate2
+          merge-multiple: true
+      - name: Retrieve verified corrected-trigger parser receipt only
+        uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '11517569475'
+          run-id: 37700780032
+          github-token: ${{ github.token }}
+          path: training-case-free-migration-private/parser
+          merge-multiple: true
+      - name: Authenticate backup and rehearse locally - training SQL only
+        env:
+          CREATORLOOP_BACKUP_PASSPHRASE: ${{ secrets.CREATORLOOP_BACKUP_PASSPHRASE }}
+        run: |
+          cd training-case-free-migration-private
+          echo 'd9d3ef5b502c70f1801693a73f7b516c954ac402a480300f4b1cb25d890ce191  owner-transfer.clbackup' | sha256sum --check
+          sha256sum --check owner-transfer.clbackup.sha256
+          node ../scripts/backup-envelope.mjs decrypt owner-transfer.clbackup accepted.zip
+          cd ..
+          python3 scripts/training-case-free-migrations/baseline.py training-case-free-migration-private/accepted.zip training-case-free-migration-private/baselines
+      - name: Require fresh Owner PR attestation and approval - one atomic training migration batch only
+        id: migration
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+          EXPECTED_MAIN_SHA: ${{ needs.validate.outputs.main_sha }}
+          ACCEPTANCE_ENVIRONMENT: creatorloop-acceptance
+          TRAINING_CASE_FREE_MIGRATION_SCOPE: TRAINING_CASE_FREE_0005_0007_ONLY
+        run: node scripts/training-case-free-migrations/live.mjs
+      - name: Record preparation blocker without private evidence
+        if: always() && steps.migration.outcome != 'success'
+        run: |
+          python3 - <<'PY'
+          import json,os,pathlib
+          p=pathlib.Path('training-case-free-migration-evidence/TRAINING.json');p.parent.mkdir(exist_ok=True)
+          if not p.exists():p.write_text(json.dumps({'protocol':'CREATORLOOP_TRAINING_CASE_FREE_MIGRATIONS_V1','environment':'TRAINING','databaseId':'12dbfa51-ca9c-475b-bb1b-ca90ac8bd7f0','releaseSha':os.environ['GITHUB_SHA'],'runId':os.environ['GITHUB_RUN_ID'],'status':'TRAINING_MIGRATION_BLOCKED','blockers':[{'code':'TRAINING_MIGRATION_PREPARATION_BLOCKED'}],'migrationSubmitted':False,'remoteMigrationsApplied':False,'productionAccessed':False,'productionDeployed':False,'remoteRestorePerformed':False,'executorActivated':False,'operatorAdmitted':False})+'\n')
+          PY
+      - name: Retain sanitized training receipt only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: creatorloop-training-migrations-${{ github.sha }}
+          path: training-case-free-migration-evidence/TRAINING.json
+          if-no-files-found: error
+          retention-days: 90
+      - name: Remove ephemeral private files - no remote recovery fallback
+        if: always()
+        run: rm -rf training-case-free-migration-private
+      - name: Preserve production and later-gate holds
+        if: always()
+        run: echo 'Training 0005-0007 only. No production access, remote restore, configuration change, deployment, merge, executor activation, operator admission or later gate. No automatic retry or corrective write. PR 18 remains draft.' >> "$GITHUB_STEP_SUMMARY"

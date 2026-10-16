@@ -31,7 +31,8 @@ test("source workbook remains an external read-only source reference",async()=>{
 
 test("duplicate submissions are blocked in UI and API",async()=>{
   const [client,api]=await Promise.all([readFile("console/app.js","utf8"),readFile("functions/api/console/[[path]].js","utf8")]);
-  assert.match(client,/submit\.disabled=true/);
+  assert.match(client,/if\(mode!=='REVIEW'\)return/);
+  assert.match(client,/mode='SAVING'/);
   assert.match(api,/already has campaign record/);
   assert.match(api,/LOWER\(TRIM\(handle\)\)/);
 });

@@ -1,3 +1,4 @@
+import { NEW_ROLES, visibility } from './team-policy.js';
 // Internal identifiers map explicitly to established source fields. No workbook changes.
 export const FIELD_NAMES = Object.freeze({
   creatorStatus:'Status', compensationModel:'Compensation Model', rightsStatus:'Rights Status',
@@ -6,7 +7,7 @@ export const FIELD_NAMES = Object.freeze({
   attributionWindowDays:'Attribution Window (Days)', paidUsageRights:'Paid Usage Rights',
   evidenceStatus:'Evidence Status', signedRightsEvidenceLink:'Signed Rights Evidence Link', evidenceLink:'Evidence Link'
 });
-const KNOWN = new Set(['OPERATOR','QA_REVIEWER','OPERATIONS','APPROVAL_AUTHORITY','ADMINISTRATOR']);
+const KNOWN = new Set(['OPERATOR','QA_REVIEWER','OPERATIONS','APPROVAL_AUTHORITY','ADMINISTRATOR',...NEW_ROLES]);
 export const FactualRoles = new Set(['OPERATOR','OPERATIONS','ADMINISTRATOR']);
 const creatorKeys = {creatorName:'creator_name',primaryPlatform:'primary_platform',handle:'handle',contact:'contact',creatorStatus:'creator_status',compensationModel:'compensation_model',rightsStatus:'rights_status',productFocus:'product_focus',notes:'notes',evidenceLink:'evidence_link'};
 const assignmentKeys = {status:'status',startDate:'start_date',contentDue:'content_due',fixedContentFee:'fixed_content_fee',commissionRate:'commission_rate',attributionWindowDays:'attribution_window_days',paidUsageRights:'paid_usage_rights',evidenceStatus:'evidence_status',signedRightsEvidenceLink:'signed_rights_evidence_link',notes:'notes'};
@@ -24,6 +25,7 @@ export async function scoped(db,user,campaignId,creatorId=null) {
     const grant=await db.prepare(`SELECT 1 FROM console_access_grants WHERE operator_id=? AND campaign_id=? AND (? IS NULL OR record_id='*' OR record_id=?) LIMIT 1`).bind(user.id,campaignId,creatorId,creatorId||'').first();
     if (grant) return true;
   } catch {} // Older schemas fail closed; a factual assignment still grants its own record.
+  if(user.teamProfile?.managed_scope)return false;
   if (creatorId) return Boolean(await db.prepare('SELECT 1 FROM creator_enrollments WHERE id=? AND campaign_id=? AND assigned_operator_id=?').bind(creatorId,campaignId,user.id).first());
   return Boolean(await db.prepare('SELECT 1 FROM creator_enrollments WHERE campaign_id=? AND assigned_operator_id=? LIMIT 1').bind(campaignId,user.id).first());
 }
@@ -41,17 +43,23 @@ export function project(row,kind,user) {
   if(user.role==='ADMINISTRATOR')return row;
   const fields=kind==='CAMPAIGN'?campaignFields:[...common,...(kind==='ASSIGNMENT'?assignmentFields:[]),...(kind==='CREATIVE'?creativeFields:[])];
   // Approved assignment terms are read-only operational facts; QA receives no compensation amounts.
-  if(user.role!=='QA_REVIEWER' && kind!=='CAMPAIGN')fields.push(...terms);
+  if(!NEW_ROLES.has(user.role) && user.role!=='QA_REVIEWER' && kind!=='CAMPAIGN')fields.push(...terms);
   if(kind==='CREATOR' && user.role==='QA_REVIEWER')fields.push('compensation_model'); // categorical QA completeness only
-  return Object.fromEntries(fields.filter(k=>k in row).map(k=>[k,row[k]]));
+  const allowed=visibility(user);
+  if(allowed.includes('creator_compensation') && kind!=='CAMPAIGN')fields.push(...terms);
+  if(allowed.includes('financial_economics') && kind==='CAMPAIGN')fields.push('cash_budget','promo_credit');
+  const pii=new Set(['creator_name','handle','contact','notes','evidence_link','signed_rights_evidence_link']);
+  return Object.fromEntries(fields.filter(k=>k in row && (allowed.includes('creator_pii')||!pii.has(k)) && (allowed.includes('creator_compensation')||!terms.includes(k)||(user.role==='QA_REVIEWER'&&k==='compensation_model'))).map(k=>[k,row[k]]));
 }
 const equivalent=(a,b)=>String(a??'')===String(b??'') || (a!==null && b!==null && a!=='' && b!=='' && Number.isFinite(Number(a)) && Number(a)===Number(b));
 export async function authorizeFields(db,user,type,body,current=null) {
   if(!FactualRoles.has(user.role))return 'This role may not change operational facts';
   const keys=type==='CREATOR'?creatorKeys:assignmentKeys;
-  const known=new Set([...Object.keys(keys),'campaignId','creatorId','environment','version','authorizationId']);
+  const known=new Set([...Object.keys(keys),'campaignId','creatorId','environment','version','authorizationId','saveIntent']);
   if(Object.keys(body).some(key=>!known.has(key)))return 'Unrecognized or restricted operational fields were supplied';
+  if(body.saveIntent!==undefined&&body.saveIntent!=='REVIEWED_RECORD_EDIT')return 'Unsupported save intent';
   const baseline=current|| (type==='CREATOR'?{compensation_model:'N/A',rights_status:'Not Reviewed',creator_status:'Not Started',product_focus:''}:{fixed_content_fee:0,commission_rate:0,attribution_window_days:30,paid_usage_rights:'Pending',evidence_status:'Planned',status:'Not Started'});
+  if(!current&&type==='CREATOR')baseline.product_focus=body.productFocus;
   if(!current && user.role!=='ADMINISTRATOR' && type==='CREATOR') {
     body.compensationModel ??= 'N/A';body.rightsStatus ??='Not Reviewed';body.creatorStatus ??='Not Started';
     // Selecting an assigned approved campaign's Product Focus is factual processing, not a new offer.
@@ -70,12 +78,13 @@ export async function authorizeFields(db,user,type,body,current=null) {
     }
   }
   const needs=changed.filter(k=>controlled[type].has(k)||(k==='evidenceLink' && current?.rights_status==='Paid Usage Approved'));
-  if(needs.length && user.role!=='ADMINISTRATOR') {
+  if(needs.length && (user.role!=='ADMINISTRATOR'||user.teamGovernance||body.saveIntent==='REVIEWED_RECORD_EDIT')) {
     let decision=null;
-    try { decision=await db.prepare('SELECT * FROM console_authorizations WHERE id=? AND entity_type=? AND entity_id=? AND campaign_id=? AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at>CURRENT_TIMESTAMP)').bind(body.authorizationId||'',type,current?.id||'NEW',body.campaignId).first(); } catch {}
+    try { decision=await db.prepare('SELECT * FROM console_authorizations WHERE id=? AND entity_type=? AND entity_id=? AND campaign_id=? AND revoked_at IS NULL AND (expires_at IS NULL OR datetime(expires_at)>CURRENT_TIMESTAMP)').bind(body.authorizationId||'',type,current?.id||'NEW',body.campaignId).first(); } catch {}
     const approved=decision?JSON.parse(decision.values_json):{};
-    const canRecord=user.role==='OPERATIONS' || (user.role==='OPERATOR' && needs.every(k=>['startDate','contentDue'].includes(k)));
+    const canRecord=['ADMINISTRATOR','OPERATIONS'].includes(user.role) || (user.role==='OPERATOR' && needs.every(k=>['startDate','contentDue'].includes(k)));
     if(!canRecord || !needs.every(k=>k in approved && equivalent(body[k],approved[k])))return 'Authorized decision required for '+needs.map(k=>FIELD_NAMES[k]).join(', ');
+    (user.commitChecks||=[]).push({sql:"EXISTS (SELECT 1 FROM console_authorizations WHERE id=? AND values_json=? AND revoked_at IS NULL AND (expires_at IS NULL OR datetime(expires_at)>CURRENT_TIMESTAMP))",values:[decision.id,decision.values_json]});
   }
   // Merge only known fields; protects partial factual updates and rejects changes to locked identities.
   for(const [key,column] of Object.entries(keys))if(!(key in body) && column in baseline)body[key]=baseline[column];

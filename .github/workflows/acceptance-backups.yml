@@ -1,0 +1,211 @@
+name: CreatorLoop acceptance - encrypted backups and local rehearsal
+run-name: Controlled D1 backup gate for ${{ github.sha }} (${{ github.event_name }})
+on:
+  workflow_dispatch:
+    inputs:
+      low_activity_attestation:
+        description: 'Owner attestation: BACKUP_WINDOW_NO_ACTIVE_OPERATORS'
+        required: true
+        type: string
+      expected_release_sha:
+        description: 'Full reviewed team-access-directory HEAD SHA'
+        required: true
+        type: string
+  push:
+    branches: [team-access-directory]
+    paths:
+      - .github/workflows/acceptance-backups.yml
+      - scripts/lib/backup-authorization.mjs
+      - tests/backup-authorization.test.js
+      - scripts/lib/d1-backup-export.mjs
+      - scripts/lib/backup-envelope.mjs
+      - scripts/backup-envelope.mjs
+      - scripts/backup-stage.py
+      - scripts/acceptance/d1-backup-stage.mjs
+      - scripts/acceptance/backup-artifact-check.mjs
+      - scripts/lib/backup-artifact-retention.mjs
+      - tests/backup-artifact-retention.test.js
+      - tests/d1-backup-stage.test.js
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: creatorloop-acceptance-controlled-backups
+  cancel-in-progress: false
+jobs:
+  validate:
+    if: github.repository == 'VTholdings/creatorloop-main-site' && github.ref == 'refs/heads/team-access-directory'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      main_sha: ${{ steps.references.outputs.main_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate manual attestation before requesting environment approval
+        if: github.event_name == 'workflow_dispatch'
+        run: node scripts/acceptance/d1-backup-stage.mjs validate-dispatch
+      - run: npm test
+      - run: npm run check
+      - run: python3 -m py_compile scripts/backup-stage.py scripts/retention-manifest.py scripts/team-migration-preflight.py
+      - id: references
+        run: echo "main_sha=$(git rev-parse refs/remotes/origin/main)" >> "$GITHUB_OUTPUT"
+  backups:
+    name: Protected low-activity export and local verification
+    needs: validate
+    if: github.repository == 'VTholdings/creatorloop-main-site' && github.ref == 'refs/heads/team-access-directory' && github.event_name == 'workflow_dispatch' && github.actor == 'Creatorloopzone' && github.run_attempt == 1
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment:
+      name: creatorloop-acceptance
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Fence obsolete or replayed export runs
+        run: |
+          test "$GITHUB_RUN_ATTEMPT" = 1
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse refs/remotes/origin/team-access-directory)" = "$GITHUB_SHA"
+      - name: Retain original correction evidence inside the encrypted bundle
+        uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '11312552587'
+          run-id: 37228580254
+          github-token: ${{ github.token }}
+          path: backup-private/history/correction
+          merge-multiple: true
+      - name: Retain post-correction read-only evidence inside the encrypted bundle
+        uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '11312632678'
+          run-id: 37228580212
+          github-token: ${{ github.token }}
+          path: backup-private/history/current-state
+          merge-multiple: true
+      - name: Retain forensic evidence inside the encrypted bundle
+        uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '11312688812'
+          run-id: 37229874499
+          github-token: ${{ github.token }}
+          path: backup-private/history/forensics
+          merge-multiple: true
+      - name: Retain successful value-free key-delivery diagnostic
+        uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '11316226132'
+          run-id: 37236841917
+          github-token: ${{ github.token }}
+          path: backup-private/history/key-delivery
+          merge-multiple: true
+      - name: Require the recorded key-delivery diagnostic to have passed
+        run: |
+          python3 - <<'PY'
+          import json
+          d=json.load(open('backup-private/history/key-delivery/backup-key-delivery.json'))
+          assert d.get('code')=='SECRET_DELIVERY_AND_VALIDATION_PASS'
+          assert all(d.get(k) is True for k in ('secretContextPresent','processValuePresent','minimumLengthMet','maximumLengthMet','validForBackup','contextConsistent'))
+          print('Recorded value-free key delivery passed; current secret validation remains required before export.')
+          PY
+      - name: Validate dispatch and Owner approval before capturing fresh exports
+        id: capture
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CREATORLOOP_BACKUP_PASSPHRASE: ${{ secrets.CREATORLOOP_BACKUP_PASSPHRASE }}
+          GITHUB_TOKEN: ${{ github.token }}
+          EXPECTED_MAIN_SHA: ${{ needs.validate.outputs.main_sha }}
+          ACCEPTANCE_ENVIRONMENT: creatorloop-acceptance
+        run: node scripts/acceptance/d1-backup-stage.mjs
+      - name: Verify and bundle captured exports privately
+        if: always() && steps.capture.outcome != 'skipped'
+        id: original
+        run: python3 scripts/backup-stage.py bundle backup-private capture.zip --release-sha "$GITHUB_SHA"
+      - name: Encrypt captured evidence before artifact upload
+        if: always() && steps.original.outcome != 'skipped'
+        id: encrypt
+        env:
+          CREATORLOOP_BACKUP_PASSPHRASE: ${{ secrets.CREATORLOOP_BACKUP_PASSPHRASE }}
+        run: |
+          mkdir -m 700 backup-artifacts
+          node scripts/backup-envelope.mjs encrypt capture.zip backup-artifacts/immediate.clbackup
+      - name: Retain encrypted immediate copy for 90 days
+        if: always() && steps.encrypt.outcome == 'success'
+        id: immediate
+        uses: actions/upload-artifact@v4
+        with:
+          name: creatorloop-encrypted-immediate-${{ github.sha }}
+          path: |
+            backup-artifacts/immediate.clbackup
+            backup-artifacts/immediate.clbackup.sha256
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 0
+      - name: Check actual immediate-copy retention
+        if: always() && steps.immediate.outcome == 'success'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          BACKUP_ARTIFACT_ID: ${{ steps.immediate.outputs.artifact-id }}
+        run: node scripts/acceptance/backup-artifact-check.mjs
+      - name: Retrieve the retained encrypted copy independently
+        if: success()
+        uses: actions/download-artifact@v4
+        with:
+          artifact-ids: ${{ steps.immediate.outputs.artifact-id }}
+          github-token: ${{ github.token }}
+          path: backup-retrieved
+          merge-multiple: true
+      - name: Authenticate the retrieved bundle
+        if: success()
+        env:
+          CREATORLOOP_BACKUP_PASSPHRASE: ${{ secrets.CREATORLOOP_BACKUP_PASSPHRASE }}
+        run: |
+          cd backup-retrieved
+          sha256sum --check immediate.clbackup.sha256
+          node ../scripts/backup-envelope.mjs decrypt immediate.clbackup ../retrieved.zip
+      - name: Verify restored content and rehearse migrations locally only
+        if: success()
+        id: restore
+        run: python3 scripts/backup-stage.py restore retrieved.zip backup-restored --release-sha "$GITHUB_SHA"
+      - name: Prepare verified Owner off-platform transfer bundle
+        if: always() && steps.restore.outcome != 'skipped'
+        id: transfer
+        env:
+          CREATORLOOP_BACKUP_PASSPHRASE: ${{ secrets.CREATORLOOP_BACKUP_PASSPHRASE }}
+        run: |
+          python3 scripts/backup-stage.py bundle backup-restored owner-transfer.zip --release-sha "$GITHUB_SHA"
+          node scripts/backup-envelope.mjs encrypt owner-transfer.zip backup-artifacts/owner-transfer.clbackup
+      - name: Retain encrypted Owner transfer copy and verification receipts
+        if: always() && steps.transfer.outcome == 'success'
+        id: owner
+        uses: actions/upload-artifact@v4
+        with:
+          name: creatorloop-encrypted-owner-transfer-${{ github.sha }}
+          path: |
+            backup-artifacts/owner-transfer.clbackup
+            backup-artifacts/owner-transfer.clbackup.sha256
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 0
+      - name: Check actual Owner-transfer retention
+        if: always() && steps.owner.outcome == 'success'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          BACKUP_ARTIFACT_ID: ${{ steps.owner.outputs.artifact-id }}
+        run: node scripts/acceptance/backup-artifact-check.mjs
+      - name: State remaining release hold
+        if: always()
+        run: |
+          echo 'Encrypted artifact retrieval/local restore is distinct from an Owner-retained off-platform copy.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'PR #18 stays draft. No remote migration, restore, schema change or deployment is authorized.' >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,88 @@
+name: CreatorLoop acceptance - corrected trigger EXPLAIN diagnostic
+run-name: TRAINING corrected trigger EXPLAIN approval for ${{ github.sha }}
+on:
+  push:
+    branches: [team-access-directory]
+    paths:
+      - .github/workflows/acceptance-training-case-free-parser.yml
+      - scripts/lib/training-case-free-parser.mjs
+      - scripts/lib/training-case-free-parser-authorization.mjs
+      - scripts/diagnostics/training-case-free-parser-live.mjs
+      - tests/training-case-free-parser.test.js
+permissions:
+  contents: read
+  actions: read
+  issues: read
+concurrency:
+  group: creatorloop-acceptance-training-case-free-parser
+  cancel-in-progress: false
+jobs:
+  validate:
+    if: github.repository == 'VTholdings/creatorloop-main-site' && github.ref == 'refs/heads/team-access-directory'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      main_sha: ${{ steps.references.outputs.main_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm test
+      - run: npm run check
+      - run: node --check tests/training-case-free-parser.test.js
+      - id: references
+        run: echo "main_sha=$(git rev-parse refs/remotes/origin/main)" >> "$GITHUB_OUTPUT"
+  training-case-free-parser:
+    name: Protected TRAINING corrected triggers - EXPLAIN only, zero writes
+    needs: validate
+    if: github.repository == 'VTholdings/creatorloop-main-site' && github.ref == 'refs/heads/team-access-directory' && github.event_name == 'push' && github.run_attempt == 1
+    environment:
+      name: creatorloop-acceptance
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Fence first attempt and exact checkout
+        run: |
+          test "$GITHUB_RUN_ATTEMPT" = 1
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse refs/remotes/origin/team-access-directory)" = "$GITHUB_SHA"
+      - name: Retrieve sanitized training rollback receipt only
+        uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '11366196374'
+          run-id: 37358040555
+          github-token: ${{ github.token }}
+          path: training-case-free-parser-source
+          merge-multiple: true
+      - name: Require Owner environment approval and exact fresh saved attestation
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+          EXPECTED_MAIN_SHA: ${{ needs.validate.outputs.main_sha }}
+          ACCEPTANCE_ENVIRONMENT: creatorloop-acceptance
+          TRAINING_CASE_FREE_PARSER_SCOPE: TRAINING_CASE_FREE_EXPLAIN_ONLY
+        run: node scripts/diagnostics/training-case-free-parser-live.mjs
+      - name: Retain sanitized evidence only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: creatorloop-training-case-free-parser-${{ github.sha }}
+          path: training-case-free-parser-evidence/TRAINING.json
+          if-no-files-found: warn
+          retention-days: 90
+      - name: Preserve all holds
+        if: always()
+        run: echo 'Twelve fixed EXPLAIN probes only; no migration execution, restore, production access, deployment, merge, admission, activation or later gate. No retry. PR 18 remains draft.' >> "$GITHUB_STEP_SUMMARY"
