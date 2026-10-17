@@ -57,15 +57,15 @@ test('changed reviewed source refuses before private prompt',async()=>{const r=a
 test('widened repository scope refuses before workflow dispatch',async()=>{const r=await exercise('wide-scope');assert.equal(r.calls.filter(c=>c.url.endsWith('/dispatches')).length,0);assert.equal(r.files.size,1);assert.equal(r.code,1);});
 test('uncertain POST is never retried and attempt marker remains',async()=>{const r=await exercise('uncertain');assert.equal(r.calls.filter(c=>c.url.endsWith('/dispatches')).length,1);assert.equal(r.files.size,1);assert.equal(r.code,1);assert.match(r.output,/POST_OUTCOME_UNCERTAIN_DO_NOT_RERUN/);});
 
-test('retained V2 custody baseline is pinned exactly',()=>{assert.ok(raw.includes("const KEY_HASH='c9e0a09cf18d01c8b752a718aaed0abdb626233f0faf7932310d9ef1487dbc3c';"));});
+test('retained V3 custody baseline is pinned exactly',()=>{assert.ok(raw.includes("const KEY_HASH='f54b4e20bfb1d0c1666319fea7a37d8d2ca94c293cf4bf74bc67933d3045b3ed';"));});
 
  test('embedded component is byte-identical to extracted reviewed component',()=>{
- const start=raw.indexOf("const verifiedV2Unlock=(()=>{const module={exports:{}};\n")+"const verifiedV2Unlock=(()=>{const module={exports:{}};\n".length;
+ const start=raw.indexOf("const verifiedV3Unlock=(()=>{const module={exports:{}};\n")+"const verifiedV3Unlock=(()=>{const module={exports:{}};\n".length;
  const end=raw.indexOf("\nreturn module.exports;})();",start);
- assert.equal(raw.slice(start,end),fs.readFileSync('phase18-v2-unlock-component.cjs','utf8'));
+ assert.equal(raw.slice(start,end),fs.readFileSync('phase18-v3-unlock-component.cjs','utf8'));
  });
- test('verified unlock component feeds key directly into one exact App dispatch',async()=>{const r=await exercise('ok');assert.equal(r.code,0);assert.equal(r.calls.filter(c=>c.url.endsWith('/dispatches')).length,1);assert.match(r.output,/EXISTING_V2_UNLOCK_AND_PUBLIC_PAIR_VERIFIED/);});
- test('verified unlock bad-decrypt refuses before token mint or dispatch with safe code',async()=>{const r=await exercise('wrong-password');assert.equal(r.code,1);assert.equal(r.calls.filter(c=>c.method==='POST').length,0);assert.match(r.output,/SUPPLIED_VALUE_DOES_NOT_UNLOCK_VERIFIED_V2/);assert.match(r.output,/ERR_OSSL_BAD_DECRYPT/);});
+ test('verified unlock component feeds key directly into one exact App dispatch',async()=>{const r=await exercise('ok');assert.equal(r.code,0);assert.equal(r.calls.filter(c=>c.url.endsWith('/dispatches')).length,1);assert.match(r.output,/EXISTING_V3_UNLOCK_AND_PUBLIC_PAIR_VERIFIED/);});
+ test('verified unlock bad-decrypt refuses before token mint or dispatch with safe code',async()=>{const r=await exercise('wrong-password');assert.equal(r.code,1);assert.equal(r.calls.filter(c=>c.method==='POST').length,0);assert.match(r.output,/SUPPLIED_VALUE_DOES_NOT_UNLOCK_VERIFIED_V3/);assert.match(r.output,/ERR_OSSL_BAD_DECRYPT/);});
  test('verified unlock runtime crypto failure is distinguishable and sanitized',async()=>{const r=await exercise('crypto-runtime');assert.equal(r.code,1);assert.equal(r.calls.filter(c=>c.method==='POST').length,0);assert.match(r.output,/DECRYPTION_IMPLEMENTATION_OR_RUNTIME_ERROR/);assert.match(r.output,/ERR_OSSL_UNSUPPORTED/);assert.ok(!r.output.includes('private fixture exception'));});
  test('verified unlock cancellation refuses without mutation',async()=>{const r=await exercise('cancel');assert.equal(r.code,1);assert.equal(r.calls.filter(c=>c.method==='POST').length,0);assert.match(r.output,/PRIVATE_INPUT_CANCELLED_OR_UNAVAILABLE/);});
  test('verified unlock dispatch still preserves uncertainty marker and never retries',async()=>{const r=await exercise('uncertain');assert.equal(r.code,1);assert.equal(r.calls.filter(c=>c.url.endsWith('/dispatches')).length,1);assert.equal(r.files.size,1);assert.match(r.output,/POST_OUTCOME_UNCERTAIN_DO_NOT_RERUN/);});
