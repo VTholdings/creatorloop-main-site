@@ -5,7 +5,7 @@ const crypto=require('node:crypto');
 const {execFileSync}=require('node:child_process');
 const HOME='/Users/tt1';
 const ROOT=HOME+'/.vt-creatorloop';
-const KEY=ROOT+'/private-signing/training-executor-github-app-5288606-v2.pem';
+const KEY=ROOT+'/private-signing/training-executor-github-app-5288606-v3-resecured.pem';
 const ATTEMPT=ROOT+'/evidence/phase18-access-setup-app-bootstrap-v1-attempt.json';
 const RECEIPT=ROOT+'/evidence/phase18-access-setup-app-bootstrap-v1-receipt.json';
 const REPO='VTholdings/creatorloop-main-site';
@@ -13,8 +13,8 @@ const SHA='b122268c0c061466f3d130082dac8dbb3db98871';
 const REGISTRATION='9d9f116d2508df5e4ca0a00f381cf0aa0a50b6b6';
 const WORKFLOW='phase18-dispatch-access-setup.yml';
 const WORKFLOW_HASH='fe47d1cc23d59d5c42c326beb8cfa626c9373153d99442770b5dd8e4370b5e1b';
-const KEY_HASH='c9e0a09cf18d01c8b752a718aaed0abdb626233f0faf7932310d9ef1487dbc3c';
-const SPKI_HASH='bca0fe5ab36dd06d23c4722536edfc08027075361690b0ad958b99a589f72c3e';
+const KEY_HASH='f54b4e20bfb1d0c1666319fea7a37d8d2ca94c293cf4bf74bc67933d3045b3ed';
+const SPKI_HASH='f4e8f518b9f6910e86102bf5d72a7ddcf8e9f91b4ee467daef6853e403233c97';
 const hash=b=>crypto.createHash('sha256').update(b).digest('hex');
 const stop=s=>{throw new Error(s);};
 function privatePath(p,kind){
@@ -51,21 +51,21 @@ async function http(url,{method='GET',auth,body,raw=false}={}){
  try{return JSON.parse(bytes.toString('utf8'));}catch{stop('RESPONSE_FORMAT_REFUSED');}
 }
 function exactPermissions(p){return p&&Object.keys(p).sort().join('|')==='actions|metadata'&&p.actions==='write'&&p.metadata==='read';}
-// BEGIN VERIFIED V2 UNLOCK COMPONENT
-const verifiedV2Unlock=(()=>{const module={exports:{}};
+// BEGIN VERIFIED V3 UNLOCK COMPONENT
+const verifiedV3Unlock=(()=>{const module={exports:{}};
 'use strict';
-// Extracted from the successful pinned V2 diagnostic at 1bf641fc9c274ec41d4491d6abe23805ee411f35.
+// Reuses the verified V2 unlock implementation; pins the recovered resecured V3 key.
 // Unlock only: no network, writes, signing, dispatch, or key changes.
 const fs=require('node:fs'),crypto=require('node:crypto');
 const {execFileSync}=require('node:child_process');
-const KEY='/Users/tt1/.vt-creatorloop/private-signing/training-executor-github-app-5288606-v2.pem';
-const EXPECTED='c9e0a09cf18d01c8b752a718aaed0abdb626233f0faf7932310d9ef1487dbc3c';
-const SPKI='bca0fe5ab36dd06d23c4722536edfc08027075361690b0ad958b99a589f72c3e';
+const KEY='/Users/tt1/.vt-creatorloop/private-signing/training-executor-github-app-5288606-v3-resecured.pem';
+const EXPECTED='f54b4e20bfb1d0c1666319fea7a37d8d2ca94c293cf4bf74bc67933d3045b3ed';
+const SPKI='f4e8f518b9f6910e86102bf5d72a7ddcf8e9f91b4ee467daef6853e403233c97';
 const sha=b=>crypto.createHash('sha256').update(b).digest('hex');
 const refuse=code=>{const e=new Error();e.safeCode=code;throw e;};
 function encryptionInfo(pem) {
   const match=pem.toString('ascii').match(/^-----BEGIN ENCRYPTED PRIVATE KEY-----\r?\n([A-Za-z0-9+/=\r\n]+)-----END ENCRYPTED PRIVATE KEY-----\r?\n?$/);
-  if(!match) refuse('V2_ENCRYPTED_PKCS8_FORMAT_REFUSED');
+  if(!match) refuse('V3_ENCRYPTED_PKCS8_FORMAT_REFUSED');
   const der=Buffer.from(match[1].replace(/[\r\n]/g,''),'base64');
   function tlv(offset,limit) {
     let i=offset; const tag=der[i++]; let n=der[i++];
@@ -96,31 +96,31 @@ function encryptionInfo(pem) {
     return {format:'encrypted PKCS8',scheme:'PBES2',kdf:'PBKDF2',prf,iterations,cipher:'AES-256-CBC'};
   } finally { der.fill(0); }
 }
-function unlockVerifiedV2(){
+function unlockVerifiedV3(){
  let encrypted,secretBytes,key,publicDer;
- const result={protocol:'VT_PHASE18_V2_UNLOCK_DIAGNOSTIC_V1',ciphertextVerified:false,encryptionMetadataVerified:false,unlockVerified:false,publicPairVerified:false,cryptoCode:null,networkRequests:0,filesChanged:false,dispatchAttempted:false};
+ const result={protocol:'VT_PHASE18_V3_UNLOCK_DIAGNOSTIC_V1',ciphertextVerified:false,encryptionMetadataVerified:false,unlockVerified:false,publicPairVerified:false,cryptoCode:null,networkRequests:0,filesChanged:false,dispatchAttempted:false};
  try{
   if(process.platform!=='darwin'||process.version!=='v22.23.3'||process.env.HOME!=='/Users/tt1')refuse('EXACT_OWNER_MAC_REQUIRED');
   const stat=fs.lstatSync(KEY);
   if(!stat.isFile()||stat.isSymbolicLink()||stat.uid!==process.getuid()||stat.nlink!==1||(stat.mode&0o777)!==0o400||fs.realpathSync(KEY)!==KEY||stat.size>65536)refuse('PRIVATE_KEY_CUSTODY_GUARD_REFUSED');
   const fd=fs.openSync(KEY,fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW);
   try{const opened=fs.fstatSync(fd);if(opened.ino!==stat.ino||opened.dev!==stat.dev||opened.mtimeMs!==stat.mtimeMs)refuse('FILE_CHANGED_DURING_READ');encrypted=fs.readFileSync(fd);}finally{fs.closeSync(fd);}
-  if(sha(encrypted)!==EXPECTED)refuse('VERIFIED_V2_CIPHERTEXT_MISMATCH');
+  if(sha(encrypted)!==EXPECTED)refuse('VERIFIED_V3_CIPHERTEXT_MISMATCH');
   result.ciphertextVerified=true;
   try{result.encryption=encryptionInfo(encrypted);}catch{refuse('ENCRYPTION_METADATA_INCOMPATIBLE');}
   if(!crypto.getCiphers().includes('aes-256-cbc')||!crypto.getHashes().includes(result.encryption.prf==='HMAC-SHA256'?'sha256':'sha1'))refuse('CRYPTO_ALGORITHM_UNAVAILABLE');
   result.encryptionMetadataVerified=true;
   let input;
-  try{input=execFileSync('/usr/bin/osascript',['-e','activate','-e','text returned of (display dialog "Enter the confirmed saved LOCAL ENCRYPTION passphrase chosen for App 5288606 V2 on October 13. Not a Cloudflare token, GitHub password, or private-key contents. Cancel if unavailable. After verified unlock, submit only the reviewed Access setup as the App; Owner approval remains required." with title "CreatorLoop — Verified V2 App Setup" default answer "" buttons {"Cancel", "Check saved V2 passphrase"} default button "Check saved V2 passphrase" cancel button "Cancel" with hidden answer)'],{encoding:'utf8',stdio:['ignore','pipe','pipe'],timeout:300000,maxBuffer:8192}).replace(/\r?\n$/,'');}catch{refuse('PRIVATE_INPUT_CANCELLED_OR_UNAVAILABLE');}
+  try{input=execFileSync('/usr/bin/osascript',['-e','activate','-e','text returned of (display dialog "Enter the confirmed saved LOCAL ENCRYPTION passphrase recorded for the resecured App 5288606 V3 key on October 16. Not a Cloudflare token, GitHub password, or private-key contents. Cancel if unavailable. After verified unlock, submit only the reviewed Access setup as the App; Owner approval remains required." with title "CreatorLoop — Verified V3 App Setup" default answer "" buttons {"Cancel", "Check saved V3 passphrase"} default button "Check saved V3 passphrase" cancel button "Cancel" with hidden answer)'],{encoding:'utf8',stdio:['ignore','pipe','pipe'],timeout:300000,maxBuffer:8192}).replace(/\r?\n$/,'');}catch{refuse('PRIVATE_INPUT_CANCELLED_OR_UNAVAILABLE');}
   if(!input)refuse('SAVED_PASSPHRASE_UNAVAILABLE');
-  if(input.startsWith('cfat_')){input=undefined;refuse('CLOUDFLARE_TOKEN_SUPPLIED_NOT_V2_PASSPHRASE');}
-  if(input.includes('-----BEGIN ')){input=undefined;refuse('KEY_CONTENT_SUPPLIED_NOT_V2_PASSPHRASE');}
+  if(input.startsWith('cfat_')){input=undefined;refuse('CLOUDFLARE_TOKEN_SUPPLIED_NOT_V3_PASSPHRASE');}
+  if(input.includes('-----BEGIN ')){input=undefined;refuse('KEY_CONTENT_SUPPLIED_NOT_V3_PASSPHRASE');}
   secretBytes=Buffer.from(input,'utf8');input=undefined;
   try{key=crypto.createPrivateKey({key:encrypted,format:'pem',passphrase:secretBytes});}
   catch(e){
    const allowed=['ERR_OSSL_BAD_DECRYPT','ERR_OSSL_EVP_BAD_DECRYPT','ERR_OSSL_UNSUPPORTED','ERR_OSSL_EVP_UNSUPPORTED'];
    result.cryptoCode=allowed.includes(e.code)?e.code:'OTHER_CRYPTO_ERROR';
-   if(['ERR_OSSL_BAD_DECRYPT','ERR_OSSL_EVP_BAD_DECRYPT'].includes(e.code))refuse('SUPPLIED_VALUE_DOES_NOT_UNLOCK_VERIFIED_V2');
+   if(['ERR_OSSL_BAD_DECRYPT','ERR_OSSL_EVP_BAD_DECRYPT'].includes(e.code))refuse('SUPPLIED_VALUE_DOES_NOT_UNLOCK_VERIFIED_V3');
    refuse('DECRYPTION_IMPLEMENTATION_OR_RUNTIME_ERROR');
   }finally{secretBytes.fill(0);secretBytes=undefined;}
   result.unlockVerified=true;
@@ -128,17 +128,16 @@ function unlockVerifiedV2(){
   if(sha(publicDer)!==SPKI)refuse('UNLOCKED_PUBLIC_KEY_MISMATCH');
   result.publicPairVerified=true;
   const final=fs.readFileSync(KEY);const unchanged=sha(final)===EXPECTED;final.fill(0);
-  if(!unchanged)refuse('V2_CHANGED_DURING_DIAGNOSTIC');
-  result.status='EXISTING_V2_UNLOCK_AND_PUBLIC_PAIR_VERIFIED';
+  if(!unchanged)refuse('V3_CHANGED_DURING_DIAGNOSTIC');
+  result.status='EXISTING_V3_UNLOCK_AND_PUBLIC_PAIR_VERIFIED';
   return {privateKey:key,proof:result};
  }catch(e){const error=new Error();error.safeCode=e.safeCode||'UNEXPECTED_LOCAL_UNLOCK_FAILURE';error.safeCryptoCode=result.cryptoCode;throw error;}
  finally{encrypted?.fill(0);secretBytes?.fill(0);publicDer?.fill(0);key=undefined;}
 }
-module.exports={unlockVerifiedV2};
-
+module.exports={unlockVerifiedV3};
 
 return module.exports;})();
-// END VERIFIED V2 UNLOCK COMPONENT
+// END VERIFIED V3 UNLOCK COMPONENT
 async function main(){
  if(process.platform!=='darwin'||process.env.HOME!==HOME||process.version!=='v22.23.3'||process.argv[2]!=='PHASE18_ONE_ACCESS_SETUP_APP_DISPATCH')stop('EXACT_APPROVED_MAC_NODE_AND_MARKER_REQUIRED');
  for(const p of [ROOT,ROOT+'/private-signing',ROOT+'/evidence'])privatePath(p,'directory');
@@ -149,10 +148,10 @@ async function main(){
  }
  const branch=await http('https://api.github.com/repos/'+REPO+'/branches/team-access-directory');
  if(branch.commit?.sha!==SHA)stop('REVIEWED_TRAINING_SHA_MOVED');
- const unlocked=verifiedV2Unlock.unlockVerifiedV2();
+ const unlocked=verifiedV3Unlock.unlockVerifiedV3();
  let privateKey=unlocked.privateKey;
  unlocked.privateKey=undefined;
- console.log('EXISTING_V2_UNLOCK_AND_PUBLIC_PAIR_VERIFIED');
+ console.log('EXISTING_V3_UNLOCK_AND_PUBLIC_PAIR_VERIFIED');
  const now=Math.floor(Date.now()/1000);
  const enc=v=>Buffer.from(JSON.stringify(v)).toString('base64url');
  const signing=enc({alg:'RS256',typ:'JWT'})+'.'+enc({iat:now-30,exp:now+300,iss:'5288606'});
