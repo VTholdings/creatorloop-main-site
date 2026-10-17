@@ -25,7 +25,7 @@ async function exercise(mode){
   let value;
   if(url.startsWith('https://raw.githubusercontent.com/'))value=mode==='workflow-change'?Buffer.from('changed'):workflow;
   else if(url.endsWith('/branches/team-access-directory'))value={commit:{sha}};
-  else if(url==='https://api.github.com/app')value={id:5288606,slug:'vt-creatorloop-training-executor',owner:{login:'VTholdings'},permissions};
+  else if(url==='https://api.github.com/app'){if(mode==='app-read-reset'){const e=new Error('PRIVATE_BEARER_FIXTURE_MUST_NOT_LEAK');e.cause={code:'ECONNRESET'};throw e;}if(mode==='app-read-401')return {ok:false,status:401};value={id:5288606,slug:'vt-creatorloop-training-executor',owner:{login:'VTholdings'},permissions};}
   else if(url.endsWith('/app/installations/170669547'))value={app_id:5288606,account:{login:'VTholdings'},repository_selection:'selected',permissions,suspended_at:null};
   else if(url.endsWith('/access_tokens')){
    assert.deepEqual(JSON.parse(options.body),{repository_ids:[1298726702],permissions});
@@ -69,3 +69,7 @@ test('retained V2 custody baseline is pinned exactly',()=>{assert.ok(raw.include
  test('verified unlock runtime crypto failure is distinguishable and sanitized',async()=>{const r=await exercise('crypto-runtime');assert.equal(r.code,1);assert.equal(r.calls.filter(c=>c.method==='POST').length,0);assert.match(r.output,/DECRYPTION_IMPLEMENTATION_OR_RUNTIME_ERROR/);assert.match(r.output,/ERR_OSSL_UNSUPPORTED/);assert.ok(!r.output.includes('private fixture exception'));});
  test('verified unlock cancellation refuses without mutation',async()=>{const r=await exercise('cancel');assert.equal(r.code,1);assert.equal(r.calls.filter(c=>c.method==='POST').length,0);assert.match(r.output,/PRIVATE_INPUT_CANCELLED_OR_UNAVAILABLE/);});
  test('verified unlock dispatch still preserves uncertainty marker and never retries',async()=>{const r=await exercise('uncertain');assert.equal(r.code,1);assert.equal(r.calls.filter(c=>c.url.endsWith('/dispatches')).length,1);assert.equal(r.files.size,1);assert.match(r.output,/POST_OUTCOME_UNCERTAIN_DO_NOT_RERUN/);});
+
+ test('transport correction names authenticated App read reset without leaking exception',async()=>{const r=await exercise('app-read-reset');assert.equal(r.code,1);assert.equal(r.calls.filter(c=>c.method==='POST').length,0);assert.match(r.output,/GITHUB_READ_TRANSPORT_FAILED/);assert.match(r.output,/APP_IDENTITY/);assert.match(r.output,/ECONNRESET/);assert.ok(!r.output.includes('PRIVATE_BEARER_FIXTURE'));});
+ test('transport correction preserves actual HTTP authentication refusal separately',async()=>{const r=await exercise('app-read-401');assert.equal(r.code,1);assert.equal(r.calls.filter(c=>c.method==='POST').length,0);assert.match(r.output,/GITHUB_HTTP_401/);assert.ok(!r.output.includes('GITHUB_READ_TRANSPORT_FAILED'));});
+ test('transport correction still never retries uncertain dispatch',async()=>{const r=await exercise('uncertain');assert.equal(r.calls.filter(c=>c.url.endsWith('/dispatches')).length,1);assert.equal(r.code,1);assert.match(r.output,/WORKFLOW_DISPATCH/);assert.match(r.output,/POST_OUTCOME_UNCERTAIN_DO_NOT_RERUN/);});
