@@ -34,7 +34,14 @@ async function http(url,{method='GET',auth,body,raw=false}={}){
  if(body)headers['Content-Type']='application/json';
  let r;
  try{r=await fetch(url,{method,redirect:'error',signal:AbortSignal.timeout(15000),headers,body:body?JSON.stringify(body):undefined});}
- catch{stop(method==='POST'?'POST_OUTCOME_UNCERTAIN_DO_NOT_RERUN':'PUBLIC_OR_AUTHENTICATED_READ_FAILED');}
+ catch(error){
+  const stage=url==='https://api.github.com/app'?'APP_IDENTITY':url==='https://api.github.com/app/installations/170669547'?'APP_INSTALLATION':url.endsWith('/access_tokens')?'INSTALLATION_TOKEN':url.endsWith('/dispatches')?'WORKFLOW_DISPATCH':url.includes('/installation/repositories')?'REPOSITORY_SCOPE':'REVIEWED_SOURCE';
+  const allowed=['ENOTFOUND','EAI_AGAIN','ECONNRESET','ECONNREFUSED','ETIMEDOUT','ENETUNREACH','EHOSTUNREACH','UND_ERR_CONNECT_TIMEOUT','UND_ERR_HEADERS_TIMEOUT','UND_ERR_SOCKET','UND_ERR_INVALID_ARG','ERR_INVALID_CHAR','ERR_INVALID_ARG_VALUE','UNABLE_TO_VERIFY_LEAF_SIGNATURE','CERT_HAS_EXPIRED','DEPTH_ZERO_SELF_SIGNED_CERT'];
+  const candidate=error?.cause?.code||error?.code;
+  const code=allowed.includes(candidate)?candidate:error?.name==='TimeoutError'?'REQUEST_TIMEOUT':'UNCLASSIFIED_TRANSPORT_ERROR';
+  const safe=new Error(method==='POST'?'POST_OUTCOME_UNCERTAIN_DO_NOT_RERUN':'GITHUB_READ_TRANSPORT_FAILED');
+  safe.safeNetwork={stage,method,code};throw safe;
+ }
  if(!r.ok)stop('GITHUB_HTTP_'+r.status+'_DO_NOT_RERUN');
  if(r.status===204)return {status:204};
  const chunks=[];let size=0;
@@ -178,6 +185,6 @@ main().catch(error=>{
  const candidate=error.safeCode||error.message;
  const status=/^[A-Z0-9_]+$/.test(candidate)?candidate:'PRIVATE_OR_UNEXPECTED_FAILURE_DO_NOT_RERUN';
  console.error('PHASE18_BOOTSTRAP_STOPPED: '+status);
- console.error(JSON.stringify({status,cryptoCode:known.includes(error.safeCryptoCode)?error.safeCryptoCode:null,automaticRetryAllowed:false,privateValuesIncluded:false}));
+ console.error(JSON.stringify({status,cryptoCode:known.includes(error.safeCryptoCode)?error.safeCryptoCode:null,automaticRetryAllowed:false,privateValuesIncluded:false,network:error.safeNetwork||null}));
  process.exitCode=1;
 });
