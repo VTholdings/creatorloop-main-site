@@ -98,24 +98,31 @@ function encryptionInfo(pem) {
 }
 function unlockVerifiedV3(){
  let encrypted,secretBytes,key,publicDer;
+ let stage='RUNTIME_GUARD';
  const result={protocol:'VT_PHASE18_V3_UNLOCK_DIAGNOSTIC_V1',ciphertextVerified:false,encryptionMetadataVerified:false,unlockVerified:false,publicPairVerified:false,cryptoCode:null,networkRequests:0,filesChanged:false,dispatchAttempted:false};
  try{
   if(process.platform!=='darwin'||process.version!=='v22.23.3'||process.env.HOME!=='/Users/tt1')refuse('EXACT_OWNER_MAC_REQUIRED');
+  stage='KEY_STAT';
   const stat=fs.lstatSync(KEY);
   if(!stat.isFile()||stat.isSymbolicLink()||stat.uid!==process.getuid()||stat.nlink!==1||(stat.mode&0o777)!==0o400||fs.realpathSync(KEY)!==KEY||stat.size>65536)refuse('PRIVATE_KEY_CUSTODY_GUARD_REFUSED');
+  stage='KEY_OPEN';
   const fd=fs.openSync(KEY,fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW);
   try{const opened=fs.fstatSync(fd);if(opened.ino!==stat.ino||opened.dev!==stat.dev||opened.mtimeMs!==stat.mtimeMs)refuse('FILE_CHANGED_DURING_READ');encrypted=fs.readFileSync(fd);}finally{fs.closeSync(fd);}
+  stage='CIPHERTEXT_CHECK';
   if(sha(encrypted)!==EXPECTED)refuse('VERIFIED_V3_CIPHERTEXT_MISMATCH');
   result.ciphertextVerified=true;
+  stage='ENCRYPTION_METADATA';
   try{result.encryption=encryptionInfo(encrypted);}catch{refuse('ENCRYPTION_METADATA_INCOMPATIBLE');}
   if(!crypto.getCiphers().includes('aes-256-cbc')||!crypto.getHashes().includes(result.encryption.prf==='HMAC-SHA256'?'sha256':'sha1'))refuse('CRYPTO_ALGORITHM_UNAVAILABLE');
   result.encryptionMetadataVerified=true;
+  stage='PRIVATE_INPUT';
   let input;
   try{input=execFileSync('/usr/bin/osascript',['-e','activate','-e','text returned of (display dialog "Enter the confirmed saved LOCAL ENCRYPTION passphrase recorded for the resecured App 5288606 V3 key on October 16. Not a Cloudflare token, GitHub password, or private-key contents. Cancel if unavailable. After verified unlock, submit only the reviewed Access setup as the App; Owner approval remains required." with title "CreatorLoop — Verified V3 App Setup" default answer "" buttons {"Cancel", "Check saved V3 passphrase"} default button "Check saved V3 passphrase" cancel button "Cancel" with hidden answer)'],{encoding:'utf8',stdio:['ignore','pipe','pipe'],timeout:300000,maxBuffer:8192}).replace(/\r?\n$/,'');}catch{refuse('PRIVATE_INPUT_CANCELLED_OR_UNAVAILABLE');}
   if(!input)refuse('SAVED_PASSPHRASE_UNAVAILABLE');
   if(input.startsWith('cfat_')){input=undefined;refuse('CLOUDFLARE_TOKEN_SUPPLIED_NOT_V3_PASSPHRASE');}
   if(input.includes('-----BEGIN ')){input=undefined;refuse('KEY_CONTENT_SUPPLIED_NOT_V3_PASSPHRASE');}
   secretBytes=Buffer.from(input,'utf8');input=undefined;
+  stage='KEY_DECRYPTION';
   try{key=crypto.createPrivateKey({key:encrypted,format:'pem',passphrase:secretBytes});}
   catch(e){
    const allowed=['ERR_OSSL_BAD_DECRYPT','ERR_OSSL_EVP_BAD_DECRYPT','ERR_OSSL_UNSUPPORTED','ERR_OSSL_EVP_UNSUPPORTED'];
@@ -124,14 +131,16 @@ function unlockVerifiedV3(){
    refuse('DECRYPTION_IMPLEMENTATION_OR_RUNTIME_ERROR');
   }finally{secretBytes.fill(0);secretBytes=undefined;}
   result.unlockVerified=true;
+  stage='PUBLIC_PAIR_CHECK';
   publicDer=crypto.createPublicKey(key).export({format:'der',type:'spki'});
   if(sha(publicDer)!==SPKI)refuse('UNLOCKED_PUBLIC_KEY_MISMATCH');
   result.publicPairVerified=true;
+  stage='FINAL_KEY_READ';
   const final=fs.readFileSync(KEY);const unchanged=sha(final)===EXPECTED;final.fill(0);
   if(!unchanged)refuse('V3_CHANGED_DURING_DIAGNOSTIC');
   result.status='EXISTING_V3_UNLOCK_AND_PUBLIC_PAIR_VERIFIED';
   return {privateKey:key,proof:result};
- }catch(e){const error=new Error();error.safeCode=e.safeCode||'UNEXPECTED_LOCAL_UNLOCK_FAILURE';error.safeCryptoCode=result.cryptoCode;throw error;}
+ }catch(e){const error=new Error();const osCodes={ENOENT:'LOCAL_KEY_NOT_FOUND',EACCES:'LOCAL_KEY_ACCESS_DENIED',EPERM:'LOCAL_KEY_OPERATION_DENIED',ELOOP:'LOCAL_KEY_SYMLINK_REFUSED',ENOTDIR:'LOCAL_KEY_PARENT_NOT_DIRECTORY',EISDIR:'LOCAL_KEY_NOT_REGULAR_FILE'};error.safeCode=e.safeCode||osCodes[e.code]||'UNEXPECTED_LOCAL_UNLOCK_FAILURE';error.safeLocalStage=stage;error.safeCryptoCode=result.cryptoCode;throw error;}
  finally{encrypted?.fill(0);secretBytes?.fill(0);publicDer?.fill(0);key=undefined;}
 }
 module.exports={unlockVerifiedV3};
@@ -184,6 +193,6 @@ main().catch(error=>{
  const candidate=error.safeCode||error.message;
  const status=/^[A-Z0-9_]+$/.test(candidate)?candidate:'PRIVATE_OR_UNEXPECTED_FAILURE_DO_NOT_RERUN';
  console.error('PHASE18_BOOTSTRAP_STOPPED: '+status);
- console.error(JSON.stringify({status,cryptoCode:known.includes(error.safeCryptoCode)?error.safeCryptoCode:null,automaticRetryAllowed:false,privateValuesIncluded:false,network:error.safeNetwork||null}));
+ console.error(JSON.stringify({status,cryptoCode:known.includes(error.safeCryptoCode)?error.safeCryptoCode:null,automaticRetryAllowed:false,privateValuesIncluded:false,network:error.safeNetwork||null,localStage:error.safeLocalStage||null}));
  process.exitCode=1;
 });
