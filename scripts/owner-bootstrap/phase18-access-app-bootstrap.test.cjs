@@ -25,7 +25,7 @@ async function exercise(mode){
   let value;
   if(url.startsWith('https://raw.githubusercontent.com/'))value=mode==='workflow-change'?Buffer.from('changed'):workflow;
   else if(url.endsWith('/branches/team-access-directory'))value={commit:{sha}};
-  else if(url==='https://api.github.com/app')value={id:5288606,slug:'vt-creatorloop-training-executor',owner:{login:'VTholdings'},permissions};
+  else if(url==='https://api.github.com/app'){if(mode==='identity-aggregate'){const e=new TypeError('SECRET TRANSPORT DETAILS');e.cause=new AggregateError([Object.assign(new Error('SECRET HOST'),{code:'ENETUNREACH'}),Object.assign(new Error('SECRET HOST'),{code:'ETIMEDOUT'})],'SECRET');throw e;}if(mode==='identity-401')return {ok:false,status:401};value={id:5288606,slug:'vt-creatorloop-training-executor',owner:{login:'VTholdings'},permissions};}
   else if(url.endsWith('/app/installations/170669547'))value={app_id:5288606,account:{login:'VTholdings'},repository_selection:'selected',permissions,suspended_at:null};
   else if(url.endsWith('/access_tokens')){
    assert.deepEqual(JSON.parse(options.body),{repository_ids:[1298726702],permissions});
@@ -40,7 +40,7 @@ async function exercise(mode){
   const b=Buffer.isBuffer(value)?value:Buffer.from(JSON.stringify(value));
   return {ok:true,status:200,body:(async function*(){yield b;})()};
  };
- const processMock={platform:'darwin',version:'v22.23.3',env:{HOME:'/Users/tt1'},argv:['node','helper','PHASE18_ONE_ACCESS_SETUP_APP_DISPATCH'],getuid:()=>501,exitCode:0};
+ const processMock={platform:'darwin',version:'v22.23.3',env:{HOME:'/Users/tt1'},argv:['node','helper',mode.startsWith('identity-')?'PHASE18_APP_IDENTITY_READ_ONLY':'PHASE18_ONE_ACCESS_SETUP_APP_DISPATCH'],getuid:()=>501,exitCode:0};
  const sandbox={require:n=>n==='node:fs'?fakefs:n==='node:crypto'?{...crypto,createPrivateKey:options=>{assert.ok(Buffer.isBuffer(options.passphrase));if(mode==='crypto-runtime'){const e=new Error('private fixture exception must not leak');e.code='ERR_OSSL_UNSUPPORTED';throw e;}return crypto.createPrivateKey(options);}}:n==='node:child_process'?{execFileSync:()=>{prompted=true;if(mode==='cancel')throw Error('private cancel details');return (mode==='wrong-password'?'wrong-synthetic-passphrase':password)+'\n';}}:null,process:processMock,fetch:fakeFetch,Buffer,AbortSignal,console:{log:t=>output.push(t),error:t=>output.push(t)}};
  vm.runInNewContext(source,sandbox);
  for(let n=0;n<30;n++)await new Promise(resolve=>setImmediate(resolve));
@@ -72,3 +72,7 @@ test('retained V3 custody baseline is pinned exactly',()=>{assert.ok(raw.include
 
 test('missing V3 local file reports exact sanitized stage before prompt or POST',async()=>{const r=await exercise('missing-key');assert.equal(r.prompted,false);assert.equal(r.calls.filter(c=>c.method==='POST').length,0);assert.match(r.output,/LOCAL_KEY_NOT_FOUND/);assert.match(r.output,/KEY_STAT/);assert.ok(!r.output.includes('PRIVATE FILE DETAILS'));});
 test('denied V3 local file reports access failure before prompt or POST',async()=>{const r=await exercise('denied-key');assert.equal(r.prompted,false);assert.equal(r.calls.filter(c=>c.method==='POST').length,0);assert.match(r.output,/LOCAL_KEY_ACCESS_DENIED/);assert.match(r.output,/KEY_STAT/);assert.ok(!r.output.includes('PRIVATE FILE DETAILS'));});
+
+test('identity nested transport codes retained with no HTTP response or POST',async()=>{const r=await exercise('identity-aggregate');assert.equal(r.code,1);assert.match(r.output,/ENETUNREACH/);assert.match(r.output,/ETIMEDOUT/);assert.match(r.output,/NO_HTTP_RESPONSE/);assert.equal(r.files.size,0);assert.equal(r.calls.filter(c=>c.method==='POST').length,0);assert.ok(!r.output.includes('SECRET'));});
+test('identity HTTP rejection distinguished from transport',async()=>{const r=await exercise('identity-401');assert.equal(r.code,1);assert.match(r.output,/GITHUB_HTTP_401/);assert.match(r.output,/HTTP_RESPONSE/);assert.match(r.output,/APP_IDENTITY/);assert.equal(r.files.size,0);assert.equal(r.calls.filter(c=>c.method==='POST').length,0);});
+test('identity read only succeeds without token mint markers or dispatch',async()=>{const r=await exercise('identity-ok');assert.equal(r.code,0);assert.match(r.output,/PHASE18_APP_IDENTITY_AUTHENTICATED_READ_PASS/);assert.equal(r.files.size,0);assert.equal(r.calls.filter(c=>c.method==='POST').length,0);assert.equal(r.calls.filter(c=>c.url==='https://api.github.com/app').length,1);assert.equal(r.calls.filter(c=>c.url.includes('/app/installations/')).length,0);});
