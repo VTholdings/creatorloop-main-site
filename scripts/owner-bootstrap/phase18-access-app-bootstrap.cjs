@@ -28,20 +28,41 @@ function exclusiveJson(path,value){
  const fd=fs.openSync(path,'wx',0o400);
  try{fs.writeFileSync(fd,JSON.stringify(value,null,2)+'\n');fs.fsyncSync(fd);}finally{fs.closeSync(fd);}
 }
+const githubCurlTransport=(()=>{const module={exports:{}};
+'use strict';
+// Credentials travel only in child stdin; curl defaults, redirects and retries disabled.
+const {execFileSync}=require('node:child_process');
+function curlAuthenticatedOnce(url,{method='GET',headers={},body}={},run=execFileSync){
+ if(!url.startsWith('https://api.github.com/')||!['GET','POST'].includes(method))throw Error('EXACT_GITHUB_TRANSPORT_REQUIRED');
+ const lines=['silent','show-error','proto = "=https"','connect-timeout = 10','max-time = 15','retry = 0','max-redirs = 0','request = '+JSON.stringify(method),'url = '+JSON.stringify(url),'write-out = "\\n%{http_code}"'];
+ for(const [name,value]of Object.entries(headers)){if(!/^[A-Za-z0-9-]+$/.test(name)||typeof value!=='string'||/[\r\n]/.test(value))throw Error('HEADER_FORMAT_REFUSED');lines.push('header = '+JSON.stringify(name+': '+value));}
+ if(body!==undefined)lines.push('data-binary = '+JSON.stringify(body));
+ let output;
+ try{output=run('/usr/bin/curl',['-q','--config','-'],{input:lines.join('\n')+'\n',encoding:null,stdio:['pipe','pipe','pipe'],timeout:20000,maxBuffer:2004096});}
+ catch(e){const safe=new Error('CURL_TRANSPORT_FAILED');const known={5:'CURL_PROXY_RESOLUTION_FAILED',6:'CURL_HOST_RESOLUTION_FAILED',7:'CURL_CONNECTION_FAILED',28:'CURL_TIMEOUT',35:'CURL_TLS_HANDSHAKE_FAILED',52:'CURL_EMPTY_REPLY',55:'CURL_SEND_FAILED',56:'CURL_RECEIVE_FAILED',60:'CURL_CERTIFICATE_REJECTED'};safe.safeCurlCode=known[e.status]||'CURL_LOCAL_OR_TRANSPORT_FAILURE';throw safe;}
+ const cut=output.lastIndexOf(10),statusText=output.subarray(cut+1).toString('ascii');
+ if(cut<0||!/^\d{3}$/.test(statusText)||Number(statusText)<100||cut>2000000)throw Error('CURL_RESPONSE_FRAMING_REFUSED');
+ const status=Number(statusText),bytes=output.subarray(0,cut);
+ return {ok:status>=200&&status<300,status,body:(async function*(){yield bytes;})()};
+}
+module.exports={curlAuthenticatedOnce};
+
+return module.exports;})();
 async function http(url,{method='GET',auth,body,raw=false}={}){
  const headers={Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28','User-Agent':'VT-Phase18-Owner-Administrative-Bootstrap'};
  if(auth)headers.Authorization='Bearer '+auth;
  if(body)headers['Content-Type']='application/json';
  const stage=url==='https://api.github.com/app'?'APP_IDENTITY':url==='https://api.github.com/app/installations/170669547'?'APP_INSTALLATION':url.endsWith('/access_tokens')?'INSTALLATION_TOKEN':url.endsWith('/dispatches')?'WORKFLOW_DISPATCH':url.includes('/installation/repositories')?'REPOSITORY_SCOPE':'REVIEWED_SOURCE';
  let r;
- try{r=await fetch(url,{method,redirect:'error',signal:AbortSignal.timeout(15000),headers,body:body?JSON.stringify(body):undefined});}
+ try{r=auth?githubCurlTransport.curlAuthenticatedOnce(url,{method,headers,body:body?JSON.stringify(body):undefined}):await fetch(url,{method,redirect:'error',signal:AbortSignal.timeout(15000),headers,body:body?JSON.stringify(body):undefined});}
  catch(error){
   const stage=url==='https://api.github.com/app'?'APP_IDENTITY':url==='https://api.github.com/app/installations/170669547'?'APP_INSTALLATION':url.endsWith('/access_tokens')?'INSTALLATION_TOKEN':url.endsWith('/dispatches')?'WORKFLOW_DISPATCH':url.includes('/installation/repositories')?'REPOSITORY_SCOPE':'REVIEWED_SOURCE';
   const allowed=['ENOTFOUND','EAI_AGAIN','ECONNRESET','ECONNREFUSED','ETIMEDOUT','ENETUNREACH','EHOSTUNREACH','UND_ERR_CONNECT_TIMEOUT','UND_ERR_HEADERS_TIMEOUT','UND_ERR_SOCKET','UND_ERR_INVALID_ARG','ERR_INVALID_CHAR','ERR_INVALID_ARG_VALUE','UNABLE_TO_VERIFY_LEAF_SIGNATURE','CERT_HAS_EXPIRED','DEPTH_ZERO_SELF_SIGNED_CERT'];
   const codes=[],names=[],seen=new Set();
   function inspect(e,depth=0){if(!e||typeof e!=='object'||depth>4||seen.has(e)||seen.size>=20)return;seen.add(e);if(allowed.includes(e.code)&&!codes.includes(e.code))codes.push(e.code);if(['TypeError','AggregateError','Error','TimeoutError','AbortError'].includes(e.name)&&!names.includes(e.name))names.push(e.name);inspect(e.cause,depth+1);if(Array.isArray(e.errors))for(const child of e.errors.slice(0,8))inspect(child,depth+1);}
   inspect(error);
-  const code=codes[0]|| (names.includes('TimeoutError')?'REQUEST_TIMEOUT':'UNCLASSIFIED_TRANSPORT_ERROR');
+  const curlCodes=['CURL_PROXY_RESOLUTION_FAILED','CURL_HOST_RESOLUTION_FAILED','CURL_CONNECTION_FAILED','CURL_TIMEOUT','CURL_TLS_HANDSHAKE_FAILED','CURL_EMPTY_REPLY','CURL_SEND_FAILED','CURL_RECEIVE_FAILED','CURL_CERTIFICATE_REJECTED','CURL_LOCAL_OR_TRANSPORT_FAILURE'];
+  const code=curlCodes.includes(error.safeCurlCode)?error.safeCurlCode:codes[0]|| (names.includes('TimeoutError')?'REQUEST_TIMEOUT':'UNCLASSIFIED_TRANSPORT_ERROR');
   const safe=new Error(method==='POST'?'POST_OUTCOME_UNCERTAIN_DO_NOT_RERUN':'GITHUB_READ_TRANSPORT_FAILED');
   safe.safeNetwork={stage,method,classification:'NO_HTTP_RESPONSE',code,codes,errorTypes:names};throw safe;
  }
