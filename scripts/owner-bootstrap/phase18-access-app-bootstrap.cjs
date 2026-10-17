@@ -32,17 +32,20 @@ async function http(url,{method='GET',auth,body,raw=false}={}){
  const headers={Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28','User-Agent':'VT-Phase18-Owner-Administrative-Bootstrap'};
  if(auth)headers.Authorization='Bearer '+auth;
  if(body)headers['Content-Type']='application/json';
+ const stage=url==='https://api.github.com/app'?'APP_IDENTITY':url==='https://api.github.com/app/installations/170669547'?'APP_INSTALLATION':url.endsWith('/access_tokens')?'INSTALLATION_TOKEN':url.endsWith('/dispatches')?'WORKFLOW_DISPATCH':url.includes('/installation/repositories')?'REPOSITORY_SCOPE':'REVIEWED_SOURCE';
  let r;
  try{r=await fetch(url,{method,redirect:'error',signal:AbortSignal.timeout(15000),headers,body:body?JSON.stringify(body):undefined});}
  catch(error){
   const stage=url==='https://api.github.com/app'?'APP_IDENTITY':url==='https://api.github.com/app/installations/170669547'?'APP_INSTALLATION':url.endsWith('/access_tokens')?'INSTALLATION_TOKEN':url.endsWith('/dispatches')?'WORKFLOW_DISPATCH':url.includes('/installation/repositories')?'REPOSITORY_SCOPE':'REVIEWED_SOURCE';
   const allowed=['ENOTFOUND','EAI_AGAIN','ECONNRESET','ECONNREFUSED','ETIMEDOUT','ENETUNREACH','EHOSTUNREACH','UND_ERR_CONNECT_TIMEOUT','UND_ERR_HEADERS_TIMEOUT','UND_ERR_SOCKET','UND_ERR_INVALID_ARG','ERR_INVALID_CHAR','ERR_INVALID_ARG_VALUE','UNABLE_TO_VERIFY_LEAF_SIGNATURE','CERT_HAS_EXPIRED','DEPTH_ZERO_SELF_SIGNED_CERT'];
-  const candidate=error?.cause?.code||error?.code;
-  const code=allowed.includes(candidate)?candidate:error?.name==='TimeoutError'?'REQUEST_TIMEOUT':'UNCLASSIFIED_TRANSPORT_ERROR';
+  const codes=[],names=[],seen=new Set();
+  function inspect(e,depth=0){if(!e||typeof e!=='object'||depth>4||seen.has(e)||seen.size>=20)return;seen.add(e);if(allowed.includes(e.code)&&!codes.includes(e.code))codes.push(e.code);if(['TypeError','AggregateError','Error','TimeoutError','AbortError'].includes(e.name)&&!names.includes(e.name))names.push(e.name);inspect(e.cause,depth+1);if(Array.isArray(e.errors))for(const child of e.errors.slice(0,8))inspect(child,depth+1);}
+  inspect(error);
+  const code=codes[0]|| (names.includes('TimeoutError')?'REQUEST_TIMEOUT':'UNCLASSIFIED_TRANSPORT_ERROR');
   const safe=new Error(method==='POST'?'POST_OUTCOME_UNCERTAIN_DO_NOT_RERUN':'GITHUB_READ_TRANSPORT_FAILED');
-  safe.safeNetwork={stage,method,code};throw safe;
+  safe.safeNetwork={stage,method,classification:'NO_HTTP_RESPONSE',code,codes,errorTypes:names};throw safe;
  }
- if(!r.ok)stop('GITHUB_HTTP_'+r.status+'_DO_NOT_RERUN');
+ if(!r.ok){const safe=new Error('GITHUB_HTTP_'+r.status+'_DO_NOT_RERUN');safe.safeNetwork={stage,method,classification:'HTTP_RESPONSE',httpStatus:r.status};throw safe;}
  if(r.status===204)return {status:204};
  const chunks=[];let size=0;
  for await(const part of r.body){size+=part.length;if(size>2_000_000)stop('RESPONSE_SIZE_REFUSED');chunks.push(part);}
@@ -148,7 +151,7 @@ module.exports={unlockVerifiedV3};
 return module.exports;})();
 // END VERIFIED V3 UNLOCK COMPONENT
 async function main(){
- if(process.platform!=='darwin'||process.env.HOME!==HOME||process.version!=='v22.23.3'||process.argv[2]!=='PHASE18_ONE_ACCESS_SETUP_APP_DISPATCH')stop('EXACT_APPROVED_MAC_NODE_AND_MARKER_REQUIRED');
+ if(process.platform!=='darwin'||process.env.HOME!==HOME||process.version!=='v22.23.3'||!['PHASE18_ONE_ACCESS_SETUP_APP_DISPATCH','PHASE18_APP_IDENTITY_READ_ONLY'].includes(process.argv[2]))stop('EXACT_APPROVED_MAC_NODE_AND_MARKER_REQUIRED');
  for(const p of [ROOT,ROOT+'/private-signing',ROOT+'/evidence'])privatePath(p,'directory');
  if(fs.existsSync(ATTEMPT)||fs.existsSync(RECEIPT))stop('PRIOR_ATTEMPT_PRESENT_DO_NOT_RERUN');
  for(const ref of [REGISTRATION,SHA]){
@@ -168,6 +171,7 @@ async function main(){
  privateKey=undefined;
  const app=await http('https://api.github.com/app',{auth:jwt});
  if(app.id!==5288606||app.slug!=='vt-creatorloop-training-executor'||app.owner?.login!=='VTholdings'||!exactPermissions(app.permissions))stop('APP_IDENTITY_OR_PERMISSION_MISMATCH');
+ if(process.argv[2]==='PHASE18_APP_IDENTITY_READ_ONLY'){jwt=undefined;console.log(JSON.stringify({status:'PHASE18_APP_IDENTITY_AUTHENTICATED_READ_PASS',appId:5288606,httpStatus:200,filesChanged:false,installationTokenMinted:false,dispatchAttempted:false,ownerReviewStillRequired:true}));return;}
  const installation=await http('https://api.github.com/app/installations/170669547',{auth:jwt});
  if(installation.app_id!==5288606||installation.account?.login!=='VTholdings'||installation.repository_selection!=='selected'||!exactPermissions(installation.permissions)||installation.suspended_at)stop('INSTALLATION_SCOPE_REFUSED');
  exclusiveJson(ATTEMPT,{protocol:'VT_PHASE18_ACCESS_SETUP_APP_BOOTSTRAP_V1',environment:'TRAINING',appId:5288606,installationId:170669547,repository:REPO,workflow:WORKFLOW,executionSha:SHA,workflowSha256:WORKFLOW_HASH,createdAt:new Date().toISOString(),automaticRetryAllowed:false});
