@@ -53,9 +53,9 @@ test('authorization reference is a role-limited Console control, not a source fi
   for(const role of ['OPERATOR','OPERATIONS','QA_REVIEWER','APPROVAL_AUTHORITY','ADMINISTRATOR']) {
     const {context}=await approvalContext(role);
     const assignment=runInNewContext("approvalReference('ASSIGNMENT')",context);
-    assert.equal(assignment.includes('name="authorizationId"'),['OPERATOR','OPERATIONS'].includes(role));
+    assert.equal(assignment.includes('name="authorizationId"'),['OPERATOR','OPERATIONS','ADMINISTRATOR'].includes(role));
     const creator=runInNewContext("approvalReference('CREATOR')",context);
-    assert.equal(creator.includes('name="authorizationId"'),role==='OPERATIONS');
+    assert.equal(creator.includes('name="authorizationId"'),['OPERATIONS','ADMINISTRATOR'].includes(role));
     if(assignment)assert.match(assignment,/server checks this record, the exact values and the decision validity/);
   }
 });
@@ -94,4 +94,32 @@ test('creator and assignment forms include the existing authorization payload ke
   const assignment=runInNewContext("assignmentForm({id:'ASG-200',creator_id:'CR-200',campaign_id:'CMP-100'})",context);
   for(const html of [creator,assignment])assert.match(html,/name="authorizationId"/);
   assert.match(assignment,/<select name="campaignId" disabled>/);
+});
+
+
+test('Team & Access distinguishes Operations Manager, enforces environment messaging and preserves UTC expiry',async()=>{
+  const source=await readFile('console/app.js','utf8');
+  const context={document:{addEventListener(){},querySelector(){return {addEventListener(){}};}}};
+  runInNewContext(source.replace(/start\(\);\s*$/,''),context);
+  const html=runInNewContext(`teamActionFields('manageAuthority',{profile:null,delegations:[{campaign_id:'CMP-100',field_key:'fixedContentFee',expires_at:'2099-01-01T01:02:03Z'}],scope:[],assignedRecords:[]},{campaigns:[{id:'CMP-100',name:'Fictional'}],authorityFields:['fixedContentFee']})`,context);
+  assert.match(html,/Expires \(UTC\)/);assert.match(html,/value="2099-01-01T01:02:03"/);assert.match(html,/step="1"/);
+  const choices=runInNewContext(`roleChoices({approvedRoles:['OPERATIONS','OPERATIONS_MANAGER'],roleCatalog:{OPERATIONS:'Operations — record authorized decisions',OPERATIONS_MANAGER:'Operations Manager'}},'OPERATIONS_MANAGER')`,context);
+  assert.match(choices,/Operations — record authorized decisions/);assert.match(choices,/value="OPERATIONS_MANAGER" selected>Operations Manager/);
+  const production=runInNewContext(`teamActionFields('startTraining',{profile:null,delegations:[],scope:[],assignedRecords:[]},{environment:'PRODUCTION'})`,context);
+  assert.match(production,/production access remains disabled/);
+});
+test('invalid Team scope is caught and never submitted; UI can show actionable error',async()=>{
+  const source=await readFile('console/app.js','utf8');let handler,requestCount=0;
+  const button={disabled:false},editor={innerHTML:''},form={addEventListener(event,callback){handler=callback;},querySelector(){return button;}},notice={hidden:true,className:'',textContent:''};
+  const context={document:{addEventListener(){},querySelector(selector){return selector==='#team-action-editor'?editor:selector==='#team-action-form'?form:selector==='#notice'?notice:{addEventListener(){}};}},FormData:class{*[Symbol.iterator](){yield ['reason','Fictional test'];yield ['scopes','CMP-100,CR-200,unexpected'];}},fetch:async()=>{requestCount++;throw new Error('Unexpected request');},setTimeout(){}};
+  runInNewContext(source.replace(/start\(\);\s*$/,''),context);
+  runInNewContext(`state.teamPerson={id:'OP-FICTIONAL',profile:null,scope:[],assignedRecords:[],role:'OPERATOR'};state.teamMeta={};editTeamAction('editScope');`,context);
+  await handler({preventDefault(){}});assert.equal(requestCount,0);assert.match(notice.textContent,/one Campaign ID, Creator ID/);assert.equal(button.disabled,false);
+});
+test('report snapshots escape content and preserve Product Focus versus Product Scope',async()=>{
+ const source=await readFile('console/app.js','utf8'),context={document:{addEventListener(){},querySelector(){return {addEventListener(){}};}}};
+ runInNewContext(source.replace(/start\(\);\s*$/,''),context);
+ const creator=runInNewContext(`reportSnapshot([{id:'CR-FICTIONAL',creator_name:'<script>',product_focus:'Creator focus'}],'creators')`,context);
+ const campaign=runInNewContext(`reportSnapshot([{id:'CMP-FICTIONAL',product_scope:'Campaign scope'}],'campaigns')`,context);
+ assert.match(creator,/Product Focus/);assert.doesNotMatch(creator,/Product Scope|<script>/);assert.match(creator,/&lt;script&gt;/);assert.match(campaign,/Product Scope/);assert.doesNotMatch(campaign,/Product Focus/);
 });

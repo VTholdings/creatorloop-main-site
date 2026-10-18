@@ -1,10 +1,11 @@
+import {verifier} from '../tests/helpers/admission-fixture.js';
 // Isolated API training fixture; never opens a production DB or external connection.
 // Run from the repository root: node training/walkthrough.mjs
 import assert from 'node:assert/strict';
 import {fixture,call} from '../tests/helpers/operator-fixture.js';
 import {onRequest as signedSync} from '../functions/api/integrations/control-system.js';
 export async function walkthrough() {
- const {db,env}=await fixture();env.CONSOLE_ENVIRONMENT='TRAINING';
+ const {db,env}=await fixture();await verifier({env},'TRAINING');
  const steps=[];
  const source=(tab,id,fields,creatorId='CR-200')=>db.prepare('INSERT INTO console_source_records(tab,record_id,campaign_id,creator_id,fields_json,source_version,source_updated_at) VALUES(?,?,?,?,?,?,?)').run(tab,id,'CMP-100',creatorId,JSON.stringify(fields),'TRAINING-FIXTURE',new Date().toISOString());
  try{
@@ -23,7 +24,8 @@ export async function walkthrough() {
   assert.equal((await call(env,'OPERATOR','POST','escalations',escalation)).body.replay,true);steps.push('Escalate: source-named blocker and idempotent capture');
   assert.equal((await call(env,'OPERATOR','PATCH','assignments/ASG-200',{status:'Live',version:1})).status,403);
   assert.equal((await call(env,'ADMINISTRATOR','PATCH','assignments/ASG-200',{status:'Live',version:1})).status,403);steps.push('Launch Gate: blocked source gate prevents operator and Owner bypass');
-  queues=await call(env,'OPERATOR','GET','queues?campaignId=CMP-100');assert.equal(queues.body.stages.find(s=>s.name==='Monitor').items[0].fields['Spend ($)'],'0');steps.push('Monitor: simulated zero-spend facts; no platform action');
+  queues=await call(env,'OPERATOR','GET','queues?campaignId=CMP-100');assert.equal('Spend ($)' in queues.body.stages.find(s=>s.name==='Monitor').items[0].fields,false);
+  const ownerQueues=await call(env,'ADMINISTRATOR','GET','queues?campaignId=CMP-100');assert.equal(ownerQueues.body.stages.find(s=>s.name==='Monitor').items[0].fields['Spend ($)'],'0');steps.push('Monitor: operator facts exclude restricted economics; Owner verifies simulated zero spend; no platform action');
   assert.equal((await call(env,'OPERATOR','PATCH','assignments/ASG-200',{status:'Complete',version:1})).status,403);
   assert.equal((await call(env,'ADMINISTRATOR','PATCH','assignments/ASG-200',{status:'Complete',notes:'TRAINING — closeout verified; no payment or next spend authorized',version:1})).status,200);steps.push('Close Out: Owner records verified closeout; operator cannot originate approval');
   const sync=await signedSync({env,request:new Request('https://ops.creatorloop.net/api/integrations/control-system')});assert.equal(sync.status,403);steps.push('Isolation: production synchronization denied in TRAINING');

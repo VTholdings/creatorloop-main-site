@@ -1,0 +1,68 @@
+{
+  "protocol": "CREATORLOOP_STEP18_TRAINING_RELEASE_PREPARATION_V1",
+  "status": "BLOCKED_ON_APPROVED_ADMISSION_CUSTODY_AND_PROTECTED_RELEASE",
+  "executable": false,
+  "applicationReleaseSha": "f0fb836fd3169099761c6630ba3068e8ca6b1869",
+  "repository": "VTholdings/creatorloop-main-site",
+  "branch": "team-access-directory",
+  "training": {
+    "url": "https://creatorloop-operator-training.pages.dev/console/",
+    "project": "creatorloop-operator-training",
+    "projectId": "9863d88c-8025-414c-9524-078ee470e9e7",
+    "databaseId": "12dbfa51-ca9c-475b-bb1b-ca90ac8bd7f0",
+    "accessAppId": "72da9ab5-d951-4de4-8456-fd6660e4d86e",
+    "accessPolicyConfigurationHash": "8a63d15a275dbee7e8e876d27dbb10e258f322aa43e587d720d821d4512e9bcc"
+  },
+  "evidence": {
+    "trainingRunId": 37832952818,
+    "artifactId": 11576437310,
+    "zipSha256": "c725f716f19662aa78ebb94e1278fc20ef9d4b459bd6c99cdd6ae26de9e74872",
+    "observedAt": "2026-10-08T20:17:57.538Z",
+    "historicalPeerRunId": 37228580212,
+    "historicalPeerZipSha256": "c36fc95acfaa0fe7e5e350cf05fb0df9de8716d969712aa71974cba8992a80b2",
+    "freshPreflightRequired": true
+  },
+  "proposedPublicVariables": {
+    "CONSOLE_ENVIRONMENT": "TRAINING",
+    "CLOUDFLARE_ACCESS_TEAM_DOMAIN": "shiny-wildflower-143c.cloudflareaccess.com",
+    "CLOUDFLARE_ACCESS_AUD": "a6b7d2d9e2a0bbe45ac1f1155cbd32593467eac2d66c01aa67d36fb290b7a38d",
+    "CONSOLE_DATABASE_ID": "12dbfa51-ca9c-475b-bb1b-ca90ac8bd7f0",
+    "CONSOLE_DEPLOYMENT_ID": "9863d88c-8025-414c-9524-078ee470e9e7",
+    "PEER_DATABASE_ID": "c4993a97-5835-4c6c-af06-7020fa8d4f2a",
+    "PEER_ACCESS_AUD": "c54a2a0bc9a1ae7ccde868a309822a6fadf74f6c04e7b34b48a32bab839757d9",
+    "PEER_DEPLOYMENT_ID": "28239f49-aedc-448e-978d-36b0b9359fa0"
+  },
+  "pinConvention": "Proposed stable Pages project UUIDs identify each environment; approved executor must use exactly the same public deployment identity. This convention has not been applied or adopted by a live executor.",
+  "slots": "Apply to every enabled TRAINING slot only after fresh metadata reconciliation; preview enablement is currently unknown.",
+  "publicVerifier": {
+    "variable": "ADMISSION_VERIFIER_KEYS",
+    "value": null,
+    "required": "Approved external signer public RSA JWK array; unique kid; minimum 2048-bit key; no private components; import/verification and signer fingerprint must be independently checked."
+  },
+  "ownerException": {
+    "kind": "ADMISSION_SIGNER_PROVIDER_CUSTODY",
+    "required": "Identify the existing approved external executor/custodian and supply only its public JWK and nonsecret runner/provider reference. If none exists, explicitly authorize establishing TRAINING-only external signer/provider custody before implementation or key/credential creation.",
+    "syntheticIdentity": "Dedicated individually authenticated TRAINING test identity is not yet corroborated; never reuse Owner or employee credentials.",
+    "permissions": "Any new provider credential or Access authority requires a separate scoped security decision. Existing metadata token read success does not demonstrate mutation/deployment/revocation permissions."
+  },
+  "releasePrerequisites": [
+    "Fresh corroboration of TRAINING project/D1/AUD, historical peer project identity and absence of forbidden credentials in all enabled slots.",
+    "Approved signer/executor custody, exact public-key material and individual admission/revocation mechanism that preserves Owner/service policies.",
+    "Existing protected TRAINING configuration/deployment approval; no automatic approval, bypass or old-run reuse.",
+    "Target-specific release from the reviewed application SHA; never deploy using unchanged production-pinned root wrangler.toml.",
+    "Verify actual deployed SHA, project/database bindings and loaded public variables before any synthetic fixture/login.",
+    "Prepare exact synthetic fixture IDs, role/scope and governed request/receipt; independently authenticate individual subject before Step19 release."
+  ],
+  "holds": [
+    "production changes",
+    "migrations",
+    "remote restore",
+    "protected PR merges",
+    "real employee activation",
+    "credential expansion",
+    "live admission/deployment outside existing controls"
+  ],
+  "remoteActionsPerformed": [],
+  "step18Complete": false,
+  "step19Ready": false
+}

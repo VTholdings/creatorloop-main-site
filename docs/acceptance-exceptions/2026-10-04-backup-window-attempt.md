@@ -1,0 +1,13 @@
+# Backup request 37237219473 — no exports, new approval required
+
+The exact source was `ff25db6ff665f7dc0f71e3d20c5d91f87ff52ebc`. GitHub recorded an approval by `Creatorloopzone` for `creatorloop-acceptance`, with an empty review comment. The protected job started and current encryption-key validation succeeded, but the required `BACKUP_WINDOW_NO_ACTIVE_OPERATORS` attestation failed before any Cloudflare call. Both export counts remain zero.
+
+The workflow encrypted and retained only the captured diagnostic/history evidence. Artifact 11315782847 is not a database backup or a verified Owner transfer bundle. Capture verification failed; independent download, local restore comparison and migration rehearsal were skipped. No remote restore, migration, schema change, configuration change or deployment occurred. The approval-history comment, not the Owner's no-use statement in chat, is the explicit guard this workflow evaluates. Do not replay the failed first-attempt run.
+
+## Retention finding and checker correction
+
+The artifact action requested `retention-days: 90`. GitHub metadata reports workflow creation `2026-10-04T21:43:08Z`, artifact creation `2026-10-04T21:49:58Z` and expiry `2027-01-02T21:43:09Z`. This is 90 days plus one second from run creation, but 90 days minus 409 seconds from artifact creation. The original checker assumed an upload-based expiry within one minute; it therefore rejected this result. The exact provider anchor is corroborated by those API timestamps for this run, not inferred from a successful upload alone.
+
+The correction compares actual expiry to both attributable artifact and workflow creation timestamps, retaining the 90-day policy requirement and blocking shorter policies, expired artifacts, substituted run/SHA identities and invalid chronology. It reports the actual expiry, anchor and retained seconds. It does not claim 90 full days after capture/upload when GitHub's run expiration cap truncates that interval. The Owner-controlled off-platform copy must still be retained for at least 90 days from capture. Requested policy, actual provider expiry and off-platform retention are separate findings.
+
+GitHub's artifact toolkit computes a requested expiration from the action's current time and clamps its requested duration to `GITHUB_RETENTION_DAYS`; the server-reported expiry remains the acceptance evidence. A new run is staged under the Owner's continued export authorization, with a fresh required environment approval and explicit no-active-operators comment. All encryption, download/authentication, comparison, rehearsal and release-hold controls remain. The key is reused unchanged; the historical Pages anomaly is not resolved by this correction.

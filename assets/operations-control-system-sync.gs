@@ -239,6 +239,17 @@ function signedFetch_(endpoint,secret,accessClientId,accessClientSecret,method,p
 
 function applyConsoleChange_(change) {
   const payload = change.payload || {};
+  if(change.entity_type==='CAMPAIGN') {
+    if(change.action!=='NOTES_ONLY'||Object.keys(payload).sort().join(',')!=='id,notes,previousNotes'||payload.id!==change.entity_id||!/^CMP-\d+$/.test(payload.id)||![payload.notes,payload.previousNotes].every(function(v){return v===null||typeof v==='string';}))throw new Error('Only reviewed campaign Notes can be exported');
+    const table=rowsByHeader_(CL_SYNC.CAMPAIGNS),idColumn=table.headers.indexOf('Campaign ID'),notesColumn=table.headers.indexOf('Notes');
+    if(idColumn<0||notesColumn<0)throw new Error('Campaign Notes mapping is incomplete');
+    const matches=table.rows.filter(function(row){return row[idColumn]===payload.id;});
+    if(matches.length!==1)throw new Error('Campaign must exist uniquely; Console cannot create source campaigns');
+    const existing=String(matches[0][notesColumn]||'');
+    if(existing===String(payload.notes||''))return; // Safe retry after acknowledgement failure.
+    if(existing!==String(payload.previousNotes||''))throw new Error('Campaign Notes changed in source; review conflict before export');
+    upsertMappedRow_(CL_SYNC.CAMPAIGNS,'Campaign ID',payload.id,{'Notes':payload.notes});return;
+  }
   if (change.entity_type === "CREATOR" && change.action !== "UPSERT") {
     if (!["WORKFLOW","QA_RESULT"].includes(change.action)) throw new Error("Unsupported creator action");
     return; // These actions are recorded in Console audit; there is no source workbook field.
