@@ -6,8 +6,10 @@ const {execFileSync}=require('node:child_process');
 const HOME='/Users/tt1';
 const ROOT=HOME+'/.vt-creatorloop';
 const KEY=ROOT+'/private-signing/training-executor-github-app-5288606-v3-resecured.pem';
-const ATTEMPT=ROOT+'/evidence/phase18-dispatch-credential-custody-app-bootstrap-v1-attempt.json';
-const RECEIPT=ROOT+'/evidence/phase18-dispatch-credential-custody-app-bootstrap-v1-receipt.json';
+const PRIOR_ATTEMPT=ROOT+'/evidence/phase18-dispatch-credential-custody-app-bootstrap-v1-attempt.json';
+const PRIOR_RECEIPT=ROOT+'/evidence/phase18-dispatch-credential-custody-app-bootstrap-v1-receipt.json';
+const ATTEMPT=ROOT+'/evidence/phase18-dispatch-credential-custody-app-bootstrap-v1-curl-recovery-attempt.json';
+const RECEIPT=ROOT+'/evidence/phase18-dispatch-credential-custody-app-bootstrap-v1-curl-recovery-receipt.json';
 const REPO='VTholdings/creatorloop-main-site';
 const SHA='fa1f4e4ba451e97135d016630fe7d42b9fd29e0c';
 const REGISTRATION='5b6710b44be01341f58ec82a144a8069284b6d88';
@@ -33,7 +35,8 @@ const githubCurlTransport=(()=>{const module={exports:{}};
 // Credentials travel only in child stdin; curl defaults, redirects and retries disabled.
 const {execFileSync}=require('node:child_process');
 function curlAuthenticatedOnce(url,{method='GET',headers={},body}={},run=execFileSync){
- if(!url.startsWith('https://api.github.com/')||!['GET','POST'].includes(method))throw Error('EXACT_GITHUB_TRANSPORT_REQUIRED');
+ const api=url.startsWith('https://api.github.com/'),publicSource=url.startsWith('https://raw.githubusercontent.com/VTholdings/creatorloop-main-site/');
+ if((!api&&!publicSource)||!['GET','POST'].includes(method)||(publicSource&&(method!=='GET'||headers.Authorization)))throw Error('EXACT_GITHUB_TRANSPORT_REQUIRED');
  const lines=['silent','show-error','proto = "=https"','connect-timeout = 10','max-time = 15','retry = 0','max-redirs = 0','request = '+JSON.stringify(method),'url = '+JSON.stringify(url),'write-out = "\\n%{http_code}"'];
  for(const [name,value]of Object.entries(headers)){if(!/^[A-Za-z0-9-]+$/.test(name)||typeof value!=='string'||/[\r\n]/.test(value))throw Error('HEADER_FORMAT_REFUSED');lines.push('header = '+JSON.stringify(name+': '+value));}
  if(body!==undefined)lines.push('data-binary = '+JSON.stringify(body));
@@ -54,7 +57,7 @@ async function http(url,{method='GET',auth,body,raw=false}={}){
  if(body)headers['Content-Type']='application/json';
  const stage=url==='https://api.github.com/app'?'APP_IDENTITY':url==='https://api.github.com/app/installations/170669547'?'APP_INSTALLATION':url.endsWith('/access_tokens')?'INSTALLATION_TOKEN':url.endsWith('/dispatches')?'WORKFLOW_DISPATCH':url.includes('/installation/repositories')?'REPOSITORY_SCOPE':'REVIEWED_SOURCE';
  let r;
- try{r=auth?githubCurlTransport.curlAuthenticatedOnce(url,{method,headers,body:body?JSON.stringify(body):undefined}):await fetch(url,{method,redirect:'error',signal:AbortSignal.timeout(15000),headers,body:body?JSON.stringify(body):undefined});}
+ try{r=githubCurlTransport.curlAuthenticatedOnce(url,{method,headers,body:body?JSON.stringify(body):undefined});}
  catch(error){
   const stage=url==='https://api.github.com/app'?'APP_IDENTITY':url==='https://api.github.com/app/installations/170669547'?'APP_INSTALLATION':url.endsWith('/access_tokens')?'INSTALLATION_TOKEN':url.endsWith('/dispatches')?'WORKFLOW_DISPATCH':url.includes('/installation/repositories')?'REPOSITORY_SCOPE':'REVIEWED_SOURCE';
   const allowed=['ENOTFOUND','EAI_AGAIN','ECONNRESET','ECONNREFUSED','ETIMEDOUT','ENETUNREACH','EHOSTUNREACH','UND_ERR_CONNECT_TIMEOUT','UND_ERR_HEADERS_TIMEOUT','UND_ERR_SOCKET','UND_ERR_INVALID_ARG','ERR_INVALID_CHAR','ERR_INVALID_ARG_VALUE','UNABLE_TO_VERIFY_LEAF_SIGNATURE','CERT_HAS_EXPIRED','DEPTH_ZERO_SELF_SIGNED_CERT'];
@@ -171,10 +174,37 @@ module.exports={unlockVerifiedV3};
 
 return module.exports;})();
 // END VERIFIED V3 UNLOCK COMPONENT
+
+function validatePriorCustodyAttempt(prior){
+ if(prior.protocol!=='VT_PHASE18_DISPATCH_CREDENTIAL_CUSTODY_APP_BOOTSTRAP_V1'||prior.environment!=='TRAINING'||prior.appId!==5288606||prior.installationId!==170669547||prior.repository!==REPO||prior.workflow!==WORKFLOW||prior.executionSha!==SHA||prior.workflowSha256!==WORKFLOW_HASH||prior.automaticRetryAllowed!==false||!Number.isFinite(Date.parse(prior.createdAt)))stop('EXACT_PRIOR_CUSTODY_ATTEMPT_REQUIRED');
+}
+async function noExistingCustodyRun(token,createdAt){
+ let count=0,total;
+ for(let page=1;page<=20;page++){
+  const value=await http('https://api.github.com/repos/'+REPO+'/actions/workflows/'+WORKFLOW+'/runs?per_page=100&page='+page,{auth:token});
+  if(!Array.isArray(value.workflow_runs)||!Number.isSafeInteger(value.total_count))stop('CUSTODY_RUN_INVENTORY_FORMAT_REFUSED');
+  if(total===undefined)total=value.total_count;
+  if(total!==value.total_count)stop('CUSTODY_RUN_INVENTORY_CHANGED');
+  for(const run of value.workflow_runs){
+   if(!Number.isFinite(Date.parse(run.created_at)))stop('CUSTODY_RUN_TIME_UNCORROBORATED');
+   if(Date.parse(run.created_at)>=Date.parse(createdAt)-300000)stop('EXISTING_CUSTODY_RUN_FOUND_DO_NOT_DISPATCH');
+  }
+  count+=value.workflow_runs.length;
+  if(count===total)return {runsInspected:count,matchingRuns:0};
+  if(count>total||value.workflow_runs.length===0)stop('CUSTODY_RUN_INVENTORY_INCOMPLETE');
+ }
+ stop('CUSTODY_RUN_INVENTORY_LIMIT');
+}
+
 async function main(){
  if(process.platform!=='darwin'||process.env.HOME!==HOME||process.version!=='v22.23.3'||process.argv[2]!=='PHASE18_ONE_DISPATCH_CREDENTIAL_CUSTODY')stop('EXACT_APPROVED_MAC_NODE_AND_MARKER_REQUIRED');
  for(const p of [ROOT,ROOT+'/private-signing',ROOT+'/evidence'])privatePath(p,'directory');
- if(fs.existsSync(ATTEMPT)||fs.existsSync(RECEIPT))stop('PRIOR_ATTEMPT_PRESENT_DO_NOT_RERUN');
+ if(fs.existsSync(ATTEMPT)||fs.existsSync(RECEIPT))stop('RECOVERY_ATTEMPT_PRESENT_DO_NOT_RERUN');
+ if(fs.existsSync(PRIOR_RECEIPT))stop('PRIOR_RECEIPT_PRESENT_RECONCILE_EXISTING_RUN');
+ privatePath(PRIOR_ATTEMPT,'file');
+ const priorBytes=fs.readFileSync(PRIOR_ATTEMPT),priorHash=hash(priorBytes);
+ const prior=JSON.parse(priorBytes.toString('utf8'));priorBytes.fill(0);
+ validatePriorCustodyAttempt(prior);
  for(const ref of [REGISTRATION,SHA]){
   const bytes=await http('https://raw.githubusercontent.com/'+REPO+'/'+ref+'/.github/workflows/'+WORKFLOW,{raw:true});
   if(hash(bytes)!==WORKFLOW_HASH)stop('REVIEWED_WORKFLOW_BYTES_MISMATCH');
@@ -195,7 +225,6 @@ async function main(){
  if(process.argv[2]==='PHASE18_APP_IDENTITY_READ_ONLY'){jwt=undefined;console.log(JSON.stringify({status:'PHASE18_APP_IDENTITY_AUTHENTICATED_READ_PASS',appId:5288606,httpStatus:200,filesChanged:false,installationTokenMinted:false,dispatchAttempted:false,ownerReviewStillRequired:true}));return;}
  const installation=await http('https://api.github.com/app/installations/170669547',{auth:jwt});
  if(installation.app_id!==5288606||installation.account?.login!=='VTholdings'||installation.repository_selection!=='selected'||!exactPermissions(installation.permissions)||installation.suspended_at)stop('INSTALLATION_SCOPE_REFUSED');
- exclusiveJson(ATTEMPT,{protocol:'VT_PHASE18_DISPATCH_CREDENTIAL_CUSTODY_APP_BOOTSTRAP_V1',environment:'TRAINING',appId:5288606,installationId:170669547,repository:REPO,workflow:WORKFLOW,executionSha:SHA,workflowSha256:WORKFLOW_HASH,createdAt:new Date().toISOString(),automaticRetryAllowed:false});
  let capability=await http('https://api.github.com/app/installations/170669547/access_tokens',{method:'POST',auth:jwt,body:{repository_ids:[1298726702],permissions:{actions:'write',metadata:'read'}}});
  jwt=undefined;
  const expiry=Date.parse(capability.expires_at);
@@ -204,10 +233,13 @@ async function main(){
  if(repos.total_count!==1||repos.repositories?.length!==1||repos.repositories[0].id!==1298726702||repos.repositories[0].full_name!==REPO)stop('SELECTED_REPOSITORY_SCOPE_REFUSED');
  const latest=await http('https://api.github.com/repos/'+REPO+'/branches/team-access-directory');
  if(latest.commit?.sha!==SHA)stop('TRAINING_SHA_CHANGED_BEFORE_DISPATCH');
+ const reconciliation=await noExistingCustodyRun(capability.token,prior.createdAt);
+ if(hash(fs.readFileSync(PRIOR_ATTEMPT))!==priorHash||fs.existsSync(PRIOR_RECEIPT))stop('PRIOR_CUSTODY_EVIDENCE_CHANGED');
+ exclusiveJson(ATTEMPT,{protocol:'VT_PHASE18_DISPATCH_CREDENTIAL_CUSTODY_APP_BOOTSTRAP_V1',environment:'TRAINING',appId:5288606,installationId:170669547,repository:REPO,workflow:WORKFLOW,executionSha:SHA,workflowSha256:WORKFLOW_HASH,priorAttemptSha256:priorHash,priorCreatedAt:prior.createdAt,reconciliation,createdAt:new Date().toISOString(),automaticRetryAllowed:false});
  const result=await http('https://api.github.com/repos/'+REPO+'/actions/workflows/'+WORKFLOW+'/dispatches',{method:'POST',auth:capability.token,body:{ref:'team-access-directory',inputs:{expected_execution_sha:SHA}}});
  // No retry. Only public response metadata is retained; no credentials leave memory.
  capability=undefined;
- const receipt={protocol:'VT_PHASE18_DISPATCH_CREDENTIAL_CUSTODY_APP_BOOTSTRAP_RECEIPT_V1',environment:'TRAINING',appId:5288606,installationId:170669547,expectedActor:'vt-creatorloop-training-executor[bot]',expectedActorId:341571374,repository:REPO,workflow:WORKFLOW,executionSha:SHA,workflowSha256:WORKFLOW_HASH,dispatchAccepted:result.status===204||Number.isSafeInteger(result.workflow_run_id),runId:result.workflow_run_id||null,ownerReviewStillRequired:true,workerVersionActivated:false,cloudflareMutationPerformedByHelper:false,automaticRetryAllowed:false,completedAt:new Date().toISOString()};
+ const receipt={protocol:'VT_PHASE18_DISPATCH_CREDENTIAL_CUSTODY_APP_BOOTSTRAP_RECEIPT_V1',environment:'TRAINING',appId:5288606,installationId:170669547,priorAttemptSha256:priorHash,reconciliation,expectedActor:'vt-creatorloop-training-executor[bot]',expectedActorId:341571374,repository:REPO,workflow:WORKFLOW,executionSha:SHA,workflowSha256:WORKFLOW_HASH,dispatchAccepted:result.status===204||Number.isSafeInteger(result.workflow_run_id),runId:result.workflow_run_id||null,ownerReviewStillRequired:true,workerVersionActivated:false,cloudflareMutationPerformedByHelper:false,automaticRetryAllowed:false,completedAt:new Date().toISOString()};
  if(!receipt.dispatchAccepted)stop('DISPATCH_RESPONSE_UNCORROBORATED_DO_NOT_RERUN');
  exclusiveJson(RECEIPT,receipt);
  console.log('PHASE18_DISPATCH_CREDENTIAL_CUSTODY_SUBMITTED');
