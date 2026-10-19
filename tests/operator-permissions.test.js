@@ -58,6 +58,22 @@ test('OPERATIONS records exact authorized values; altered, expired, wrong-record
   assert.equal((await call(env,'OPERATIONS','PATCH','assignments/ASG-200',{fixedContentFee:75,paidUsageRights:'No',authorizationId:approved.body.id,version:2})).status,403);
  }finally{db.close();}
 });
+test('operator scheduling reference cannot grant compensation or accept altered schedule values',async()=>{
+ const {db,env}=await fixture();
+ try {
+  const originalFee=db.prepare("SELECT fixed_content_fee FROM creator_assignments WHERE id='ASG-200'").get().fixed_content_fee;
+  const values={startDate:'2026-10-03',contentDue:'2026-10-10',fixedContentFee:75};
+  const approval=await call(env,'ADMINISTRATOR','POST','authorizations',{campaignId:'CMP-100',entityType:'ASSIGNMENT',entityId:'ASG-200',values,evidenceLink:'https://example.com/training/decision'});
+  assert.equal(approval.status,201);
+  const attempt=body=>call(env,'OPERATOR','PATCH','assignments/ASG-200',{authorizationId:approval.body.id,...body,version:1});
+  assert.equal((await attempt(values)).status,403);
+  assert.equal((await attempt({startDate:'2026-10-04',contentDue:values.contentDue})).status,403);
+  assert.equal((await attempt({startDate:values.startDate,contentDue:values.contentDue,authorizationId:'fabricated'})).status,403);
+  assert.equal((await attempt({startDate:values.startDate,contentDue:values.contentDue})).status,200);
+  const record=db.prepare("SELECT start_date,content_due,fixed_content_fee FROM creator_assignments WHERE id='ASG-200'").get();
+  assert.equal(record.start_date,values.startDate);assert.equal(record.content_due,values.contentDue);assert.equal(record.fixed_content_fee,originalFee);
+ } finally {db.close();}
+});
 test('APPROVAL_AUTHORITY requires field-specific Owner delegation and cannot delegate Owner Approval',async()=>{
  const {db,env}=await fixture();
  try{
@@ -92,6 +108,17 @@ test('source queues preserve canonical fields and hide another assigned creatorâ
   const queues=await call(env,'OPERATOR','GET','queues?campaignId=CMP-100');
   assert.equal(queues.status,200);assert.equal(queues.body.stages.find(s=>s.name==='Escalate').items.length,1);
   assert.equal(queues.body.stages.find(s=>s.name==='Escalate').items[0].fields['Related ID'],'CR-200');
+ }finally{db.close();}
+});
+test('intake uses the actual Approved Y/N header without turning intake approval into launch authority',async()=>{
+ const {db,env}=await fixture();
+ try {
+  for(const [id,approved] of [['RESPONSE-PENDING',''],['RESPONSE-APPROVED','Y']])db.prepare('INSERT INTO console_source_records(tab,record_id,campaign_id,creator_id,fields_json,source_version,source_updated_at) VALUES(?,?,?,?,?,?,?)').run('Creator Loop: Sign Up Form (Responses)',id,'CMP-100','CR-200',JSON.stringify({'Name:':'Fictional','Approved Y/N':approved,'Verification Status':'Pending'}),'SOURCE-TEST',new Date().toISOString());
+  const queue=(await call(env,'OPERATOR','GET','queues?campaignId=CMP-100')).body.stages.find(s=>s.name==='Receive Submission');
+  assert.deepEqual(queue.items.map(r=>r.record_id),['RESPONSE-PENDING']);
+  assert.equal(queue.items[0].fields['Approved Y/N'],'');
+  assert.equal('Approved (Y/N)' in queue.items[0].fields,false);
+  assert.equal((await call(env,'OPERATOR','PATCH','assignments/ASG-200',{status:'Live',version:1})).status,403);
  }finally{db.close();}
 });
 test('Owner Status change requires verified source launch gates, not a client supplied approval',async()=>{

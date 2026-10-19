@@ -28,7 +28,7 @@ export const SOURCE_FIELDS={
  'RETARGETING':['Audience ID','Campaign ID','Platform','Audience Tier','Window (Days)','Product Scope','Exclude Purchasers?','Creative ID','Status','Cash Spend ($)','Purchases','Revenue ($)','CAC ($)','ROAS','Decision','Notes'],
  'CREATOR PERFORMANCE':['Creator ID','Creator Name','Cash Media Spend ($)','Purchases','Revenue ($)','Rights Status','Status','30/60/90-Day LTV Proven?','Decision','Evidence Link','Notes'],
  'DATA INTAKE':['Import Batch','Source Platform','Import Date/Time','Campaign ID','Creator ID','Creative ID','Product Key','Date','Spend ($)','Impressions','Clicks','Landing Views','Add to Cart','Checkout','Purchases','Revenue ($)','Refunds ($)','Audience ID','Promo Credit Used ($)','Notes'],
- 'Creator Loop: Sign Up Form (Responses)':['Timestamp','Name:','Email:','Verification Status','Approved (Y/N)','Notes']
+ 'Creator Loop: Sign Up Form (Responses)':['Timestamp','Name:','Email:','Verification Status','Approved Y/N','Notes']
 };
 export async function operationalQueues({env,request},user) {
  const campaignId=new URL(request.url).searchParams.get('campaignId')||'CMP-100';
@@ -45,7 +45,7 @@ export async function operationalQueues({env,request},user) {
  }
  const byTab=tab=>records.filter(r=>r.tab===tab);
  const stages=[
-  {name:'Receive Submission',tab:'Creator Loop: Sign Up Form (Responses)',items:byTab('Creator Loop: Sign Up Form (Responses)').filter(r=>r.fields['Approved (Y/N)']!=='Y')},
+  {name:'Receive Submission',tab:'Creator Loop: Sign Up Form (Responses)',items:byTab('Creator Loop: Sign Up Form (Responses)').filter(r=>r.fields['Approved Y/N']!=='Y')},
   {name:'Escalate',tab:'DECISIONS & BLOCKERS',items:byTab('DECISIONS & BLOCKERS').filter(r=>r.fields.Status!=='Resolved')},
   {name:'Launch Gate',tab:'LAUNCH CONTROL',items:byTab('LAUNCH CONTROL')},
   {name:'Monitor',tab:'RETARGETING',items:[...byTab('RETARGETING'),...byTab('DATA INTAKE')]},
