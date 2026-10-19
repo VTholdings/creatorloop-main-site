@@ -1,9 +1,8 @@
 {
   "protocol": "CREATORLOOP_MASTER_EXECUTION_RECORD_V1",
-  "recordedAt": "2026-10-19T00:09:43Z",
-  "ownerLocalDate": "2026-10-18",
+  "recordedAt": "2026-10-19T00:22:57Z",
+  "environment": "TRAINING",
   "executor": "Chief",
-  "operatingRule": "ONE TASK -> ONE EXECUTOR -> ONE VERIFICATION -> PERSIST -> CONTINUE",
   "sequence": [
     "BUILD",
     "INTEGRATE",
@@ -13,81 +12,66 @@
   ],
   "acceptedEvidence": {
     "sourceReadiness": "82a4d92a420b1c92c1a9ce38f35a3400e835fb80",
-    "trainingBaseline": "fa1f4e4ba451e97135d016630fe7d42b9fd29e0c",
-    "accessSetupRun": 39157096540,
-    "custodyRun": 39159887017,
-    "dispatchCustodyRecovery": "PHASE18_DISPATCH_CUSTODY_RECOVERY_VERIFIED",
+    "integration": "9a7118b2810254e3d5597de406569247f5ba8760",
     "steps19Through22": "docs/evidence/steps19-22-independent-20261016.json",
+    "v3CustodyAndRecovery": "ACCEPTED_CLOSED",
+    "ownerAccessProtection": "ACCEPTED_CLOSED",
+    "dispatchCredentialCreationAndRecovery": "ACCEPTED_CLOSED",
+    "gatewayHostnameBinding": "ACCEPTED_CLOSED",
     "repeatAcceptedTests": false
   },
-  "infrastructure": {
-    "v3CustodyAndRecovery": "ACCEPTED",
-    "ownerAccessProtection": "ACCEPTED",
-    "dispatchCredentialCreationAndRecovery": "ACCEPTED",
-    "gatewayHostnameBinding": "ACCEPTED",
-    "servicePolicyCreation": "ACCEPTED",
-    "servicePolicyAttachment": {
-      "status": "BLOCKED_DASHBOARD_ONLY",
-      "applicationId": "e26c0d01-fc6f-4f98-ab3e-76643e56c695",
-      "policyId": "ba662d01-5bfa-4492-a2f5-7f95674b0ca6",
-      "credentialId": "ab3ec5b1-e85d-4cd6-99a2-21ff61556bad",
-      "readback": "Only existing Owner policy attached; reusable Service Auth policy exists with app_count=0",
-      "attachmentWrite": {
-        "attempts": 1,
-        "error": 1010,
-        "readbackUnchanged": true
-      },
-      "nextAction": "Attach existing CreatorLoop TRAINING Dispatch Service policy to CreatorLoop TRAINING Execution Gateway; preserve Owner policy"
-    },
-    "remaining": [
-      "Complete public runtime/trust and Owner mailbox wiring from existing accepted handoff",
-      "Prepare exact protected TRAINING release; Owner gate remains mandatory",
-      "Complete minimum integrated hosted acceptance"
-    ]
+  "latestPolicyReadback": {
+    "status": "OWNER_REPORTED_ATTACHED_API_READBACK_DISAGREES",
+    "success": true,
+    "completePagination": true,
+    "policyCount": 1,
+    "servicePolicyPresent": false,
+    "ownerPolicyUnchanged": true,
+    "readbackCalls": 1,
+    "cloudflareWrites": 0,
+    "screenshotsRequested": 0,
+    "retryRequested": false
+  },
+  "runtimeIntegration": {
+    "status": "BLOCKED_ACTUAL_TRUST_AND_PRIVATE_PORT_INPUTS",
+    "existingPublicConfigurationPreparer": "scripts/lib/training-owner-mailbox-setup.mjs",
+    "existingValidator": "workers/training-managed/security.mjs",
+    "missingInputNames": [
+      "Dispatch service public client identity",
+      "Dedicated Owner mailbox audience and Owner subject",
+      "Existing evidence-response public verifier set and purpose identifier",
+      "Existing admission public verifier set and purpose identifier",
+      "Nonsecret private-port readiness and independent observer evidence",
+      "Exact reviewed runtime configuration/version pins"
+    ],
+    "discovery": "Available project evidence folder contains accepted custody receipts but no public-key or private-port readiness handoff",
+    "keysToGenerate": 0,
+    "credentialsToCreate": 0,
+    "operationalPortsMayBeStubbed": false,
+    "installIncompleteConfiguration": false
   },
   "product": {
-    "lifecycleSourceSynchronizationReportingRetentionRolePermissions": "Existing implementations and accepted source checks retained; hosted integration unaccepted",
-    "sourceSynchronization": "Production synchronization remains prohibited in TRAINING; an isolated source target/transport is required for hosted round trip",
-    "openUiCorrections": [
-      {
-        "pr": 20,
-        "status": "Draft campaign-load error correction; not merged"
-      },
-      {
-        "pr": 21,
-        "status": "Draft notice error correction; not merged"
-      }
+    "acceptedImplementationReused": true,
+    "openUiCorrectionPrs": [
+      20,
+      21
     ],
-    "unprovenProductGaps": "Do not invent new defects or claim all functions finished from local tests"
-  },
-  "hostedAcceptance": {
-    "phase18": "PENDING",
-    "steps19Through22": "PENDING_HOSTED_ONLY",
-    "reuseAcceptedSourceChecks": true,
-    "employeeTraining": "Deferred until integrated Owner QA",
-    "criteria": [
-      "Individual admission/revocation and stale-session denial",
-      "Lifecycle and role/permission boundaries through actual hosted APIs",
-      "Authorized isolated source round trip with replay/conflict protection",
-      "Finalized report version history and protected retention/recovery"
-    ]
-  },
-  "integration": {
-    "existingPr": 22,
-    "acceptedSourceFilesCopiedWithoutEdits": 80,
-    "preserveTrainingCustodyWorkflow": true,
-    "activeWorkflowChanges": false,
-    "rootProductionConfigChanges": false,
-    "mergePerformed": false
+    "unmergedRelatedIntegrationPr": 22,
+    "hostedAcceptance": "PENDING",
+    "sourceSync": "TRAINING production-sync prohibition preserved",
+    "employeeTraining": "After integrated Owner QA"
   },
   "ownerOnlyBoundaries": [
-    "Cloudflare dashboard policy association after API 1010",
-    "Mac-private signing or custody operations only when actually required",
-    "Exact protected TRAINING release approval",
-    "Production activation or outreach sending requires separate explicit authorization"
+    "Private Mac public-handoff/readiness evidence if unavailable through authorized project tools",
+    "Protected exact TRAINING release approval",
+    "Production or outreach authorization remains separate"
   ],
+  "custody": {
+    "detailedInfrastructureMetadata": "Excluded from this public progress record",
+    "privateKeyOrSecretIncluded": false
+  },
   "productionChanged": false,
-  "credentialsCreated": 0,
-  "dispatchesInitiated": 0,
-  "hostedPassClaimed": false
+  "workerActivated": false,
+  "dispatchInitiated": false,
+  "testsRepeated": false
 }
