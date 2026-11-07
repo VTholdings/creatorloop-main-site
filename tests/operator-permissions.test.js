@@ -16,7 +16,7 @@ for(const role of roles)test(role+' enforces assigned reads and administration b
   assert.equal(dashboard.body.counts.IN_PROGRESS,role==='ADMINISTRATOR'?2:1);
   for(const path of ['audit','system'])assert.equal((await call(env,role,'GET',path)).status,role==='ADMINISTRATOR'?200:403);
   const access=await call(env,role,'POST','access',{action:'grant',campaignId:'CMP-100',operatorId:'OP-OPERATOR',recordId:'CR-201'});
-  assert.equal(access.status,role==='ADMINISTRATOR'?200:403);
+  assert.equal(access.status,role==='ADMINISTRATOR'?410:403);
  }finally{db.close();}
 });
 for(const role of roles)test(role+' allows only its factual and QA actions',async()=>{
@@ -58,12 +58,30 @@ test('OPERATIONS records exact authorized values; altered, expired, wrong-record
   assert.equal((await call(env,'OPERATIONS','PATCH','assignments/ASG-200',{fixedContentFee:75,paidUsageRights:'No',authorizationId:approved.body.id,version:2})).status,403);
  }finally{db.close();}
 });
+test('operator scheduling reference cannot grant compensation or accept altered schedule values',async()=>{
+ const {db,env}=await fixture();
+ try {
+  const originalFee=db.prepare("SELECT fixed_content_fee FROM creator_assignments WHERE id='ASG-200'").get().fixed_content_fee;
+  const values={startDate:'2026-10-03',contentDue:'2026-10-10',fixedContentFee:75};
+  const approval=await call(env,'ADMINISTRATOR','POST','authorizations',{campaignId:'CMP-100',entityType:'ASSIGNMENT',entityId:'ASG-200',values,evidenceLink:'https://example.com/training/decision'});
+  assert.equal(approval.status,201);
+  const attempt=body=>call(env,'OPERATOR','PATCH','assignments/ASG-200',{authorizationId:approval.body.id,...body,version:1});
+  assert.equal((await attempt(values)).status,403);
+  assert.equal((await attempt({startDate:'2026-10-04',contentDue:values.contentDue})).status,403);
+  assert.equal((await attempt({startDate:values.startDate,contentDue:values.contentDue,authorizationId:'fabricated'})).status,403);
+  assert.equal((await attempt({startDate:values.startDate,contentDue:values.contentDue})).status,200);
+  const record=db.prepare("SELECT start_date,content_due,fixed_content_fee FROM creator_assignments WHERE id='ASG-200'").get();
+  assert.equal(record.start_date,values.startDate);assert.equal(record.content_due,values.contentDue);assert.equal(record.fixed_content_fee,originalFee);
+ } finally {db.close();}
+});
 test('APPROVAL_AUTHORITY requires field-specific Owner delegation and cannot delegate Owner Approval',async()=>{
  const {db,env}=await fixture();
  try{
   const body={campaignId:'CMP-100',entityType:'ASSIGNMENT',entityId:'ASG-200',values:{fixedContentFee:75},evidenceLink:'https://example.com/training/decision'};
   assert.equal((await call(env,'APPROVAL_AUTHORITY','POST','authorizations',body)).status,403);
-  assert.equal((await call(env,'ADMINISTRATOR','POST','access',{action:'delegate',campaignId:'CMP-100',operatorId:'OP-APPROVAL_AUTHORITY',fieldKey:'fixedContentFee',expiresAt:'2099-01-01'})).status,200);
+  // Established delegation fixture. The retired personnel route cannot grant it.
+  assert.equal((await call(env,'ADMINISTRATOR','POST','access',{action:'delegate',campaignId:'CMP-100',operatorId:'OP-APPROVAL_AUTHORITY',fieldKey:'fixedContentFee',expiresAt:'2099-01-01'})).status,410);
+  db.prepare('INSERT INTO console_approval_delegations(operator_id,campaign_id,field_key,delegated_by,expires_at) VALUES(?,?,?,?,?)').run('OP-APPROVAL_AUTHORITY','CMP-100','fixedContentFee','OP-ADMINISTRATOR','2099-01-01');
   assert.equal((await call(env,'APPROVAL_AUTHORITY','POST','authorizations',body)).status,201);
   assert.equal((await call(env,'APPROVAL_AUTHORITY','POST','authorizations',{...body,values:{paidUsageRights:'Yes'}})).status,403);
   assert.equal((await call(env,'APPROVAL_AUTHORITY','POST','authorizations',{...body,values:{ownerApproval:'Yes'}})).status,403);
@@ -79,9 +97,9 @@ test('record grants do not authorize creating unrelated records; attempted relat
 test('support is never newly provisioned, disabling preserves historical identity and requires an individual administrator',async()=>{
  const {db,env}=await fixture();
  try{
-  assert.equal((await call(env,'ADMINISTRATOR','POST','access',{action:'provision',campaignId:'CMP-100',email:'support@creatorloop.net',role:'ADMINISTRATOR'})).status,422);
-  db.prepare("INSERT INTO operators(id,login_email,display_name,role,account_status) VALUES('OP-OLD','support@creatorloop.net','Historical shared identity','ADMINISTRATOR','ACTIVE')").run();
-  assert.equal((await call(env,'ADMINISTRATOR','POST','access',{action:'disable',campaignId:'CMP-100',operatorId:'OP-OLD'})).status,200);
+  assert.equal((await call(env,'ADMINISTRATOR','POST','access',{action:'provision',campaignId:'CMP-100',email:'support@creatorloop.net',role:'ADMINISTRATOR'})).status,410);
+  db.prepare("INSERT INTO operators(id,login_email,display_name,role,account_status) VALUES('OP-OLD','support@creatorloop.net','Historical shared identity','ADMINISTRATOR','DISABLED')").run();
+  assert.equal((await call(env,'ADMINISTRATOR','POST','access',{action:'disable',campaignId:'CMP-100',operatorId:'OP-OLD'})).status,410);
   assert.deepEqual({...db.prepare("SELECT id,login_email,account_status FROM operators WHERE id='OP-OLD'").get()},{id:'OP-OLD',login_email:'support@creatorloop.net',account_status:'DISABLED'});
  }finally{db.close();}
 });
@@ -92,6 +110,17 @@ test('source queues preserve canonical fields and hide another assigned creatorâ
   const queues=await call(env,'OPERATOR','GET','queues?campaignId=CMP-100');
   assert.equal(queues.status,200);assert.equal(queues.body.stages.find(s=>s.name==='Escalate').items.length,1);
   assert.equal(queues.body.stages.find(s=>s.name==='Escalate').items[0].fields['Related ID'],'CR-200');
+ }finally{db.close();}
+});
+test('intake uses the actual Approved Y/N header without turning intake approval into launch authority',async()=>{
+ const {db,env}=await fixture();
+ try {
+  for(const [id,approved] of [['RESPONSE-PENDING',''],['RESPONSE-APPROVED','Y']])db.prepare('INSERT INTO console_source_records(tab,record_id,campaign_id,creator_id,fields_json,source_version,source_updated_at) VALUES(?,?,?,?,?,?,?)').run('Creator Loop: Sign Up Form (Responses)',id,'CMP-100','CR-200',JSON.stringify({'Name:':'Fictional','Approved Y/N':approved,'Verification Status':'Pending'}),'SOURCE-TEST',new Date().toISOString());
+  const queue=(await call(env,'OPERATOR','GET','queues?campaignId=CMP-100')).body.stages.find(s=>s.name==='Receive Submission');
+  assert.deepEqual(queue.items.map(r=>r.record_id),['RESPONSE-PENDING']);
+  assert.equal(queue.items[0].fields['Approved Y/N'],'');
+  assert.equal('Approved (Y/N)' in queue.items[0].fields,false);
+  assert.equal((await call(env,'OPERATOR','PATCH','assignments/ASG-200',{status:'Live',version:1})).status,403);
  }finally{db.close();}
 });
 test('Owner Status change requires verified source launch gates, not a client supplied approval',async()=>{
