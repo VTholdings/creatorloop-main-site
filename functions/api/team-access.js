@@ -1,6 +1,6 @@
 // Team metadata is separate from the PNB Acquisition & Launch Control System.
 // Human admission is a separate, verified gate; never mutate Cloudflare policies here.
-import { OWNER_EMAIL, TEAM_ROLES, ROLE_CATALOG, VISIBILITY, EXPORTS, canManageTeam, environmentName, defaultVisibility } from './team-policy.js';
+import { OWNER_EMAIL, TEAM_ROLES, ROLE_CATALOG, VISIBILITY, EXPORTS, ROLE_PERMISSION_PRESETS, canManageTeam, environmentName, defaultVisibility } from './team-policy.js';
 import { AUTHORIZATION_FIELDS } from './console-policy.js';
 import {admissionConfiguration,edgeState,validAdmission,verifyReceipt,admissionCommitCheck} from './admission.js';
 export { TEAM_ROLES,canManageTeam };
@@ -40,7 +40,7 @@ export async function teamAccess({env,request,params},user) {
       return json({person,events,edge:ready?await edgeState(db,person.id):null,historyNotice:'Earlier operational audit events remain preserved. Earlier role-at-action values are not asserted by this directory.'});
     }
     const provisioningQueue=[];if(ready)for(const person of users){const state=await edgeState(db,person.id);if(state.request)provisioningQueue.push({operatorId:person.id,email:person.email,...state,status:state.receipt?(state.receipt.operation==='ADMIT'&&state.receipt.expiresAt<=Math.floor(Date.now()/1000)?'EXPIRED':state.receipt.operation==='ADMIT'&&!validAdmission(state,{id:person.id,login_email:person.email},env)?'ADMISSION_NOT_CURRENT':'EVIDENCE_RECORDED'):'PENDING_EXTERNAL_EXECUTION'});}
-    return json({users,provisioningQueue,approvedRoles:TEAM_ROLES,metadataReady:ready,activationAvailable:Boolean(admissionConfiguration(env)),environment:environmentName(env),roleCatalog:ROLE_CATALOG,visibilityCategories:VISIBILITY,exportCategories:EXPORTS,authorityFields:[...new Set(Object.values(AUTHORIZATION_FIELDS).flat())],
+    return json({users,provisioningQueue,approvedRoles:TEAM_ROLES,metadataReady:ready,activationAvailable:Boolean(admissionConfiguration(env)),environment:environmentName(env),roleCatalog:ROLE_CATALOG,rolePermissionPresets:ROLE_PERMISSION_PRESETS,visibilityCategories:VISIBILITY,exportCategories:EXPORTS,authorityFields:[...new Set(Object.values(AUTHORIZATION_FIELDS).flat())],
       campaigns:(await db.prepare('SELECT id,name FROM campaigns ORDER BY id').all()).results,
       loginUrl:environmentName(env)==='TRAINING'?'https://creatorloop-operator-training.pages.dev':'https://ops.creatorloop.net',notice:'New users start invited and inactive. Production activation requires separate certification and verified admission. Suspension and deactivation immediately block Console access; edge revocation is tracked separately.'});
   }
