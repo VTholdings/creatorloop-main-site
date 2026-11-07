@@ -16,7 +16,7 @@ Target: https://ops.creatorloop.net/console/ — existing Cloudflare Pages proje
 - 2 operator identities and 14 historical audit events exist; 0 access grants and 0 approval delegations at inspection.
 - 9 operator-referencing tables inspected; all references to `operators(id)` have `ON DELETE NO ACTION` and `ON UPDATE NO ACTION`. No cascading identity references found among these tables.
 - `PRAGMA foreign_key_check`: zero violations. `PRAGMA quick_check`: `ok`.
-- Current schema has no Team governance tables and no existing audit-history triggers. All 20 metadata/integrity queries reported `changed_db=false` and `changes=0` (initial 11 plus 9 foreign-key inspections).
+- Current schema has no Team governance tables and no existing audit-history triggers. All 19 metadata/integrity queries reported `changed_db=false` and `changes=0` (initial 10 plus 9 foreign-key inspections).
 - A D1 time-travel bookmark endpoint returned a bookmark. The bookmark alone is **not** a fresh export, restore rehearsal, or durable Owner-retained backup.
 
 ## Existing retained evidence (not fresh)
