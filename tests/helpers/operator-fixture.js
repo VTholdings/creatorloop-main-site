@@ -28,6 +28,6 @@ export async function fixture() {
  return {db,env:{OPERATIONS_DB:new D1Database(db)}};
 }
 export async function call(env,role,method,path,body) {
- const response=await onRequest({env,data:{loginEmail:role.toLowerCase()+'@example.com'},params:{path:path.split('?')[0].split('/')},request:new Request('https://ops.creatorloop.net/api/console/'+path,{method,headers:method==='GET'?{}:{'Content-Type':'application/json',Origin:'https://ops.creatorloop.net'},body:body===undefined?undefined:JSON.stringify(body)})});
+ const response=await onRequest({env,data:{accessSubject:'fictional-subject',loginEmail:role.toLowerCase()+'@example.com'},params:{path:path.split('?')[0].split('/')},request:new Request('https://ops.creatorloop.net/api/console/'+path,{method,headers:method==='GET'?{}:{'Content-Type':'application/json',Origin:'https://ops.creatorloop.net'},body:body===undefined?undefined:JSON.stringify(body)})});
  return {status:response.status,body:await response.json()};
 }
