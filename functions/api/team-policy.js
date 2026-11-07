@@ -10,6 +10,19 @@ export const TEAM_ROLES=Object.freeze(Object.keys(ROLE_CATALOG));
 export const NEW_ROLES=new Set(['OPERATIONS_MANAGER','MARKETING_CAMPAIGN_MANAGER','TECHNICIAN','READ_ONLY_AUDITOR']);
 export const VISIBILITY=['creator_pii','creator_compensation','financial_economics','audit_history','finalized_reports'];
 export const EXPORTS=['creators','campaigns','audit','reports'];
+// Least-privilege role baselines are suggestions only. An Owner must explicitly
+// record per-person visibility, exports and campaign/record scope. A preset never
+// grants login admission, business approval or any authority by itself.
+export const ROLE_PERMISSION_PRESETS=Object.freeze({
+ OPERATOR:{categories:['creator_pii','creator_compensation'],exports:[]},
+ QA_REVIEWER:{categories:['creator_pii'],exports:[]},
+ OPERATIONS:{categories:['creator_pii','creator_compensation'],exports:[]},
+ APPROVAL_AUTHORITY:{categories:['creator_pii','creator_compensation'],exports:[]},
+ OPERATIONS_MANAGER:{categories:['creator_pii','creator_compensation','finalized_reports'],exports:[]},
+ MARKETING_CAMPAIGN_MANAGER:{categories:['creator_pii','finalized_reports'],exports:[]},
+ TECHNICIAN:{categories:[],exports:[]},
+ READ_ONLY_AUDITOR:{categories:['audit_history','finalized_reports'],exports:[]}
+});
 export const canManageTeam=user=>user?.role==='ADMINISTRATOR'&&user?.account_status==='ACTIVE'&&user?.login_email===OWNER_EMAIL;
 export const environmentName=env=>env.CONSOLE_ENVIRONMENT==='TRAINING'?'TRAINING':'PRODUCTION';
 export const defaultVisibility=role=>['OPERATOR','OPERATIONS','APPROVAL_AUTHORITY'].includes(role)?['creator_pii','creator_compensation']:role==='QA_REVIEWER'?['creator_pii']:[];
