@@ -15,6 +15,7 @@ on:
     branches: [team-access-directory]
     paths:
       - .github/workflows/acceptance-backups.yml
+      - scripts/stage-backup-history.py
       - scripts/lib/backup-authorization.mjs
       - tests/backup-authorization.test.js
       - scripts/lib/d1-backup-export.mjs
@@ -78,38 +79,21 @@ jobs:
           test "$GITHUB_RUN_ATTEMPT" = 1
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           test "$(git rev-parse refs/remotes/origin/team-access-directory)" = "$GITHUB_SHA"
-      - name: Retain original correction evidence inside the encrypted bundle
-        uses: actions/download-artifact@v4
-        with:
-          artifact-ids: '11312552587'
-          run-id: 37228580254
-          github-token: ${{ github.token }}
-          path: backup-private/history/correction
-          merge-multiple: true
-      - name: Retain post-correction read-only evidence inside the encrypted bundle
-        uses: actions/download-artifact@v4
-        with:
-          artifact-ids: '11312632678'
-          run-id: 37228580212
-          github-token: ${{ github.token }}
-          path: backup-private/history/current-state
-          merge-multiple: true
-      - name: Retain forensic evidence inside the encrypted bundle
-        uses: actions/download-artifact@v4
-        with:
-          artifact-ids: '11312688812'
-          run-id: 37229874499
-          github-token: ${{ github.token }}
-          path: backup-private/history/forensics
-          merge-multiple: true
-      - name: Retain successful value-free key-delivery diagnostic
-        uses: actions/download-artifact@v4
-        with:
-          artifact-ids: '11316226132'
-          run-id: 37236841917
-          github-token: ${{ github.token }}
-          path: backup-private/history/key-delivery
-          merge-multiple: true
+      - name: Recover authenticated October 4 history
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          CREATORLOOP_BACKUP_PASSPHRASE: ${{ secrets.CREATORLOOP_BACKUP_PASSPHRASE }}
+        run: |
+          umask 077
+          scratch="$(mktemp -d)"
+          trap 'rm -rf "$scratch"' EXIT
+          curl --silent --fail --location --proto '=https' --proto-redir '=https' \
+            --max-redirs 2 --max-time 90 --max-filesize 146800640 \
+            --header "Authorization: Bearer $GITHUB_TOKEN" \
+            --output "$scratch/october4.zip" \
+            https://api.github.com/repos/VTholdings/creatorloop-main-site/actions/artifacts/11317931861/zip
+          unset GITHUB_TOKEN
+          python3 scripts/stage-backup-history.py "$scratch/october4.zip" backup-private
       - name: Require the recorded key-delivery diagnostic to have passed
         run: |
           python3 - <<'PY'
