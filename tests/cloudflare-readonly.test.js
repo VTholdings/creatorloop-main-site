@@ -210,14 +210,57 @@ test('CLI requires the approved Actions repository, branch, event and environmen
   assert.equal(evidence.productionCertified,false);assert.equal(evidence.blockers[0].code,'PROTECTED_RUN_CONTEXT_REQUIRED');
  }finally{await rm(dir,{recursive:true,force:true});}
 });
-test('Actions wiring confines the credential to the protected read-only step after validation and branch fencing',async()=>{
- const workflow=await readFile('.github/workflows/acceptance-readonly.yml','utf8');
+function assertReadOnlyWorkflow(workflow){
  assert.match(workflow,/branches: \[team-access-directory\]/);
  assert.match(workflow,/environment:\n\s+name: creatorloop-acceptance/);
  assert.match(workflow,/needs: validate/);assert.match(workflow,/persist-credentials: false/);
  assert.equal((workflow.match(/secrets\.CLOUDFLARE_API_TOKEN/g)||[]).length,1);
  assert.match(workflow,/name: Read Cloudflare metadata only\n\s+env:\n\s+CLOUDFLARE_API_TOKEN:/);
  assert.doesNotMatch(workflow,/pull_request_target|workflow_dispatch|wrangler|revoke_tokens|migrations apply|secrets: inherit|set -x/);
- assert.match(workflow,/run: node scripts\/acceptance\/cloudflare-readonly\.mjs/);
- assert.match(workflow,/path: acceptance-evidence\/cloudflare-readonly.json/);
+ assert.doesNotMatch(workflow,/upload-artifact/);
+ const gate=workflow.indexOf('name: creatorloop-acceptance');
+ const fence=workflow.indexOf('test "$(git rev-parse refs/remotes/origin/team-access-directory)" = "$GITHUB_SHA"');
+ const step=workflow.indexOf('- name: Read Cloudflare metadata only');
+ assert.ok(gate>=0 && gate<fence && fence<step);
+ assert.match(workflow,/github\.actor == 'Creatorloopzone' && github\.run_attempt == 1/);
+ const command=workflow.slice(step).split('        run: |\n')[1];
+ assert.equal(command, [
+  '          umask 077',
+  "          trap 'rm -f acceptance-evidence/cloudflare-readonly.json' EXIT",
+  '          result=0',
+  '          node scripts/acceptance/cloudflare-readonly.mjs || result=$?',
+  '          unset CLOUDFLARE_API_TOKEN',
+  "          node --input-type=module <<'JS'",
+  "          import { readFile } from 'node:fs/promises';",
+  "          const report=JSON.parse(await readFile('acceptance-evidence/cloudflare-readonly.json','utf8'));",
+  '          for(const {code,environment,slot,status,providerCodes,path} of report.blockers){',
+  "            const resource=path?.includes('/tokens/')?'TOKEN_VERIFICATION':",
+  "              path?.includes('/pages/')?'PAGES':",
+  "              path?.includes('/access/')?'ACCESS':",
+  "              path?.includes('/d1/')?'D1_METADATA':undefined;",
+  '            console.log(JSON.stringify({code,environment,slot,status,providerCodes,resource}));',
+  '          }',
+  '          JS',
+  '          exit "$result"',
+  '',
+ ].join('\n'));
+}
+
+test('Actions wiring confines the credential to the protected read-only step after validation and branch fencing',async()=>{
+ const workflow=await readFile('.github/workflows/acceptance-readonly.yml','utf8');
+ assertReadOnlyWorkflow(workflow);
+ for(const [from,to] of [
+  ['name: creatorloop-acceptance','name: unprotected'],
+  ['needs: validate','needs: unsafe'],
+  ['git rev-parse refs/remotes/origin/team-access-directory','git rev-parse HEAD'],
+  ['          unset CLOUDFLARE_API_TOKEN','          echo "$CLOUDFLARE_API_TOKEN"'],
+  ['node scripts/acceptance/cloudflare-readonly.mjs','node scripts/acceptance/d1-backup-stage.mjs'],
+  ['JSON.stringify({code,environment,slot,status,providerCodes,resource})','JSON.stringify(report)'],
+  ['exit "$result"','exit 0'],
+  ['          JS','          JS\n          curl -X POST https://example.invalid'],
+ ]){
+  const unsafe=workflow.replace(from,to);
+  assert.notEqual(unsafe,workflow);
+  assert.throws(()=>assertReadOnlyWorkflow(unsafe),{name:'AssertionError'});
+ }
 });
