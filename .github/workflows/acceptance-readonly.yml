@@ -48,7 +48,7 @@ jobs:
   cloudflare-readonly:
     name: Protected read-only Cloudflare verification
     needs: validate
-    if: github.repository == 'VTholdings/creatorloop-main-site' && github.ref == 'refs/heads/team-access-directory' && github.event_name == 'push'
+    if: github.repository == 'VTholdings/creatorloop-main-site' && github.ref == 'refs/heads/team-access-directory' && github.event_name == 'push' && github.actor == 'Creatorloopzone' && github.run_attempt == 1
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment:
@@ -72,12 +72,21 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           ACCEPTANCE_ENVIRONMENT: creatorloop-acceptance
           EXPECTED_MAIN_SHA: ${{ needs.validate.outputs.main_sha }}
-        run: node scripts/acceptance/cloudflare-readonly.mjs
-      - name: Keep sanitized verification evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: creatorloop-readonly-${{ github.sha }}
-          path: acceptance-evidence/cloudflare-readonly.json
-          if-no-files-found: ignore
-          retention-days: 14
+        run: |
+          umask 077
+          trap 'rm -f acceptance-evidence/cloudflare-readonly.json' EXIT
+          result=0
+          node scripts/acceptance/cloudflare-readonly.mjs || result=$?
+          unset CLOUDFLARE_API_TOKEN
+          node --input-type=module <<'JS'
+          import { readFile } from 'node:fs/promises';
+          const report=JSON.parse(await readFile('acceptance-evidence/cloudflare-readonly.json','utf8'));
+          for(const {code,environment,slot,status,providerCodes,path} of report.blockers){
+            const resource=path?.includes('/tokens/')?'TOKEN_VERIFICATION':
+              path?.includes('/pages/')?'PAGES':
+              path?.includes('/access/')?'ACCESS':
+              path?.includes('/d1/')?'D1_METADATA':undefined;
+            console.log(JSON.stringify({code,environment,slot,status,providerCodes,resource}));
+          }
+          JS
+          exit "$result"
