@@ -10,7 +10,7 @@ if(env.GITHUB_ACTIONS!=='true'||env.GITHUB_REPOSITORY!=='VTholdings/creatorloop-
 }else{
  try{
   const targets=JSON.parse(await readFile(new URL('./cloudflare-targets.json',import.meta.url),'utf8'));
-  const client=readOnlyClient({token:env.CLOUDFLARE_API_TOKEN,targets});
+  const client=readOnlyClient({token:env.CLOUDFLARE_API_TOKEN,targets,tokenType:'user'});
   report=await verifyCloudflare({client,targets,releaseSha:env.GITHUB_SHA,mainSha:env.EXPECTED_MAIN_SHA});
  }catch{
   report={status:'READ_ONLY_VERIFICATION_BLOCKED',blockers:[{code:'VERIFIER_CONFIGURATION_UNAVAILABLE'}],productionCertified:false,operatorReadinessCertified:false};

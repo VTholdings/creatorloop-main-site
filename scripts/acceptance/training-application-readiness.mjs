@@ -8,7 +8,7 @@ if(env.GITHUB_ACTIONS!=='true'||env.GITHUB_REPOSITORY!=='VTholdings/creatorloop-
 }else{
  try{
   const targets=JSON.parse(await readFile(new URL('./cloudflare-targets.json',import.meta.url),'utf8'));
-  report=await trainingApplicationMetadata({client:readOnlyClient({token:env.CLOUDFLARE_API_TOKEN,targets}),targets,releaseSha:env.GITHUB_SHA});
+  report=await trainingApplicationMetadata({client:readOnlyClient({token:env.CLOUDFLARE_API_TOKEN,targets,tokenType:'user'}),targets,releaseSha:env.GITHUB_SHA});
  }catch{report={status:'TRAINING_METADATA_BLOCKED',blockers:[{code:'METADATA_CONFIGURATION_UNAVAILABLE'}],step18Complete:false,step19Ready:false};}
 }
 await mkdir('acceptance-evidence',{recursive:true,mode:0o700});
