@@ -1,0 +1,147 @@
+# Bounded management setup only; never dispatches or releases application code.
+# Setup-only administrative request: App 5288606 / installation 170669547.
+# No automatic trigger. Owner reviewer 245245322 remains separate from App actor.
+# Main registers the workflow; only exact team-access-directory execution is allowed.
+name: Phase 18 TRAINING Access Owner setup
+on:
+  workflow_dispatch:
+    inputs:
+      expected_execution_sha:
+        description: Exact Owner-reviewed team-access-directory commit SHA
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: creatorloop-phase18-dispatch-access-setup-app-v1
+  cancel-in-progress: false
+jobs:
+  access-owner-setup:
+    if: >-
+      github.repository == 'VTholdings/creatorloop-main-site' &&
+      github.ref == 'refs/heads/team-access-directory' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.run_attempt == 1 &&
+      github.actor == 'vt-creatorloop-training-executor[bot]' &&
+      github.actor_id == '341571374' &&
+      github.triggering_actor == 'vt-creatorloop-training-executor[bot]' &&
+      inputs.expected_execution_sha == github.sha
+    environment: creatorloop-training-release
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Exact-hostname Access and Owner policy only
+        env:
+          CF_SETUP_TOKEN: ${{ secrets.CREATORLOOP_PHASE18_DISPATCH_SETUP_TOKEN }}
+          SOURCE_SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+        shell: python
+        run: |
+          import json, os, sys, urllib.request, urllib.error, datetime
+          ACCOUNT = "2a3b96a0b37850cd03107131baa66b6d"
+          HOST = "execution-training.creatorloop.net"
+          NAME = "CreatorLoop TRAINING Execution Gateway"
+          IDP = "3603807b-f1a4-4bbc-8524-f091bcbbb921"
+          TOKEN_NAME = "CreatorLoop TRAINING Dispatch 20261013 V1"
+          BASE = "https://api.cloudflare.com/client/v4/accounts/" + ACCOUNT + "/access"
+          class Stop(Exception): pass
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, *args, **kwargs): raise Stop("REDIRECT_REFUSED")
+          opener = urllib.request.build_opener(NoRedirect)
+          token = os.environ.pop("CF_SETUP_TOKEN", "")
+          if not token: raise SystemExit("SETUP_SECRET_UNAVAILABLE")
+          def api(method, suffix, body=None):
+              req = urllib.request.Request(BASE + suffix, method=method,
+                  headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"},
+                  data=json.dumps(body).encode() if body is not None else None)
+              try:
+                  with opener.open(req, timeout=30) as res:
+                      raw = res.read(2_000_001)
+                      if len(raw)>2_000_000: raise Stop("RESPONSE_SIZE_REFUSED")
+                      value = json.loads(raw)
+              except urllib.error.HTTPError as error:
+                  raise Stop("CLOUDFLARE_HTTP_" + str(error.code) + "_NO_MUTATION_RETRY") from None
+              except (urllib.error.URLError, TimeoutError):
+                  raise Stop("NETWORK_OUTCOME_UNCERTAIN_NO_MUTATION_RETRY") from None
+              if value.get("success") is not True: raise Stop("CLOUDFLARE_REFUSED_NO_MUTATION_RETRY")
+              return value
+          def inventory(suffix):
+              values=[]
+              for page in range(1,101):
+                  data=api("GET", suffix + "?per_page=100&page=" + str(page))
+                  batch=data.get("result")
+                  if not isinstance(batch,list): raise Stop("INVENTORY_FORMAT_REFUSED")
+                  values.extend(batch)
+                  info=data.get("result_info",{})
+                  if page>=info.get("total_pages",1): return values
+              raise Stop("INVENTORY_PAGINATION_REFUSED")
+          def targets(app):
+              return set([app.get("domain","")] + app.get("self_hosted_domains",[]) +
+                  [d.get("uri","") for d in app.get("destinations",[])])
+          def canonical(value):
+              return json.dumps(value,sort_keys=True,separators=(",",":"))
+          def main():
+              apps=inventory("/apps")
+              credentials=inventory("/service_tokens")
+              if any(c.get("name")==TOKEN_NAME for c in credentials):
+                  raise Stop("EXISTING_DISPATCH_CREDENTIAL_REQUIRES_CUSTODY_RECONCILIATION")
+              matches=[a for a in apps if HOST in targets(a) or a.get("name")==NAME]
+              if len(matches)>1: raise Stop("AMBIGUOUS_EXISTING_APPLICATION")
+              owner={"name":"CreatorLoop TRAINING Dispatch Owner",
+                  "decision":"allow","precedence":1,"session_duration":"30m",
+                  "include":[{"email":{"email":"team@creatorloop.net"}}],
+                  "exclude":[{"email":{"email":"support@creatorloop.net"}}],
+                  "require":[{"login_method":{"id":IDP}}]}
+              desired={"name":NAME,"domain":HOST,"type":"self_hosted",
+                  "destinations":[{"type":"public","uri":HOST}],
+                  "allowed_idps":[IDP],"session_duration":"30m",
+                  "http_only_cookie_attribute":True,"path_cookie_attribute":True,
+                  "same_site_cookie_attribute":"strict",
+                  "allow_authenticate_via_warp":False,"options_preflight_bypass":False,
+                  "app_launcher_visible":False,"policies":[owner]}
+              before={a["id"]:canonical(a) for a in apps if a not in matches}
+              created=False
+              if matches:
+                  app=api("GET","/apps/"+matches[0]["id"])["result"]
+              else:
+                  app=api("POST","/apps",desired)["result"]
+                  created=True
+              app_id=app["id"]
+              app=api("GET","/apps/"+app_id)["result"]
+              for key in ["name","domain","type","allowed_idps","session_duration",
+                          "http_only_cookie_attribute","path_cookie_attribute",
+                          "same_site_cookie_attribute","allow_authenticate_via_warp",
+                          "options_preflight_bypass","app_launcher_visible"]:
+                  if app.get(key)!=desired[key]: raise Stop("APPLICATION_READBACK_MISMATCH_"+key)
+              if app.get("destinations")!=desired["destinations"]:
+                  raise Stop("EXACT_DESTINATION_READBACK_MISMATCH")
+              if targets(app)-{"",HOST}: raise Stop("UNEXPECTED_APPLICATION_DESTINATION")
+              policies=inventory("/apps/"+app_id+"/policies")
+              if len(policies)!=1: raise Stop("OWNER_POLICY_COUNT_MISMATCH")
+              policy=policies[0]
+              for key,value in owner.items():
+                  if canonical(policy.get(key))!=canonical(value):
+                      raise Stop("OWNER_POLICY_READBACK_MISMATCH_"+key)
+              after=inventory("/apps")
+              if {a["id"]:canonical(a) for a in after if a["id"]!=app_id}!=before:
+                  raise Stop("UNRELATED_ACCESS_APPLICATION_STATE_CHANGED")
+              if canonical(inventory("/service_tokens"))!=canonical(credentials):
+                  raise Stop("SERVICE_TOKEN_INVENTORY_CHANGED")
+              print(json.dumps({"protocol":"CREATORLOOP_PHASE18_ACCESS_OWNER_SETUP_V1",
+                  "environment":"TRAINING","hostname":HOST,"accountId":ACCOUNT,
+                  "applicationId":app_id,"applicationAud":app.get("aud"),
+                  "ownerPolicyId":policy.get("id"),"owner":"team@creatorloop.net",
+                  "created":created,"ownerProtectionReadback":"PASS",
+                  "dispatchCredentialGenerated":False,"hostnameBound":False,
+                  "workerDeploymentInvoked":False,"unrelatedAccessAppsUnchanged":True,
+                  "serviceTokenInventoryUnchanged":True,"sourceSha":os.environ["SOURCE_SHA"],
+                  "runId":os.environ["RUN_ID"],"observedAt":datetime.datetime.now(datetime.timezone.utc).isoformat()}))
+          try: main()
+          except Stop as error:
+              print(str(error))
+              sys.exit(1)
+          except Exception:
+              print("UNEXPECTED_FAILURE_NO_MUTATION_RETRY")
+              sys.exit(1)
+          
+

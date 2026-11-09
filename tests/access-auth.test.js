@@ -21,6 +21,7 @@ test("Cloudflare Access JWT verification accepts only a valid signed operator id
       iss: "https://creatorloop-team.cloudflareaccess.com",
       aud: ["creatorloop-console-audience"],
       email: "Operator@Example.com",
+      iat: now - 5,
       nbf: now - 5,
       exp: now + 300,
     });
@@ -29,8 +30,11 @@ test("Cloudflare Access JWT verification accepts only a valid signed operator id
     const env = { CLOUDFLARE_ACCESS_TEAM_DOMAIN: "creatorloop-team", CLOUDFLARE_ACCESS_AUD: "creatorloop-console-audience" };
 
     const accepted = await verifyAccessIdentity(new Request("https://ops.creatorloop.net/console/", { headers: { "Cf-Access-Jwt-Assertion": token } }), env, now);
-    assert.deepEqual(accepted, { ok: true, email: "operator@example.com" });
+    assert.deepEqual(accepted, { ok: true, email: "operator@example.com", issuedAt:now-5 });
 
+    const altered = encode({...JSON.parse(Buffer.from(payload,'base64url').toString()),iat:now+1000});
+    const tampered = await verifyAccessIdentity(new Request('https://ops.creatorloop.net/console/',{headers:{'Cf-Access-Jwt-Assertion':`${header}.${altered}.${signature}`}}),env,now);
+    assert.deepEqual(tampered,{ok:false,status:401},'Session age cannot be changed without a valid signature');
     const wrongAudience = await verifyAccessIdentity(new Request("https://ops.creatorloop.net/console/", { headers: { "Cf-Access-Jwt-Assertion": token } }), { ...env, CLOUDFLARE_ACCESS_AUD: "wrong" }, now);
     assert.deepEqual(wrongAudience, { ok: false, status: 401 });
 
@@ -45,3 +49,4 @@ test("Access verification fails closed when configuration is missing", async () 
   const result = await verifyAccessIdentity(new Request("https://ops.creatorloop.net/console/"), {});
   assert.deepEqual(result, { ok: false, status: 503 });
 });
+

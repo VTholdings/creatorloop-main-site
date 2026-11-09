@@ -1,0 +1,81 @@
+name: CreatorLoop acceptance - GET-only preservation forensics
+run-name: GET-only training preservation investigation for ${{ github.sha }}
+on:
+  push:
+    branches: [team-access-directory]
+    paths:
+      - .github/workflows/acceptance-preservation-forensics.yml
+      - scripts/acceptance/training-preservation-forensics.mjs
+      - scripts/lib/training-preservation-forensics.mjs
+      - tests/training-preservation-forensics.test.js
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: creatorloop-acceptance-preservation-forensics
+  cancel-in-progress: false
+jobs:
+  validate:
+    if: github.repository == 'VTholdings/creatorloop-main-site' && github.ref == 'refs/heads/team-access-directory'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm test
+      - run: npm run check
+  preservation-forensics:
+    name: Protected GET-only preservation investigation
+    needs: validate
+    if: github.repository == 'VTholdings/creatorloop-main-site' && github.ref == 'refs/heads/team-access-directory' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: creatorloop-acceptance
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Fence an obsolete forensic run
+        run: |
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse refs/remotes/origin/team-access-directory)" = "$GITHUB_SHA"
+      - name: Read the original correction evidence
+        uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '11312552587'
+          run-id: 37228580254
+          github-token: ${{ github.token }}
+          path: forensic-input/correction
+          merge-multiple: true
+      - name: Read the pre-correction infrastructure evidence
+        uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '11312936195'
+          run-id: 37218098037
+          github-token: ${{ github.token }}
+          path: forensic-input/baseline
+          merge-multiple: true
+      - name: Inspect Pages state and bounded correction audit history only
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ACCEPTANCE_ENVIRONMENT: creatorloop-acceptance
+        run: node scripts/acceptance/training-preservation-forensics.mjs
+      - name: Retain sanitized forensic evidence only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: creatorloop-preservation-forensics-${{ github.sha }}
+          path: acceptance-evidence/training-preservation-forensics.json
+          if-no-files-found: ignore
+          retention-days: 14

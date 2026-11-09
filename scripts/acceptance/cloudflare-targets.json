@@ -1,0 +1,15 @@
+{
+  "accountId": "2a3b96a0b37850cd03107131baa66b6d",
+  "teamDomain": "shiny-wildflower-143c.cloudflareaccess.com",
+  "production": {
+    "domain": "ops.creatorloop.net",
+    "projectCandidates": ["creatorloop-operations-console", "operations-console"],
+    "databaseId": "c4993a97-5835-4c6c-af06-7020fa8d4f2a",
+    "audience": "c54a2a0bc9a1ae7ccde868a309822a6fadf74f6c04e7b34b48a32bab839757d9"
+  },
+  "training": {
+    "projectCandidates": ["creatorloop-operator-training"],
+    "databaseId": "12dbfa51-ca9c-475b-bb1b-ca90ac8bd7f0",
+    "audience": "a6b7d2d9e2a0bbe45ac1f1155cbd32593467eac2d66c01aa67d36fb290b7a38d"
+  }
+}
