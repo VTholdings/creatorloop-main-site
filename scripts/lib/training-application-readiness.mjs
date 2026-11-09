@@ -9,12 +9,13 @@ const publicValue=(config,key,pattern)=>{
 };
 export async function trainingApplicationMetadata({client,targets,releaseSha,now=()=>new Date().toISOString()}){
  const root='/accounts/'+targets.accountId,project=targets.training.projectCandidates[0],database=targets.training.databaseId;
+ const tokenVerificationPath=client.tokenVerificationPath||root+'/tokens/verify';
  const report={protocol:'CREATORLOOP_TRAINING_APPLICATION_METADATA_V1',releaseSha,observedAt:now(),mode:'GET_ONLY',requests:client.requests,observations:{},blockers:[],step18Complete:false,step19Ready:false,productionCertified:false};
  const block=(code,details={})=>report.blockers.push({code,...details});
  // A narrower second allowlist prevents accidental reuse of production capabilities.
  let applicationId=null;
  const get=path=>{
-  const allowed=path===root+'/tokens/verify'||path===root+'/pages/projects/'+project||path===root+'/d1/database/'+database||/^\?page=[1-9][0-9]*&per_page=50$/.test(path.slice((root+'/access/apps').length))&&path.startsWith(root+'/access/apps?')||applicationId&&path.startsWith(root+'/access/apps/'+applicationId+'/policies?')&&/^\?page=[1-9][0-9]*&per_page=50$/.test(path.slice((root+'/access/apps/'+applicationId+'/policies').length));
+  const allowed=path===tokenVerificationPath||path===root+'/pages/projects/'+project||path===root+'/d1/database/'+database||/^\?page=[1-9][0-9]*&per_page=50$/.test(path.slice((root+'/access/apps').length))&&path.startsWith(root+'/access/apps?')||applicationId&&path.startsWith(root+'/access/apps/'+applicationId+'/policies?')&&/^\?page=[1-9][0-9]*&per_page=50$/.test(path.slice((root+'/access/apps/'+applicationId+'/policies').length));
   if(!allowed)throw new VerificationError('TRAINING_ENDPOINT_NOT_ALLOWED');
   return client.get(path);
  };
@@ -30,7 +31,7 @@ export async function trainingApplicationMetadata({client,targets,releaseSha,now
  };
  try{
   if(!sha.test(releaseSha)||targets.training.databaseId===targets.production.databaseId||targets.training.audience===targets.production.audience)throw new VerificationError('INVALID_ISOLATION_PINS');
-  if((await get(root+'/tokens/verify')).result?.status!=='active')throw new VerificationError('TOKEN_NOT_ACTIVE');
+  if((await get(tokenVerificationPath)).result?.status!=='active')throw new VerificationError('TOKEN_NOT_ACTIVE');
   const p=(await get(root+'/pages/projects/'+project)).result;
   if(p?.name!==project||!uuid.test(p.id||''))throw new VerificationError('PROJECT_IDENTITY_MISMATCH');
   const canonical=p.canonical_deployment;

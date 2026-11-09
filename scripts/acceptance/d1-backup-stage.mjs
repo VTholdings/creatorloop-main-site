@@ -20,7 +20,7 @@ try{
  const attestationSummary='Owner backup authorization: '+JSON.stringify(authorization)+'\n';
  console.log(attestationSummary);if(e.GITHUB_STEP_SUMMARY)await appendFile(e.GITHUB_STEP_SUMMARY,attestationSummary);
  const targets=JSON.parse(await readFile(new URL('./cloudflare-targets.json',import.meta.url),'utf8'));
- const metadata=await verifyCloudflare({client:readOnlyClient({token:e.CLOUDFLARE_API_TOKEN,targets}),targets,releaseSha:e.GITHUB_SHA,mainSha:e.EXPECTED_MAIN_SHA});
+ const metadata=await verifyCloudflare({client:readOnlyClient({token:e.CLOUDFLARE_API_TOKEN,targets,tokenType:'user'}),targets,releaseSha:e.GITHUB_SHA,mainSha:e.EXPECTED_MAIN_SHA});
  await mkdir('backup-private',{recursive:true,mode:0o700});
  await writeFile('backup-private/current-metadata.json',JSON.stringify(metadata,null,2)+'\n',{mode:0o600});
  if(metadata.status!=='READ_ONLY_METADATA_MATCH'){

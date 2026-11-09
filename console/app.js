@@ -645,8 +645,16 @@ function addTeamForm(data) {
     '</div><p>Saving creates an invited, inactive individual identity and proposed scope. Training certification and production activation are separate, attributable actions.</p><button class="action" type="submit">Save inactive user</button></form></details>';
 }
 async function renderTeam() {
-  if(!state.dashboard.user.canManageTeam)return;
-  const data=await api('team');state.teamMeta=data;
+  const target=$('#team-view'),loadToken=Symbol('team-load');
+  state.teamLoadToken=loadToken;state.teamMeta=null;state.teamPerson=null;
+  if(!state.dashboard.user.canManageTeam){target.innerHTML='';target.setAttribute('aria-busy','false');return;}
+  target.setAttribute('aria-busy','true');
+  target.innerHTML='<div class="panel" role="status" aria-live="polite"><h2>Team &amp; Access</h2><p>Loading Team &amp; Access…</p></div>';
+  try {
+  const data=await api('team');
+  if(state.teamLoadToken!==loadToken)return;
+  if(!state.dashboard.user.canManageTeam){target.innerHTML='';return;}
+  state.teamMeta=data;
   $('#team-view').innerHTML='<div class="section-head"><div><span class="eyebrow">Administration</span><h2>Team &amp; Access</h2><p>Individual identities · login at <a href="https://ops.creatorloop.net">ops.creatorloop.net</a></p></div></div>'+
     '<div class="panel"><p>'+esc(data.notice)+'</p><p>Historical identities remain identifiable. Deactivation is not deletion. Training certification never automatically grants production access.</p>'+ (data.metadataReady?'<button class="action secondary" id="export-personnel">Download personnel directory</button>':'')+'</div>'+addTeamForm(data)+
     '<div class="panel audit-wrap"><table class="audit-table team-table"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Scope</th><th>Environment</th><th>Training Status</th><th>Access Status</th><th>Last Access</th><th>Actions</th></tr></thead><tbody>'+teamRows(data.users)+'</tbody></table></div><section id="team-detail"></section>';
@@ -663,6 +671,16 @@ async function renderTeam() {
     try {const result=await api('team',{method:'POST',body:JSON.stringify({action:'addPending',fullName:fields.fullName,email:fields.email,role:fields.role,employmentStatus:fields.employmentStatus,technicalLevel:fields.role==='TECHNICIAN'?fields.technicalLevel:null,scopes})});notice(result.notice);await renderTeam();}
     catch(e){notice(e.message,true);button.disabled=false;}
   });
+  } catch(error) {
+    if(state.teamLoadToken!==loadToken)return;
+    state.teamMeta=null;state.teamPerson=null;
+    if(!state.dashboard.user.canManageTeam){target.innerHTML='';return;}
+    target.innerHTML='<div class="panel" role="alert"><h2>Team &amp; Access unavailable</h2><p>'+esc(error.message)+'</p><button class="action secondary" id="team-load-retry">Retry directory load</button></div>';
+    target.querySelector('#team-load-retry').addEventListener('click',()=>renderTeam());
+    notice(error.message,true);
+  } finally {
+    if(state.teamLoadToken===loadToken)target.setAttribute('aria-busy','false');
+  }
 }
 async function viewTeamPerson(id) {
   const data=await api('team/'+encodeURIComponent(id));state.teamPerson=data.person;

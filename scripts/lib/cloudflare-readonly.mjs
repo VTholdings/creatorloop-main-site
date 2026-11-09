@@ -9,7 +9,8 @@ const fingerprint=value=>createHash('sha256').update(JSON.stringify(value)).dige
 export class VerificationError extends Error {
  constructor(code,path='',status=0,providerCodes=[],providerEvidence={}){super(code);Object.assign(this,{code,path,status,providerCodes,providerEvidence});}
 }
-export function readOnlyClient({token,targets,fetcher=fetch}) {
+export function readOnlyClient({token,targets,tokenType='account',fetcher=fetch}) {
+ if(!['account','user'].includes(tokenType))throw new VerificationError('INVALID_TOKEN_TYPE');
  if(typeof token!=='string'||!token.trim())throw new VerificationError('MISSING_ENVIRONMENT_SECRET');
  if(!/^[0-9a-f]{32}$/.test(targets.accountId))throw new VerificationError('INVALID_ACCOUNT_PIN');
  for(const key of ['production','training']){
@@ -18,14 +19,16 @@ export function readOnlyClient({token,targets,fetcher=fetch}) {
  }
  if(targets.production.databaseId===targets.training.databaseId||targets.production.audience===targets.training.audience)throw new VerificationError('SHARED_ENVIRONMENT_PINS');
  const root='/accounts/'+targets.accountId;
+ const tokenRoot=tokenType==='user'?'/user':root;
+ const tokenVerificationPath=tokenRoot+'/tokens/verify';
  const projects=new Set([...targets.production.projectCandidates,...targets.training.projectCandidates]);
  const databases=new Set([targets.production.databaseId,targets.training.databaseId]);
  const requests=[];
  let verifiedTokenId=null;
  let verifiedTokenActive=false;
  const allowed=path=>{
-  if(path===root+'/tokens/verify')return true;
-  if(verifiedTokenId&&path===root+'/tokens/'+verifiedTokenId)return true;
+  if(path===tokenVerificationPath)return true;
+  if(verifiedTokenId&&path===tokenRoot+'/tokens/'+verifiedTokenId)return true;
   if(verifiedTokenActive&&(path===root||/^\/accounts\?page=[1-9][0-9]*&per_page=50$/.test(path)))return true;
   if(verifiedTokenActive&&path.startsWith(root+'/pages/projects?'))return /^\?page=[1-9][0-9]*&per_page=50$/.test(path.slice((root+'/pages/projects').length));
   if(verifiedTokenActive&&path===root+'/pages/projects')return true;
@@ -42,10 +45,10 @@ export function readOnlyClient({token,targets,fetcher=fetch}) {
   }
   return false;
  };
- const safePath=path=>verifiedTokenId&&path===root+'/tokens/'+verifiedTokenId?root+'/tokens/{authenticated-token}':path;
+ const safePath=path=>verifiedTokenId&&path===tokenRoot+'/tokens/'+verifiedTokenId?tokenRoot+'/tokens/{authenticated-token}':path;
  const client={requests,credentialFraming:{surroundingWhitespace:token!==token.trim(),controlCharactersPresent:/[\x00-\x1f\x7f]/.test(token),format:token.startsWith('cfat_')?'SCANNABLE_ACCOUNT_TOKEN':'OTHER_TOKEN_FORMAT'},async selfTokenMetadata(){
   if(!verifiedTokenId)throw new VerificationError('AUTHENTICATED_TOKEN_METADATA_UNAVAILABLE');
-  return client.get(root+'/tokens/'+verifiedTokenId);
+  return client.get(tokenRoot+'/tokens/'+verifiedTokenId);
  },async get(path){
   if(!allowed(path))throw new VerificationError('ENDPOINT_NOT_ALLOWED');
   let response;
@@ -64,12 +67,14 @@ export function readOnlyClient({token,targets,fetcher=fetch}) {
   providerEvidence.errorCategories=[...new Set(messages.map(m=>/authentication error|invalid access token|invalid api token/i.test(m)?'AUTHENTICATION_REJECTED':/permission|not authorized|unauthorized|forbidden|access denied/i.test(m)?'AUTHORIZATION_REJECTED':/not found|does not exist/i.test(m)?'RESOURCE_NOT_FOUND':/disabled|suspended/i.test(m)?'RESOURCE_DISABLED':'UNCLASSIFIED'))];
   if(!response.ok)throw new VerificationError('CLOUDFLARE_HTTP_ERROR',safePath(path),response.status,codes,providerEvidence);
   if(body?.success!==true)throw new VerificationError('CLOUDFLARE_API_REJECTED',safePath(path),response.status,codes,providerEvidence);
-  if(path===root+'/tokens/verify'){
+  if(path===tokenVerificationPath){
    verifiedTokenActive=body.result?.status==='active';
    verifiedTokenId=body.result?.status==='active'&&/^[0-9a-f]{32}$/.test(body.result?.id||'')?body.result.id:null;
   }
   return body;
  }};
+ // Reviewed ownership is fixed for the client; failures never select another endpoint.
+ Object.defineProperties(client,{tokenType:{value:tokenType,enumerable:true},tokenVerificationPath:{value:tokenVerificationPath,enumerable:true}});
  return client;
 }
 async function listAll(client,path) {
@@ -200,7 +205,8 @@ export async function verifyCloudflare({client,targets,releaseSha,mainSha,now=()
  const root='/accounts/'+targets.accountId;
  try{
   if(!sha.test(releaseSha)||!sha.test(mainSha))throw new VerificationError('INVALID_CODE_REFERENCE');
-  const token=(await client.get(root+'/tokens/verify')).result;
+  report.observations.tokenType=client.tokenType||'account';
+  const token=(await client.get(client.tokenVerificationPath||root+'/tokens/verify')).result;
   report.observations.tokenActive=token?.status==='active';
   const tokenTime=value=>typeof value==='string'&&value.length<80&&Number.isFinite(Date.parse(value))?new Date(value).toISOString():null;
   report.observations.tokenWindow={notBefore:tokenTime(token?.not_before),expiresAt:tokenTime(token?.expires_on)};
