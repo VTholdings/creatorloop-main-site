@@ -1,0 +1,76 @@
+TAP version 13
+# Subtest: pinned cc6732d kit: seven payload entries, nine private files and zero-network validation
+ok 1 - pinned cc6732d kit: seven payload entries, nine private files and zero-network validation
+  ---
+  duration_ms: 31.181299
+  type: 'test'
+  ...
+# Subtest: active source is liveness-only: exactly one authorized GET and no other calls or certifications
+ok 2 - active source is liveness-only: exactly one authorized GET and no other calls or certifications
+  ---
+  duration_ms: 71.657249
+  type: 'test'
+  ...
+# Subtest: unavailable, empty and non-string input is blocked with zero requests
+ok 3 - unavailable, empty and non-string input is blocked with zero requests
+  ---
+  duration_ms: 0.8443
+  type: 'test'
+  ...
+# Subtest: malformed fictional credentials are never trimmed, repaired or sent
+ok 4 - malformed fictional credentials are never trimmed, repaired or sent
+  ---
+  duration_ms: 42.644497
+  type: 'test'
+  ...
+# Subtest: 401/1000 and provider rejection produce one sanitized FAIL with no retry or account fallback
+ok 5 - 401/1000 and provider rejection produce one sanitized FAIL with no retry or account fallback
+  ---
+  duration_ms: 9.899694
+  type: 'test'
+  ...
+# Subtest: disabled, expired and future-activation source states cannot pass
+ok 6 - disabled, expired and future-activation source states cannot pass
+  ---
+  duration_ms: 21.690634
+  type: 'test'
+  ...
+# Subtest: successful output drops provider text, token IDs, raw credentials, policies and headers
+ok 7 - successful output drops provider text, token IDs, raw credentials, policies and headers
+  ---
+  duration_ms: 5.023083
+  type: 'test'
+  ...
+# Subtest: redirects, endpoint substitution and thrown provider failures are blocked without follow-up
+ok 8 - redirects, endpoint substitution and thrown provider failures are blocked without follow-up
+  ---
+  duration_ms: 16.682739
+  type: 'test'
+  ...
+# Subtest: oversized declared or streamed responses are blocked after exactly one request
+ok 9 - oversized declared or streamed responses are blocked after exactly one request
+  ---
+  duration_ms: 11.397154
+  type: 'test'
+  ...
+# Subtest: CLI accepts offline-only validation and rejects nonfixed flags without stdin, network or env mutation
+ok 10 - CLI accepts offline-only validation and rejects nonfixed flags without stdin, network or env mutation
+  ---
+  duration_ms: 272.005675
+  type: 'test'
+  ...
+# Subtest: static shell uses hidden local input and an anonymous builtin pipe, never export or credential files
+ok 11 - static shell uses hidden local input and an anonymous builtin pipe, never export or credential files
+  ---
+  duration_ms: 6.585946
+  type: 'test'
+  ...
+1..11
+# tests 11
+# suites 0
+# pass 11
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 611.658489

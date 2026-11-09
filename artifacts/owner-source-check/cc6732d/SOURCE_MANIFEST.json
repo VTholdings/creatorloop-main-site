@@ -1,0 +1,61 @@
+{
+  "protocol": "CREATORLOOP_OWNER_SOURCE_KIT_V1",
+  "sourceCommit": "cc6732dba75b208dae05c886c56af73a4b16f012",
+  "entrypoint": "Run_Owner_Check.command",
+  "nodeRuntime": "v22.23.3",
+  "platform": "Owner Mac",
+  "approvedOperation": "GET https://api.cloudflare.com/client/v4/user/tokens/verify only; maximum one request",
+  "files": [
+    {
+      "path": "scripts/lib/cloudflare-readonly.mjs",
+      "sha256": "c6d50207bd8f7d6436c9f5ad86a8e28abab2f934b6ec84a3c5895b8e4b67fa6b",
+      "provenance": "copied-byte-for-byte-from-cc6732d",
+      "sourceCommit": "cc6732dba75b208dae05c886c56af73a4b16f012"
+    },
+    {
+      "path": "scripts/lib/cloudflare-token-custody-preflight.mjs",
+      "sha256": "5c8db9cc13b800714f561c516fb5e3af4155e9afc679ee7d09f58bbb3653c7d4",
+      "provenance": "copied-byte-for-byte-from-cc6732d",
+      "sourceCommit": "cc6732dba75b208dae05c886c56af73a4b16f012"
+    },
+    {
+      "path": "scripts/acceptance/cloudflare-targets.json",
+      "sha256": "09f545f0638b483fc7feef59f7fd7458559c4f4ee01e4824d672851f5b825abc",
+      "provenance": "copied-byte-for-byte-from-cc6732d",
+      "sourceCommit": "cc6732dba75b208dae05c886c56af73a4b16f012"
+    },
+    {
+      "path": "scripts/diagnostics/private-cloudflare-token-preflight.mjs",
+      "sha256": "4f9b3749826b6b3deb102bcfb41dd51d54d0e82056cb3420f0a1dda744e0d7a9",
+      "provenance": "copied-byte-for-byte-from-cc6732d",
+      "sourceCommit": "cc6732dba75b208dae05c886c56af73a4b16f012"
+    },
+    {
+      "path": "owner-source-token-check.mjs",
+      "sha256": "b7fa5f5b54cb538a3ea4a582be43ec18551f9b3cfc719d7b4174ebb63cb6cbdb",
+      "provenance": "new-kit-only-owner-glue",
+      "sourceCommit": null
+    },
+    {
+      "path": "Run_Owner_Check.command",
+      "sha256": "f961777ac9c07bc9806dcfa706e75201cfd949e00bb7b96808b342e51656d513",
+      "provenance": "new-kit-only-owner-glue",
+      "sourceCommit": null
+    },
+    {
+      "path": "OWNER_MAC_README.md",
+      "sha256": "66d8d1e9b81ccf4301867af1a1cb5f23095b87f7551a839adb98979b759f21a2",
+      "provenance": "new-kit-only-owner-glue",
+      "sourceCommit": null
+    }
+  ],
+  "notIncluded": [
+    "credentials",
+    "private keys",
+    "passphrases",
+    "execution data",
+    "backup artifacts",
+    "operational configuration",
+    "dependency downloads"
+  ]
+}
