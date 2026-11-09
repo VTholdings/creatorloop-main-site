@@ -15,6 +15,7 @@ on:
     branches: [team-access-directory]
     paths:
       - .github/workflows/acceptance-backups.yml
+      - scripts/download-backup-history.mjs
       - scripts/stage-backup-history.py
       - scripts/lib/backup-authorization.mjs
       - tests/backup-authorization.test.js
@@ -87,11 +88,7 @@ jobs:
           umask 077
           scratch="$(mktemp -d)"
           trap 'rm -rf "$scratch"' EXIT
-          curl --silent --fail --location --proto '=https' --proto-redir '=https' \
-            --max-redirs 2 --max-time 90 --max-filesize 146800640 \
-            --header "Authorization: Bearer $GITHUB_TOKEN" \
-            --output "$scratch/october4.zip" \
-            https://api.github.com/repos/VTholdings/creatorloop-main-site/actions/artifacts/11317931861/zip
+          node scripts/download-backup-history.mjs "$scratch/october4.zip"
           unset GITHUB_TOKEN
           python3 scripts/stage-backup-history.py "$scratch/october4.zip" backup-private
       - name: Require the recorded key-delivery diagnostic to have passed
