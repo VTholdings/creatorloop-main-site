@@ -26,14 +26,12 @@ export async function runPrivateTokenPreflight(argv,{environment=process.env,fet
   if(parsed.code)return blockedTokenCustodyReport(parsed.code);
   if(!parsed.executeReadOnly)return blockedTokenCustodyReport('EXECUTION_NOT_AUTHORIZED',parsed.tokenType);
   token=environment.CLOUDFLARE_API_TOKEN;
-  delete environment.CLOUDFLARE_API_TOKEN;
   const pending=preflightSourceToken({tokenType:parsed.tokenType,executeReadOnly:true,token,fetcher,now});
   token=undefined;
   return await pending;
  }catch{return blockedTokenCustodyReport('PREFLIGHT_BLOCKED');}
  finally{
-  // Delete even in offline/invalid-argument mode, without reading the value.
-  try{delete environment.CLOUDFLARE_API_TOKEN;}catch{}
+  // Release only this call's local reference. The caller owns environment cleanup.
   token=undefined;
  }
 }

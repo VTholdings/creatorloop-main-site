@@ -45,7 +45,7 @@ test('dependency performs zero network and never reads credential without explic
   const f=fixture();blocked(await f.run({tokenType}),tokenType===undefined?'TOKEN_TYPE_REQUIRED':'UNKNOWN_TOKEN_TYPE');assert.equal(f.calls.length,0);
  }
 });
-test('CLI zero-network offline and malformed-argument modes never read environment values and promptly remove the reference',async()=>{
+test('CLI zero-network offline and malformed-argument modes never read or mutate environment values',async()=>{
  const cases=[
   [[], 'TOKEN_TYPE_REQUIRED'],[['--token-type','account'],'EXECUTION_NOT_AUTHORIZED'],
   [['--token-type','user'],'EXECUTION_NOT_AUTHORIZED'],[['--execute-read-only'],'TOKEN_TYPE_REQUIRED'],
@@ -62,7 +62,7 @@ test('CLI zero-network offline and malformed-argument modes never read environme
   let reads=0;const environment={};
   Object.defineProperty(environment,'CLOUDFLARE_API_TOKEN',{configurable:true,get(){reads++;throw Error(secret);}});
   const f=fixture(),report=await runPrivateTokenPreflight(argv,{environment,fetcher:f.fetcher,now:()=>current});
-  blocked(report,code);assert.equal(f.calls.length,0);assert.equal(reads,0);assert.equal(Object.hasOwn(environment,'CLOUDFLARE_API_TOKEN'),false);
+  blocked(report,code);assert.equal(f.calls.length,0);assert.equal(reads,0);assert.equal(Object.hasOwn(environment,'CLOUDFLARE_API_TOKEN'),true);
  }
 });
 test('each explicit type permits exactly one fixed GET with no cookies, request body, resource calls or retained authorization header',async()=>{
@@ -79,24 +79,38 @@ test('each explicit type permits exactly one fixed GET with no cookies, request 
   assert.equal(report.code,tokenType==='user'?'USER_SOURCE_TOKEN_ACTIVE_ACCOUNT_VERIFIER_INCOMPATIBLE':'ACCOUNT_SOURCE_TOKEN_ACTIVE_ONLY');
  }
 });
-test('mocked CLI reads only the private environment once and deletes the credential before the single request starts',async()=>{
+test('mocked CLI reads only the private environment once and preserves the caller credential during and after the request',async()=>{
  for(const tokenType of ['account','user']){
   let reads=0;const environment={UNRELATED_SECRET:secret},calls=[];
   Object.defineProperty(environment,'CLOUDFLARE_API_TOKEN',{configurable:true,get(){reads++;return secret;}});
   const fetcher=async(url,options)=>{
-   assert.equal(Object.hasOwn(environment,'CLOUDFLARE_API_TOKEN'),false);
+   assert.equal(Object.hasOwn(environment,'CLOUDFLARE_API_TOKEN'),true);
    calls.push(url);assert.equal(options.headers.Authorization,'Bearer '+secret);return new Response(JSON.stringify(active()));
   };
   const report=await runPrivateTokenPreflight(['--token-type',tokenType,'--execute-read-only'],{environment,fetcher,now:()=>current});
   held(report);assert.equal(report.sourceTokenVerified,true);assert.equal(reads,1);assert.deepEqual(calls,[endpoints[tokenType]]);
-  assert.equal(environment.UNRELATED_SECRET,secret);assert.equal(Object.hasOwn(environment,'CLOUDFLARE_API_TOKEN'),false);
+  assert.equal(environment.UNRELATED_SECRET,secret);assert.equal(Object.hasOwn(environment,'CLOUDFLARE_API_TOKEN'),true);
  }
  const environment={},f=fixture();
  blocked(await runPrivateTokenPreflight(['--token-type','account','--execute-read-only'],{environment,fetcher:f.fetcher,now:()=>current}),'MISSING_ENVIRONMENT_SECRET');
  assert.equal(f.calls.length,0);
- const lockedEnvironment=new Proxy({CLOUDFLARE_API_TOKEN:secret},{deleteProperty(){throw Error(secret+' '+endpoints.account);}});
- blocked(await runPrivateTokenPreflight(['--token-type','account','--execute-read-only'],{environment:lockedEnvironment,fetcher:f.fetcher,now:()=>current}),'PREFLIGHT_BLOCKED');
- assert.equal(f.calls.length,0);
+ let mutations=0;
+ const lockedEnvironment=new Proxy(Object.freeze({CLOUDFLARE_API_TOKEN:secret}),{deleteProperty(){mutations++;throw Error(secret);},set(){mutations++;throw Error(secret);}});
+ const report=await runPrivateTokenPreflight(['--token-type','account','--execute-read-only'],{environment:lockedEnvironment,fetcher:f.fetcher,now:()=>current});
+ held(report);assert.equal(report.sourceTokenVerified,true);assert.equal(f.calls.length,1);assert.equal(mutations,0);
+});
+test('shared-process CLI calls preserve the credential for subsequent authorized operations across blocked, rejected and successful results',async()=>{
+ const environment={CLOUDFLARE_API_TOKEN:secret,UNRELATED_SECRET:'OTHER-FICTIONAL-VALUE'};
+ const before=Object.getOwnPropertyDescriptors(environment);
+ for(const mode of ['invalid','offline','rejected','success']){
+  const argv=mode==='invalid'?['--invalid']:mode==='offline'?['--token-type','account']:['--token-type','account','--execute-read-only'];
+  const f=fixture(mode==='rejected'?{status:401,body:{success:false,errors:[{code:1000,message:secret}]}}:{});
+  const report=await runPrivateTokenPreflight(argv,{environment,fetcher:f.fetcher,now:()=>current});
+  held(report);assert.equal(report.sourceTokenVerified,mode==='success');
+  assert.equal(f.calls.length,['rejected','success'].includes(mode)?1:0);
+  assert.deepEqual(Object.getOwnPropertyDescriptors(environment),before);
+  assert.equal(environment.CLOUDFLARE_API_TOKEN,secret,'subsequent authorized operation still has its original credential');
+ }
 });
 test('caller account/endpoint/method/resource substitutions are refused before network rather than prefix-allowed',async()=>{
  const extras=[
@@ -237,7 +251,7 @@ test('new source has only fixed verify routes and the private CLI exposes no pro
  assert.equal((library.match(/await fetcher\(/g)||[]).length,1);
  assert.doesNotMatch(library,/\/tokens\/\$|\/tokens\/\{|'\/tokens'|\/d1\/|\/pages\/|\/access\//);
  assert.doesNotMatch(cli,/readFile|readline|prompt\(|writeFile|mkdir|appendFile/);
- assert.equal((cli.match(/environment\.CLOUDFLARE_API_TOKEN;/g)||[]).length,3);
- assert.match(cli,/delete environment\.CLOUDFLARE_API_TOKEN/);
+ assert.equal((cli.match(/environment\.CLOUDFLARE_API_TOKEN;/g)||[]).length,1);
+ assert.doesNotMatch(cli,/delete environment\.|environment\.CLOUDFLARE_API_TOKEN\s*=/);
  assert.match(cli,/console\.log\(JSON\.stringify\(report\)\)/);
 });
