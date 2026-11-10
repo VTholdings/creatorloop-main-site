@@ -1,0 +1,235 @@
+NEW TEST FILE ONLY — 10 regression methods; old/new actual Bash + PTY
+ISOLATION: explicit fictional child env/stdin; native network-free stubs; production launchers read-only
+SCOPE: Linux BSD/macOS-path-translated functional fixtures, NOT actual Mac verification or Chief PASS
+STARTUP NOTE: old direct BASH_ENV executes; noninteractive ENV does not; documented env -i/bash -p protects both versions
+LOADER NOTE: fictional nonexistent loader paths test child env only, not loader execution before shell startup
+test_01_static_production_fixed_node_and_clean_exec (__main__.LauncherSecurityRegression.test_01_static_production_fixed_node_and_clean_exec)
+V2 literals, -p, env -i, preserved trust/control/export protections. ... ok
+test_02_inherited_export_old_leaks_all_children_new_absent_exact_four_keys (__main__.LauncherSecurityRegression.test_02_inherited_export_old_leaks_all_children_new_absent_exact_four_keys)
+Chief export finding: old empty export persists, then fictional input leaks. ...
+  test_02_inherited_export_old_leaks_all_children_new_absent_exact_four_keys (__main__.LauncherSecurityRegression.test_02_inherited_export_old_leaks_all_children_new_absent_exact_four_keys) (version='old')
+Chief export finding: old empty export persists, then fictional input leaks. ... FAIL
+test_03_ambient_path_node_selected_old_never_new (__main__.LauncherSecurityRegression.test_03_ambient_path_node_selected_old_never_new)
+Same malicious fictional PATH selects old Node, never fixed V2 Node. ...
+  test_03_ambient_path_node_selected_old_never_new (__main__.LauncherSecurityRegression.test_03_ambient_path_node_selected_old_never_new) (version='old')
+Same malicious fictional PATH selects old Node, never fixed V2 Node. ... FAIL
+test_04_node_options_node_path_and_loader_env_removed_all_new_children (__main__.LauncherSecurityRegression.test_04_node_options_node_path_and_loader_env_removed_all_new_children)
+Old ambient runtime hooks propagate; V2 removes all keys from children. ...
+  test_04_node_options_node_path_and_loader_env_removed_all_new_children (__main__.LauncherSecurityRegression.test_04_node_options_node_path_and_loader_env_removed_all_new_children) (version='old')
+Old ambient runtime hooks propagate; V2 removes all keys from children. ... FAIL
+test_05_hostile_startup_direct_shebang_and_documented_clean_protected_entry (__main__.LauncherSecurityRegression.test_05_hostile_startup_direct_shebang_and_documented_clean_protected_entry)
+Old direct BASH_ENV triggers; new direct and both documented entries don't. ...
+  test_05_hostile_startup_direct_shebang_and_documented_clean_protected_entry (__main__.LauncherSecurityRegression.test_05_hostile_startup_direct_shebang_and_documented_clean_protected_entry) (version='old', entry='shebang')
+Old direct BASH_ENV triggers; new direct and both documented entries don't. ... FAIL
+  test_05_hostile_startup_direct_shebang_and_documented_clean_protected_entry (__main__.LauncherSecurityRegression.test_05_hostile_startup_direct_shebang_and_documented_clean_protected_entry) (version='old', entry='documented')
+Old direct BASH_ENV triggers; new direct and both documented entries don't. ... FAIL
+test_06_exported_bash_function_injection_ignored_by_new (__main__.LauncherSecurityRegression.test_06_exported_bash_function_injection_ignored_by_new)
+Old imports hostile Node/printf functions; V2 -p/builtins ignore them. ...
+  test_06_exported_bash_function_injection_ignored_by_new (__main__.LauncherSecurityRegression.test_06_exported_bash_function_injection_ignored_by_new) (version='old')
+Old imports hostile Node/printf functions; V2 -p/builtins ignore them. ... FAIL
+test_07_missing_unsafe_and_symlink_node_rejected_before_any_prompt_input (__main__.LauncherSecurityRegression.test_07_missing_unsafe_and_symlink_node_rejected_before_any_prompt_input)
+Missing Node, unsafe Node/chain and symlinks have no PATH fallback. ... ok
+test_08_explicit_non_p_bash_invocation_refused (__main__.LauncherSecurityRegression.test_08_explicit_non_p_bash_invocation_refused)
+V2 refuses non-p before reads; hostile startup is not invoked here. ... ok
+test_09_blank_availability_or_hidden_token_unavailable_no_source_execution (__main__.LauncherSecurityRegression.test_09_blank_availability_or_hidden_token_unavailable_no_source_execution)
+Both versions stop on blank availability or blank hidden token. ...
+  test_09_blank_availability_or_hidden_token_unavailable_no_source_execution (__main__.LauncherSecurityRegression.test_09_blank_availability_or_hidden_token_unavailable_no_source_execution) (version='old', flow='blank-availability')
+Both versions stop on blank availability or blank hidden token. ... FAIL
+  test_09_blank_availability_or_hidden_token_unavailable_no_source_execution (__main__.LauncherSecurityRegression.test_09_blank_availability_or_hidden_token_unavailable_no_source_execution) (version='old', flow='blank-token')
+Both versions stop on blank availability or blank hidden token. ... FAIL
+test_10_pipeline_no_credential_in_stdout_stderr_tty_evidence_and_exit_statuses (__main__.LauncherSecurityRegression.test_10_pipeline_no_credential_in_stdout_stderr_tty_evidence_and_exit_statuses)
+Token stdin only, sanitized pipeline evidence; Node/tee statuses preserved. ...
+  test_10_pipeline_no_credential_in_stdout_stderr_tty_evidence_and_exit_statuses (__main__.LauncherSecurityRegression.test_10_pipeline_no_credential_in_stdout_stderr_tty_evidence_and_exit_statuses) (version='old', failure='none')
+Token stdin only, sanitized pipeline evidence; Node/tee statuses preserved. ... FAIL
+  test_10_pipeline_no_credential_in_stdout_stderr_tty_evidence_and_exit_statuses (__main__.LauncherSecurityRegression.test_10_pipeline_no_credential_in_stdout_stderr_tty_evidence_and_exit_statuses) (version='old', failure='source')
+Token stdin only, sanitized pipeline evidence; Node/tee statuses preserved. ... FAIL
+  test_10_pipeline_no_credential_in_stdout_stderr_tty_evidence_and_exit_statuses (__main__.LauncherSecurityRegression.test_10_pipeline_no_credential_in_stdout_stderr_tty_evidence_and_exit_statuses) (version='old', failure='tee')
+Token stdin only, sanitized pipeline evidence; Node/tee statuses preserved. ... FAIL
+
+======================================================================
+FAIL: test_02_inherited_export_old_leaks_all_children_new_absent_exact_four_keys (__main__.LauncherSecurityRegression.test_02_inherited_export_old_leaks_all_children_new_absent_exact_four_keys) (version='old')
+Chief export finding: old empty export persists, then fictional input leaks.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/ubuntu/creatorloop-owner-source-check-cc6732d-v2/test_launcher_security.py", line 435, in test_02_inherited_export_old_leaks_all_children_new_absent_exact_four_keys
+    self.assert_successful_source(f, result)
+  File "/home/ubuntu/creatorloop-owner-source-check-cc6732d-v2/test_launcher_security.py", line 375, in assert_successful_source
+    self.assertEqual(result.status, 0, 'Fixture launcher unexpectedly failed')
+AssertionError: 1 != 0 : Fixture launcher unexpectedly failed
+
+======================================================================
+FAIL: test_03_ambient_path_node_selected_old_never_new (__main__.LauncherSecurityRegression.test_03_ambient_path_node_selected_old_never_new) (version='old')
+Same malicious fictional PATH selects old Node, never fixed V2 Node.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/ubuntu/creatorloop-owner-source-check-cc6732d-v2/test_launcher_security.py", line 462, in test_03_ambient_path_node_selected_old_never_new
+    self.assert_successful_source(f, result)
+  File "/home/ubuntu/creatorloop-owner-source-check-cc6732d-v2/test_launcher_security.py", line 375, in assert_successful_source
+    self.assertEqual(result.status, 0, 'Fixture launcher unexpectedly failed')
+AssertionError: 1 != 0 : Fixture launcher unexpectedly failed
+
+======================================================================
+FAIL: test_04_node_options_node_path_and_loader_env_removed_all_new_children (__main__.LauncherSecurityRegression.test_04_node_options_node_path_and_loader_env_removed_all_new_children) (version='old')
+Old ambient runtime hooks propagate; V2 removes all keys from children.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/ubuntu/creatorloop-owner-source-check-cc6732d-v2/test_launcher_security.py", line 477, in test_04_node_options_node_path_and_loader_env_removed_all_new_children
+    self.assert_successful_source(f, result)
+  File "/home/ubuntu/creatorloop-owner-source-check-cc6732d-v2/test_launcher_security.py", line 375, in assert_successful_source
+    self.assertEqual(result.status, 0, 'Fixture launcher unexpectedly failed')
+AssertionError: 1 != 0 : Fixture launcher unexpectedly failed
+
+======================================================================
+FAIL: test_05_hostile_startup_direct_shebang_and_documented_clean_protected_entry (__main__.LauncherSecurityRegression.test_05_hostile_startup_direct_shebang_and_documented_clean_protected_entry) (version='old', entry='shebang')
+Old direct BASH_ENV triggers; new direct and both documented entries don't.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/ubuntu/creatorloop-owner-source-check-cc6732d-v2/test_launcher_security.py", line 493, in test_05_hostile_startup_direct_shebang_and_documented_clean_protected_entry
+    self.assert_successful_source(f, result)
+  File "/home/ubuntu/creatorloop-owner-source-check-cc6732d-v2/test_launcher_security.py", line 375, in assert_successful_source
+    self.assertEqual(result.status, 0, 'Fixture launcher unexpectedly failed')
+AssertionError: 1 != 0 : Fixture launcher unexpectedly failed
+
+======================================================================
+FAIL: test_05_hostile_startup_direct_shebang_and_documented_clean_protected_entry (__main__.LauncherSecurityRegression.test_05_hostile_startup_direct_shebang_and_documented_clean_protected_entry) (version='old', entry='documented')
+Old direct BASH_ENV triggers; new direct and both documented entries don't.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/ubuntu/creatorloop-owner-source-check-cc6732d-v2/test_launcher_security.py", line 493, in test_05_hostile_startup_direct_shebang_and_documented_clean_protected_entry
+    self.assert_successful_source(f, result)
+  File "/home/ubuntu/creatorloop-owner-source-check-cc6732d-v2/test_launcher_security.py", line 375, in assert_successful_source
+    self.assertEqual(result.status, 0, 'Fixture launcher unexpectedly failed')
+AssertionError: 1 != 0 : Fixture launcher unexpectedly failed
+
+======================================================================
+FAIL: test_06_exported_bash_function_injection_ignored_by_new (__main__.LauncherSecurityRegression.test_06_exported_bash_function_injection_ignored_by_new) (version='old')
+Old imports hostile Node/printf functions; V2 -p/builtins ignore them.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/ubuntu/creatorloop-owner-source-check-cc6732d-v2/test_launcher_security.py", line 512, in test_06_exported_bash_function_injection_ignored_by_new
+    self.assert_successful_source(f, result)
+  File "/home/ubuntu/creatorloop-owner-source-check-cc6732d-v2/test_launcher_security.py", line 375, in assert_successful_source
+    self.assertEqual(result.status, 0, 'Fixture launcher unexpectedly failed')
+AssertionError: 1 != 0 : Fixture launcher unexpectedly failed
+
+======================================================================
+FAIL: test_09_blank_availability_or_hidden_token_unavailable_no_source_execution (__main__.LauncherSecurityRegression.test_09_blank_availability_or_hidden_token_unavailable_no_source_execution) (version='old', flow='blank-availability')
+Both versions stop on blank availability or blank hidden token.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/ubuntu/creatorloop-owner-source-check-cc6732d-v2/test_launcher_security.py", line 561, in test_09_blank_availability_or_hidden_token_unavailable_no_source_execution
+    self.assertIn(b'SOURCE_TOKEN_UNAVAILABLE', result.stdout + result.stderr)
+AssertionError: b'SOURCE_TOKEN_UNAVAILABLE' not found in b"APPROVED_NODE_V22.23.3_REQUIRED \xe2\x80\x94 no install or token read performed.\nERROR: ld.so: object '/tmp/fictional-launcher-security-hbx4hd1r/fictional-no-loader.so' from LD_PRELOAD cannot be preloaded (cannot open shared object file): ignored.\nERROR: ld.so: object '/tmp/fictional-launcher-security-hbx4hd1r/fictional-no-loader.so' from LD_PRELOAD cannot be preloaded (cannot open shared object file): ignored.\nERROR: ld.so: object '/tmp/fictional-launcher-security-hbx4hd1r/fictional-no-loader.so' from LD_PRELOAD cannot be preloaded (cannot open shared object file): ignored.\nERROR: ld.so: object '/tmp/fictional-launcher-security-hbx4hd1r/fictional-no-loader.so' from LD_PRELOAD cannot be preloaded (cannot open shared object file): ignored.\n"
+
+======================================================================
+FAIL: test_09_blank_availability_or_hidden_token_unavailable_no_source_execution (__main__.LauncherSecurityRegression.test_09_blank_availability_or_hidden_token_unavailable_no_source_execution) (version='old', flow='blank-token')
+Both versions stop on blank availability or blank hidden token.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/ubuntu/creatorloop-owner-source-check-cc6732d-v2/test_launcher_security.py", line 561, in test_09_blank_availability_or_hidden_token_unavailable_no_source_execution
+    self.assertIn(b'SOURCE_TOKEN_UNAVAILABLE', result.stdout + result.stderr)
+AssertionError: b'SOURCE_TOKEN_UNAVAILABLE' not found in b"APPROVED_NODE_V22.23.3_REQUIRED \xe2\x80\x94 no install or token read performed.\nERROR: ld.so: object '/tmp/fictional-launcher-security-av4y7n5z/fictional-no-loader.so' from LD_PRELOAD cannot be preloaded (cannot open shared object file): ignored.\nERROR: ld.so: object '/tmp/fictional-launcher-security-av4y7n5z/fictional-no-loader.so' from LD_PRELOAD cannot be preloaded (cannot open shared object file): ignored.\nERROR: ld.so: object '/tmp/fictional-launcher-security-av4y7n5z/fictional-no-loader.so' from LD_PRELOAD cannot be preloaded (cannot open shared object file): ignored.\nERROR: ld.so: object '/tmp/fictional-launcher-security-av4y7n5z/fictional-no-loader.so' from LD_PRELOAD cannot be preloaded (cannot open shared object file): ignored.\n"
+
+======================================================================
+FAIL: test_10_pipeline_no_credential_in_stdout_stderr_tty_evidence_and_exit_statuses (__main__.LauncherSecurityRegression.test_10_pipeline_no_credential_in_stdout_stderr_tty_evidence_and_exit_statuses) (version='old', failure='none')
+Token stdin only, sanitized pipeline evidence; Node/tee statuses preserved.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/ubuntu/creatorloop-owner-source-check-cc6732d-v2/test_launcher_security.py", line 579, in test_10_pipeline_no_credential_in_stdout_stderr_tty_evidence_and_exit_statuses
+    self.assertEqual(result.status, {'none': 0, 'source': 7, 'tee': 1}[failure])
+AssertionError: 1 != 0
+
+======================================================================
+FAIL: test_10_pipeline_no_credential_in_stdout_stderr_tty_evidence_and_exit_statuses (__main__.LauncherSecurityRegression.test_10_pipeline_no_credential_in_stdout_stderr_tty_evidence_and_exit_statuses) (version='old', failure='source')
+Token stdin only, sanitized pipeline evidence; Node/tee statuses preserved.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/ubuntu/creatorloop-owner-source-check-cc6732d-v2/test_launcher_security.py", line 579, in test_10_pipeline_no_credential_in_stdout_stderr_tty_evidence_and_exit_statuses
+    self.assertEqual(result.status, {'none': 0, 'source': 7, 'tee': 1}[failure])
+AssertionError: 1 != 7
+
+======================================================================
+FAIL: test_10_pipeline_no_credential_in_stdout_stderr_tty_evidence_and_exit_statuses (__main__.LauncherSecurityRegression.test_10_pipeline_no_credential_in_stdout_stderr_tty_evidence_and_exit_statuses) (version='old', failure='tee')
+Token stdin only, sanitized pipeline evidence; Node/tee statuses preserved.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/ubuntu/creatorloop-owner-source-check-cc6732d-v2/test_launcher_security.py", line 580, in test_10_pipeline_no_credential_in_stdout_stderr_tty_evidence_and_exit_statuses
+    self.assertTrue(result.hidden_prompt_seen)
+AssertionError: False is not true
+
+----------------------------------------------------------------------
+Ran 10 tests in 0.834s
+
+FAILED (failures=11)
+METHOD_COUNTS: run=10 failures=11 errors=0 skipped=0
+No previous verifier or Team tests were imported or run. No kit files were written.
+
+RETRY ROUND 1 — fixture-only correction: resolve native executable separately from Bash bare argv[0]; no launcher logic or security requirements changed.
+NEW TEST FILE ONLY — 10 regression methods; old/new actual Bash + PTY
+ISOLATION: explicit fictional child env/stdin; native network-free stubs; production launchers read-only
+SCOPE: Linux BSD/macOS-path-translated functional fixtures, NOT actual Mac verification or Chief PASS
+STARTUP NOTE: old direct BASH_ENV executes; noninteractive ENV does not; documented env -i/bash -p protects both versions
+LOADER NOTE: fictional nonexistent loader paths test child env only, not loader execution before shell startup
+test_01_static_production_fixed_node_and_clean_exec (__main__.LauncherSecurityRegression.test_01_static_production_fixed_node_and_clean_exec)
+V2 literals, -p, env -i, preserved trust/control/export protections. ... ok
+test_02_inherited_export_old_leaks_all_children_new_absent_exact_four_keys (__main__.LauncherSecurityRegression.test_02_inherited_export_old_leaks_all_children_new_absent_exact_four_keys)
+Chief export finding: old empty export persists, then fictional input leaks. ... ok
+test_03_ambient_path_node_selected_old_never_new (__main__.LauncherSecurityRegression.test_03_ambient_path_node_selected_old_never_new)
+Same malicious fictional PATH selects old Node, never fixed V2 Node. ... ok
+test_04_node_options_node_path_and_loader_env_removed_all_new_children (__main__.LauncherSecurityRegression.test_04_node_options_node_path_and_loader_env_removed_all_new_children)
+Old ambient runtime hooks propagate; V2 removes all keys from children. ... ok
+test_05_hostile_startup_direct_shebang_and_documented_clean_protected_entry (__main__.LauncherSecurityRegression.test_05_hostile_startup_direct_shebang_and_documented_clean_protected_entry)
+Old direct BASH_ENV triggers; new direct and both documented entries don't. ... ok
+test_06_exported_bash_function_injection_ignored_by_new (__main__.LauncherSecurityRegression.test_06_exported_bash_function_injection_ignored_by_new)
+Old imports hostile Node/printf functions; V2 -p/builtins ignore them. ... ok
+test_07_missing_unsafe_and_symlink_node_rejected_before_any_prompt_input (__main__.LauncherSecurityRegression.test_07_missing_unsafe_and_symlink_node_rejected_before_any_prompt_input)
+Missing Node, unsafe Node/chain and symlinks have no PATH fallback. ... ok
+test_08_explicit_non_p_bash_invocation_refused (__main__.LauncherSecurityRegression.test_08_explicit_non_p_bash_invocation_refused)
+V2 refuses non-p before reads; hostile startup is not invoked here. ... ok
+test_09_blank_availability_or_hidden_token_unavailable_no_source_execution (__main__.LauncherSecurityRegression.test_09_blank_availability_or_hidden_token_unavailable_no_source_execution)
+Both versions stop on blank availability or blank hidden token. ... ok
+test_10_pipeline_no_credential_in_stdout_stderr_tty_evidence_and_exit_statuses (__main__.LauncherSecurityRegression.test_10_pipeline_no_credential_in_stdout_stderr_tty_evidence_and_exit_statuses)
+Token stdin only, sanitized pipeline evidence; Node/tee statuses preserved. ... ok
+
+----------------------------------------------------------------------
+Ran 10 tests in 0.689s
+
+OK
+METHOD_COUNTS: run=10 failures=0 errors=0 skipped=0
+No previous verifier or Team tests were imported or run. No kit files were written.
+
+FINAL RUN / RETRY ROUND 2 — test-only coverage hardening: boolean dummy HOME/PATH/locale validation; every Node reference checked for clean_exec; no requirement removed.
+NEW TEST FILE ONLY — 10 regression methods; old/new actual Bash + PTY
+ISOLATION: explicit fictional child env/stdin; native network-free stubs; production launchers read-only
+SCOPE: Linux BSD/macOS-path-translated functional fixtures, NOT actual Mac verification or Chief PASS
+STARTUP NOTE: old direct BASH_ENV executes; noninteractive ENV does not; documented env -i/bash -p protects both versions
+LOADER NOTE: fictional nonexistent loader paths test child env only, not loader execution before shell startup
+test_01_static_production_fixed_node_and_clean_exec (__main__.LauncherSecurityRegression.test_01_static_production_fixed_node_and_clean_exec)
+V2 literals, -p, env -i, preserved trust/control/export protections. ... ok
+test_02_inherited_export_old_leaks_all_children_new_absent_exact_four_keys (__main__.LauncherSecurityRegression.test_02_inherited_export_old_leaks_all_children_new_absent_exact_four_keys)
+Chief export finding: old empty export persists, then fictional input leaks. ... ok
+test_03_ambient_path_node_selected_old_never_new (__main__.LauncherSecurityRegression.test_03_ambient_path_node_selected_old_never_new)
+Same malicious fictional PATH selects old Node, never fixed V2 Node. ... ok
+test_04_node_options_node_path_and_loader_env_removed_all_new_children (__main__.LauncherSecurityRegression.test_04_node_options_node_path_and_loader_env_removed_all_new_children)
+Old ambient runtime hooks propagate; V2 removes all keys from children. ... ok
+test_05_hostile_startup_direct_shebang_and_documented_clean_protected_entry (__main__.LauncherSecurityRegression.test_05_hostile_startup_direct_shebang_and_documented_clean_protected_entry)
+Old direct BASH_ENV triggers; new direct and both documented entries don't. ... ok
+test_06_exported_bash_function_injection_ignored_by_new (__main__.LauncherSecurityRegression.test_06_exported_bash_function_injection_ignored_by_new)
+Old imports hostile Node/printf functions; V2 -p/builtins ignore them. ... ok
+test_07_missing_unsafe_and_symlink_node_rejected_before_any_prompt_input (__main__.LauncherSecurityRegression.test_07_missing_unsafe_and_symlink_node_rejected_before_any_prompt_input)
+Missing Node, unsafe Node/chain and symlinks have no PATH fallback. ... ok
+test_08_explicit_non_p_bash_invocation_refused (__main__.LauncherSecurityRegression.test_08_explicit_non_p_bash_invocation_refused)
+V2 refuses non-p before reads; hostile startup is not invoked here. ... ok
+test_09_blank_availability_or_hidden_token_unavailable_no_source_execution (__main__.LauncherSecurityRegression.test_09_blank_availability_or_hidden_token_unavailable_no_source_execution)
+Both versions stop on blank availability or blank hidden token. ... ok
+test_10_pipeline_no_credential_in_stdout_stderr_tty_evidence_and_exit_statuses (__main__.LauncherSecurityRegression.test_10_pipeline_no_credential_in_stdout_stderr_tty_evidence_and_exit_statuses)
+Token stdin only, sanitized pipeline evidence; Node/tee statuses preserved. ... ok
+
+----------------------------------------------------------------------
+Ran 10 tests in 0.699s
+
+OK
+METHOD_COUNTS: run=10 failures=0 errors=0 skipped=0
+ACTUAL_PTY_LAUNCHER_INVOCATIONS: 29
+No previous verifier or Team tests were imported or run. No kit files were written.
+FINAL_PROCESS_EXIT_STATUS=0

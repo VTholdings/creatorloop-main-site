@@ -1,0 +1,7 @@
+test_01_static_production_fixed_node_and_clean_exec (test_launcher_security.LauncherSecurityRegression.test_01_static_production_fixed_node_and_clean_exec)
+V2 literals, -p, env -i, preserved trust/control/export protections. ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 0.200s
+
+OK

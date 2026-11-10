@@ -1,0 +1,22 @@
+{
+  "protocol": "CREATORLOOP_OWNER_LAUNCHER_SECURITY_CORRECTION_V2",
+  "repositorySourceCommit": "cc6732dba75b208dae05c886c56af73a4b16f012",
+  "chiefPriorDisposition": "FAIL_LAUNCHER_ONLY",
+  "retainedChiefAcceptedFindings": ["v1 archive integrity", "seven original payload hashes", "four pinned repository source files", "GET-only verifier"],
+  "changedPayloadFiles": ["Run_Owner_Check.command", "OWNER_MAC_README.md"],
+  "unchangedAcceptedInputs": ["owner-source-token-check.mjs", "scripts/lib/cloudflare-readonly.mjs", "scripts/lib/cloudflare-token-custody-preflight.mjs", "scripts/acceptance/cloudflare-targets.json", "scripts/diagnostics/private-cloudflare-token-preflight.mjs"],
+  "securityTests": {"methods": 10, "bashPtyInvocations": 29, "failures": 0, "errors": 0, "skips": 0, "lastProcessExit": 0},
+  "portableHarnessPathChange": {"selectedStaticCasePass": true, "securityAssertionsChanged": false},
+  "coverage": ["old inherited export reproduced; v2 input absent from all recorded child environments", "old ambient PATH Node selection reproduced; v2 fixed absolute Node", "all recorded v2 utility/Node environments exactly HOME PATH LANG LC_ALL", "NODE_OPTIONS NODE_PATH startup and loader variables absent after sanitization", "old BASH_ENV startup and exported function markers reproduced; v2 suppressed", "explicit non-p entry rejected", "missing writable symlink Node and chain rejected before prompts", "stdin-only input, no token argv/stdout/stderr/evidence", "blank source stops; Node and tee pipeline failures retained"],
+  "fixturePlatform": "Linux with translated fixed Mac paths, BSD stat/Darwin uname and network-free native utility/Node stubs",
+  "nativeMacOperationVerified": false,
+  "nativeLoaderPrestartupImmunityVerified": false,
+  "chiefV2Acceptance": "PENDING_INDEPENDENT_REVIEW",
+  "trustedNodeOperationalPin": "/usr/local/bin/node (real file, root/Owner-owned, no group/other write, version v22.23.3)",
+  "actualOwnerNodePinObserved": false,
+  "liveTokenUse": false,
+  "liveTokenUseHold": "UNTIL_CHIEF_PASS_FOR_EXACT_V2_ARTIFACT",
+  "acceptedTeamTestsRerun": false,
+  "acceptedVerifierTestsRerun": false,
+  "credentialOrProtectedChanges": false
+}
