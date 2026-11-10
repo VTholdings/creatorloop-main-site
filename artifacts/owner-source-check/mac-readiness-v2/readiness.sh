@@ -1,0 +1,104 @@
+#!/bin/bash -p
+# Credential-free prerequisites only; never launch Run_Owner_Check.command.
+builtin set +x; builtin set +a; builtin set +o history
+builtin unset -v source_token
+builtin export -n source_token
+builtin set -o pipefail
+readonly SAFE_PATH='/usr/bin:/bin:/usr/sbin:/sbin'
+readonly EXPECTED_HOME='/Users/tt1'
+readonly NODE='/usr/local/bin/node'
+readonly SUMS_PIN='8fc8378fb6d460428182ac77d0287588981a6daaf567a4516ebe7d4f9fac834a'
+PATH="$SAFE_PATH"; readonly PATH
+clean_home='/var/empty'
+cle(){ /usr/bin/env -i HOME="$clean_home" PATH="$SAFE_PATH" LANG=C LC_ALL=C "$@"; }
+codes=(); home_status=BLOCKED; node_status=BLOCKED; kit_status=BLOCKED; evidence_status=BLOCKED; possession=UNCONFIRMED; actual_home=UNKNOWN
+add(){ codes+=("$1"); }
+acl_none(){
+  local m
+  m="$(cle /bin/ls -ldne "$1" 2>/dev/null)" || return 1
+  [[ -n "$m" && "$m" != *$'\n'* ]]
+}
+trusted_path(){
+  local m u p
+  [[ ! -L "$1" ]] || return 1
+  m="$(cle /usr/bin/stat -f '%u %Lp' "$1" 2>/dev/null)" || return 1
+  IFS=' ' builtin read -r u p <<< "$m"
+  [[ "$u" =~ ^[0-9]+$ && "$p" =~ ^[0-7]{3,4}$ ]] || return 1
+  [[ "$u" == 0 || "$u" == "$EUID" ]] && (( (8#$p & 0022) == 0 )) && acl_none "$1"
+}
+private_dir(){
+  [[ -d "$1" && ! -L "$1" ]] && [[ "$(cle /usr/bin/stat -f '%u:%Lp' "$1" 2>/dev/null)" == "$EUID:700" ]] && acl_none "$1"
+}
+owner_parent(){
+  [[ -d "$1" && ! -L "$1" ]] && [[ "$(cle /usr/bin/stat -f '%u' "$1" 2>/dev/null)" == "$EUID" ]] && trusted_path "$1"
+}
+private_file(){
+  local m
+  [[ -f "$1" && ! -L "$1" ]] || return 1
+  m="$(cle /usr/bin/stat -f '%u:%Lp' "$1" 2>/dev/null)" || return 1
+  [[ "$m" == "$EUID:600" || "$m" == "$EUID:700" ]] && acl_none "$1"
+}
+finish(){
+  local overall=BLOCKED sep='' c
+  [[ "$home_status" == PASS && "$node_status" == PASS && "$kit_status" == PASS && "$evidence_status" == PASS && "$possession" == YES ]] && overall=PASS
+  builtin printf '{"protocol":"CREATORLOOP_MAC_READINESS_V2","status":"%s","actualHome":"%s","home":"%s","node":"%s","kit":"%s","evidence":"%s","safeExistingSourcePossession":"%s","sourceAuthenticated":false,"networkRequests":0,"credentialReads":0,"changesMade":false,"codes":[' "$overall" "$actual_home" "$home_status" "$node_status" "$kit_status" "$evidence_status" "$possession"
+  for c in "${codes[@]}"; do builtin printf '%s"%s"' "$sep" "$c"; sep=','; done
+  builtin printf ']}\n'
+  [[ "$overall" == PASS ]]
+}
+if [[ "$-" != *p* || "$EUID" -eq 0 || "$(cle /usr/bin/uname -s 2>/dev/null)" != Darwin ]]; then
+  add APPROVED_NONROOT_MAC_SESSION_REQUIRED; finish; exit $?
+fi
+# Resolve the effective account's LOCAL Directory Services home, not $HOME.
+name="$(cle /usr/bin/id -un 2>/dev/null)"
+record=''
+if [[ "$name" =~ ^[A-Za-z0-9._-]{1,64}$ ]]; then
+  record="$(cle /usr/bin/dscl /Local/Default -read "/Users/$name" NFSHomeDirectory 2>/dev/null)"
+fi
+if [[ "$record" == 'NFSHomeDirectory: '* ]]; then
+  h="${record#NFSHomeDirectory: }"
+  if [[ "$h" =~ ^/Users/[A-Za-z0-9._-]{1,64}$ ]]; then actual_home="$h"; fi
+fi
+if [[ "$actual_home" == "$EXPECTED_HOME" && -d "$actual_home" && ! -L "$actual_home" && "$(cle /usr/bin/stat -f '%u' "$actual_home" 2>/dev/null)" == "$EUID" ]]; then
+  home_status=PASS; clean_home="$actual_home"
+else
+  add OWNER_HOME_PIN_OR_OWNERSHIP_MISMATCH
+fi
+ok=true
+for d in /usr /usr/local /usr/local/bin; do [[ -d "$d" ]] && trusted_path "$d" || ok=false; done
+if [[ "$ok" == true && -f "$NODE" && -x "$NODE" ]] && trusted_path "$NODE"; then
+  if [[ "$(cle "$NODE" --version </dev/null 2>/dev/null)" == v22.23.3 ]]; then node_status=PASS; else add NODE_VERSION_NOT_22_23_3; fi
+else
+  add NODE_ABSOLUTE_PATH_OWNER_MODE_OR_ACL_BLOCKED
+fi
+if [[ "$home_status" == PASS ]]; then
+  base="$actual_home/.vt-creatorloop"; install="$base/source-check-cc6732d-v2"; kit="$install/CreatorLoop_Owner_Source_Check_cc6732d"; evidence="$base/evidence"
+  if owner_parent "$base" && private_dir "$evidence"; then evidence_status=PASS; else add EVIDENCE_OWNER_700_OR_ACL_BLOCKED; fi
+  ok=true
+  owner_parent "$base" || ok=false
+  for d in "$install" "$kit" "$kit/scripts" "$kit/scripts/lib" "$kit/scripts/acceptance" "$kit/scripts/diagnostics"; do private_dir "$d" || ok=false; done
+  for f in SHA256SUMS SOURCE_MANIFEST.json Run_Owner_Check.command OWNER_MAC_README.md owner-source-token-check.mjs scripts/lib/cloudflare-readonly.mjs scripts/lib/cloudflare-token-custody-preflight.mjs scripts/acceptance/cloudflare-targets.json scripts/diagnostics/private-cloudflare-token-preflight.mjs; do private_file "$kit/$f" || ok=false; done
+  if [[ "$ok" == true ]]; then
+    digest="$(cle /usr/bin/shasum -a 256 "$kit/SHA256SUMS" 2>/dev/null)"; digest="${digest%% *}"
+    if [[ "$digest" == "$SUMS_PIN" ]] && (builtin cd "$kit" && cle /usr/bin/shasum -a 256 -c SHA256SUMS >/dev/null 2>&1); then
+      if [[ "$node_status" == PASS ]]; then
+        offline="$(cle "$NODE" "$kit/owner-source-token-check.mjs" --offline-validate </dev/null 2>/dev/null)"; node_exit=$?
+        expected='{"integrityVerified":true,"sourceCommit":"cc6732dba75b208dae05c886c56af73a4b16f012","reviewedUserEndpointVerified":true,"networkRequests":0,"keyReadOrGenerated":false}'
+        if [[ "$node_exit" -eq 0 && "$offline" == "$expected" ]]; then kit_status=PASS; else add KIT_OFFLINE_INTEGRITY_BLOCKED; fi
+      else
+        add KIT_OFFLINE_REQUIRES_TRUSTED_NODE
+      fi
+    else
+      add KIT_NOT_EXACT_ACCEPTED_V2
+    fi
+  else
+    add KIT_INSTALL_OWNER_PRIVATE_MODE_OR_ACL_BLOCKED
+  fi
+  # Button-only confirmation: there is NO text box or token-value input.
+  choice="$(cle /usr/bin/osascript -e 'set r to display dialog "Do you possess an EXISTING SAFE user-owned CreatorLoop source token? Confirm possession only. Never paste, show or enter its value." buttons {"No", "Yes"} default button "No" giving up after 60' -e 'if gave up of r then return "UNCONFIRMED"' -e 'return button returned of r' </dev/null 2>/dev/null)"
+  case "$choice" in Yes) possession=YES;; No) possession=NO; add SOURCE_TOKEN_POSSESSION_NOT_CONFIRMED;; *) add SOURCE_POSSESSION_CONFIRMATION_UNAVAILABLE;; esac
+else
+  add KIT_AND_EVIDENCE_NOT_INSPECTED_WRONG_HOME
+  add SOURCE_CONFIRMATION_NOT_REQUESTED_WRONG_HOME
+fi
+finish

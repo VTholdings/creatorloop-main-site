@@ -1,0 +1,36 @@
+NEW READINESS-ONLY TESTS
+No production/accepted-kit/old-test changes. No old launcher, Team, or verifier tests imported or run.
+Only fixed literal platform paths and fictional checksum pin translated; real nonroot /bin/bash -p.
+All stubs network-free; call names/flags only; target bytes/modes/owners/mtime/symlinks unchanged per run.
+Timeout case simulates AppleScript UNCONFIRMED; real Mac UI/timer and accepted-kit authenticity are NOT tested.
+test_01_static_no_network_writes_or_credential_input (__main__.ReadinessTests.test_01_static_no_network_writes_or_credential_input) ... ok
+test_02_full_pass_fictional_fixture (__main__.ReadinessTests.test_02_full_pass_fictional_fixture) ... ok
+test_03_local_dscl_mismatch_ignores_hostile_home (__main__.ReadinessTests.test_03_local_dscl_mismatch_ignores_hostile_home) ... ok
+test_04_untrusted_node_prevents_offline (__main__.ReadinessTests.test_04_untrusted_node_prevents_offline) ... ok
+test_05_checksum_and_kit_tamper_block_before_js (__main__.ReadinessTests.test_05_checksum_and_kit_tamper_block_before_js) ... ok
+test_06_evidence_owner_mode_acl_block_but_collect (__main__.ReadinessTests.test_06_evidence_owner_mode_acl_block_but_collect) ... ok
+test_07_no_unavailable_timeout_are_bounded_blocked (__main__.ReadinessTests.test_07_no_unavailable_timeout_are_bounded_blocked) ... ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 34.696s
+
+OK
+{"test":"test_02_full_pass_fictional_fixture","status":"PASS","codes":[],"calls":55}
+{"test":"test_02_full_pass_fictional_fixture","status":"PASS","codes":[],"calls":55}
+{"test":"test_03_local_dscl_mismatch_ignores_hostile_home","status":"BLOCKED","codes":["OWNER_HOME_PIN_OR_OWNERSHIP_MISMATCH","KIT_AND_EVIDENCE_NOT_INSPECTED_WRONG_HOME","SOURCE_CONFIRMATION_NOT_REQUESTED_WRONG_HOME"],"calls":12}
+{"test":"test_04_untrusted_node_prevents_offline","status":"BLOCKED","codes":["NODE_ABSOLUTE_PATH_OWNER_MODE_OR_ACL_BLOCKED","KIT_OFFLINE_REQUIRES_TRUSTED_NODE"],"calls":51}
+{"test":"test_04_untrusted_node_prevents_offline","status":"BLOCKED","codes":["NODE_VERSION_NOT_22_23_3","KIT_OFFLINE_REQUIRES_TRUSTED_NODE"],"calls":54}
+{"test":"test_04_untrusted_node_prevents_offline","status":"BLOCKED","codes":["NODE_ABSOLUTE_PATH_OWNER_MODE_OR_ACL_BLOCKED","KIT_OFFLINE_REQUIRES_TRUSTED_NODE"],"calls":52}
+{"test":"test_04_untrusted_node_prevents_offline","status":"BLOCKED","codes":["NODE_ABSOLUTE_PATH_OWNER_MODE_OR_ACL_BLOCKED","KIT_OFFLINE_REQUIRES_TRUSTED_NODE"],"calls":51}
+{"test":"test_04_untrusted_node_prevents_offline","status":"BLOCKED","codes":["NODE_ABSOLUTE_PATH_OWNER_MODE_OR_ACL_BLOCKED","KIT_OFFLINE_REQUIRES_TRUSTED_NODE"],"calls":50}
+{"test":"test_04_untrusted_node_prevents_offline","status":"BLOCKED","codes":["NODE_ABSOLUTE_PATH_OWNER_MODE_OR_ACL_BLOCKED","KIT_OFFLINE_REQUIRES_TRUSTED_NODE"],"calls":53}
+{"test":"test_05_checksum_and_kit_tamper_block_before_js","status":"BLOCKED","codes":["KIT_NOT_EXACT_ACCEPTED_V2"],"calls":53}
+{"test":"test_05_checksum_and_kit_tamper_block_before_js","status":"BLOCKED","codes":["KIT_NOT_EXACT_ACCEPTED_V2"],"calls":54}
+{"test":"test_05_checksum_and_kit_tamper_block_before_js","status":"BLOCKED","codes":["KIT_INSTALL_OWNER_PRIVATE_MODE_OR_ACL_BLOCKED"],"calls":51}
+{"test":"test_06_evidence_owner_mode_acl_block_but_collect","status":"BLOCKED","codes":["EVIDENCE_OWNER_700_OR_ACL_BLOCKED"],"calls":54}
+{"test":"test_06_evidence_owner_mode_acl_block_but_collect","status":"BLOCKED","codes":["EVIDENCE_OWNER_700_OR_ACL_BLOCKED"],"calls":54}
+{"test":"test_06_evidence_owner_mode_acl_block_but_collect","status":"BLOCKED","codes":["EVIDENCE_OWNER_700_OR_ACL_BLOCKED"],"calls":55}
+{"test":"test_07_no_unavailable_timeout_are_bounded_blocked","status":"BLOCKED","codes":["SOURCE_TOKEN_POSSESSION_NOT_CONFIRMED"],"calls":55}
+{"test":"test_07_no_unavailable_timeout_are_bounded_blocked","status":"BLOCKED","codes":["SOURCE_POSSESSION_CONFIRMATION_UNAVAILABLE"],"calls":55}
+{"test":"test_07_no_unavailable_timeout_are_bounded_blocked","status":"BLOCKED","codes":["SOURCE_POSSESSION_CONFIRMATION_UNAVAILABLE"],"calls":55}
+{"protocol":"CREATORLOOP_MAC_READINESS_V2_TESTS","status":"PASS","testsRun":7,"fixtureExecutions":18,"failures":0,"errors":0,"skipped":0,"sourceAuthenticated":false,"networkRequests":0,"credentialReads":0,"changesMade":false,"scope":"new readiness-only isolated fictional Mac fixtures; real nonroot Bash -p; owner button attestation only","elapsedSeconds":34.696}
