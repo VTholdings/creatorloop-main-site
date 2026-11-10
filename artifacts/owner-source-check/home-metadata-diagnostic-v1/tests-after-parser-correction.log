@@ -1,0 +1,11 @@
+TARGETED NEW DIAGNOSTIC CORRECTION ONLY
+Initial nine passing methods preserved; only ACL parser/canonical pattern/exact outer and body rechecked.
+test_01_common_home_single_acl_keeps_old_predicate_blocked (test_diagnostic.DiagnosticTests.test_01_common_home_single_acl_keeps_old_predicate_blocked) ... ok
+test_07_malformed_overlong_and_failed_ls_remain_unrecognized (test_diagnostic.DiagnosticTests.test_07_malformed_overlong_and_failed_ls_remain_unrecognized) ... ok
+test_10_owner_outer_and_body_syntax_only_if_present (test_diagnostic.DiagnosticTests.test_10_owner_outer_and_body_syntax_only_if_present) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 1.193s
+
+OK
+{"status":"PASS_LOCAL","testMethods":3,"fixtureInvocations":9,"syntaxOnlyChecks":3,"failures":0,"errors":0,"originalSuitesRepeated":false,"readinessReRun":false,"nativeMacTested":false,"securityDecision":"UNCHANGED_HOLD","sourceSha256":"a2baf8975e3762dd70235994185e2ae41c7967a5b1efd4f6b7645fa16dec5659","commandSha256":"a4260ec168150c73f830fd0075f266ddb9012ef660dcb31a7a43d847339f92f6"}

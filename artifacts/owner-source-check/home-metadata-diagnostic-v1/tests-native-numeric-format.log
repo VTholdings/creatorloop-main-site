@@ -1,0 +1,11 @@
+NATIVE NUMERIC ACL FORMAT ALIGNMENT ONLY
+Apple public Everyone UUID; unrelated UUID, allow, inherited, extra grants and split rights rejected; legacy name retained.
+test_01_common_home_single_acl_keeps_old_predicate_blocked (test_diagnostic.DiagnosticTests.test_01_common_home_single_acl_keeps_old_predicate_blocked) ... ok
+test_11_numeric_everyone_uuid_diagnostic_only (test_diagnostic.DiagnosticTests.test_11_numeric_everyone_uuid_diagnostic_only) ... ok
+test_10_owner_outer_and_body_syntax_only_if_present (test_diagnostic.DiagnosticTests.test_10_owner_outer_and_body_syntax_only_if_present) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.946s
+
+OK
+{"status":"PASS_LOCAL","testMethods":3,"fixtureInvocations":7,"syntaxOnlyChecks":3,"failures":0,"errors":0,"originalSuitesRepeated":false,"readinessReRun":false,"nativeMacTested":false,"securityDecision":"UNCHANGED_HOLD","sourceSha256":"43876366f0f28491a9849141067d6f23074bfe5851670b545314a215d39d4359","commandSha256":"7f5df13a1a6675242882b1dd7c5ecad544f9253e3cfdd685062a56918a160dc6"}

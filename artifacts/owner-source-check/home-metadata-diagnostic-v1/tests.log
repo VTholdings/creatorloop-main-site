@@ -1,0 +1,53 @@
+test_01_common_home_single_acl_keeps_old_predicate_blocked (__main__.DiagnosticTests.test_01_common_home_single_acl_keeps_old_predicate_blocked) ... ok
+test_02_plain_directory_none_and_only_predicate_pass (__main__.DiagnosticTests.test_02_plain_directory_none_and_only_predicate_pass) ... ok
+test_03_mode_write_bits (__main__.DiagnosticTests.test_03_mode_write_bits) ... ok
+test_04_foreign_owner_is_other (__main__.DiagnosticTests.test_04_foreign_owner_is_other) ... ok
+test_05_arbitrary_acl_metadata_is_not_echoed (__main__.DiagnosticTests.test_05_arbitrary_acl_metadata_is_not_echoed) ... ok
+test_06_invalid_stat_never_exposes_unvalidated_numbers (__main__.DiagnosticTests.test_06_invalid_stat_never_exposes_unvalidated_numbers) ... ok
+test_07_malformed_overlong_and_failed_ls_remain_unrecognized (__main__.DiagnosticTests.test_07_malformed_overlong_and_failed_ls_remain_unrecognized) ...
+  test_07_malformed_overlong_and_failed_ls_remain_unrecognized (__main__.DiagnosticTests.test_07_malformed_overlong_and_failed_ls_remain_unrecognized) (path_index=0, case='split_acl_right') ... FAIL
+  test_07_malformed_overlong_and_failed_ls_remain_unrecognized (__main__.DiagnosticTests.test_07_malformed_overlong_and_failed_ls_remain_unrecognized) (path_index=1, case='split_acl_right') ... FAIL
+test_08_symlinks_missing_and_files_never_get_acl_listing (__main__.DiagnosticTests.test_08_symlinks_missing_and_files_never_get_acl_listing) ... ok
+test_09_false_darwin_precondition_one_bounded_blocked_line (__main__.DiagnosticTests.test_09_false_darwin_precondition_one_bounded_blocked_line) ... ok
+test_10_owner_outer_and_body_syntax_only_if_present (__main__.DiagnosticTests.test_10_owner_outer_and_body_syntax_only_if_present) ... ok
+
+======================================================================
+FAIL: test_07_malformed_overlong_and_failed_ls_remain_unrecognized (__main__.DiagnosticTests.test_07_malformed_overlong_and_failed_ls_remain_unrecognized) (path_index=0, case='split_acl_right')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/ubuntu/creatorloop-home-metadata-diagnostic-v1/test_diagnostic.py", line 275, in assert_pattern
+    self.assertEqual(item['aclPattern'], pattern)
+AssertionError: 'SINGLE_EVERYONE_DENY_DELETE' != 'OTHER_OR_UNRECOGNIZED_ACL'
+- SINGLE_EVERYONE_DENY_DELETE
++ OTHER_OR_UNRECOGNIZED_ACL
+
+
+======================================================================
+FAIL: test_07_malformed_overlong_and_failed_ls_remain_unrecognized (__main__.DiagnosticTests.test_07_malformed_overlong_and_failed_ls_remain_unrecognized) (path_index=1, case='split_acl_right')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/ubuntu/creatorloop-home-metadata-diagnostic-v1/test_diagnostic.py", line 275, in assert_pattern
+    self.assertEqual(item['aclPattern'], pattern)
+AssertionError: 'SINGLE_EVERYONE_DENY_DELETE' != 'OTHER_OR_UNRECOGNIZED_ACL'
+- SINGLE_EVERYONE_DENY_DELETE
++ OTHER_OR_UNRECOGNIZED_ACL
+
+
+----------------------------------------------------------------------
+Ran 10 tests in 4.982s
+
+FAILED (failures=2)
+
+BOUNDED_NEW_TEST_SUMMARY
+result=FAIL_LOCAL
+test_methods=10 fixture_invocations=37 path_results=72 shim_calls=181 syntax_only_invocations=3
+failed_assertions=2 errors=0 skipped=0
+source_sha256=35ac790eff8caa9cf687ddae6ceb0a4a0d5739b4c25f0f44990d03a5822e7f8c
+source_loads=1_per_suite; translated_paths_only=/Users,/Users/tt1,/usr/bin/uname,/usr/bin/stat,/bin/ls
+runner_uid=1000; real=/bin/bash --noprofile --norc -p; fictional_Darwin_shim_only
+limits: fixture_invocations<=48; timeout=5s/invocation; calls<=5/invocation; capture<=65536B/stream; stat_accept<=64chars; ls_accept<=16384chars
+child_env_exact=HOME=/var/empty PATH=/usr/bin:/bin:/usr/sbin:/sbin LANG=C LC_ALL=C
+owner_command=OUTER_AND_BODY_BASH_N_OK_NOT_EXECUTED
+cases=single_everyone_deny_delete,plain_directory_no_acl,mode_0777,mode_0700,mode_0720,mode_0702,foreign_owner,untrusted_acl_0,untrusted_acl_1,untrusted_acl_2,untrusted_acl_3,invalid_stat_owner_marker,invalid_stat_owner_leading_zero,invalid_stat_owner_negative,invalid_stat_owner_too_long,invalid_stat_mode_nonoctal,invalid_stat_mode_too_short,invalid_stat_extra_field,invalid_stat_embedded_newline,invalid_stat_overlong_65,invalid_stat_empty,invalid_stat_stat_failure,invalid_ls_bad_header,invalid_ls_empty,invalid_ls_overlong_16385,invalid_ls_ls_failure,invalid_ls_plus_missing_body,invalid_ls_truncated_acl,invalid_ls_wrong_acl_index,invalid_ls_split_acl_right,child_symlink,root_symlink,child_missing,root_missing,child_file,root_file,false_darwin_precondition
+guards=target_lstat_metadata_unchanged; allowed_calls_exact; no_real_credentials; no_network; no_Node_or_application_imports; no_kit_or_evidence_or_source_possession; no_readiness_run; no_production_execution_on_Linux; no_native_Mac_verification; no_independent_acceptance
+artifacts=test_diagnostic.py,tests.log; only other writes=temp_fixtures; temp_cleanup=automatic
