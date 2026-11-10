@@ -1,0 +1,26 @@
+F1 ANCESTOR-TRUST REGRESSIONS ONLY
+Real nonroot Linux Bash -p; fixed-path Mac metadata/Node/UI/checksum shims; inert fictional kit.
+No native Mac, accepted kit execution, credentials, network or protected operations. Original seven readiness tests not executed.
+All fixture target bytes/modes/owners/mtime/symlinks unchanged during each readiness execution.
+test_01_untrusted_ancestors_block_before_custody (__main__.AncestorTrustTests.test_01_untrusted_ancestors_block_before_custody) ... ok
+test_02_safe_ancestor_modes_preserve_readiness (__main__.AncestorTrustTests.test_02_safe_ancestor_modes_preserve_readiness) ... ok
+test_03_exact_clean_command_contains_corrected_source (__main__.AncestorTrustTests.test_03_exact_clean_command_contains_corrected_source) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 12.331s
+
+OK
+{"test":"test_01_untrusted_ancestors_block_before_custody","status":"BLOCKED","codes":["OWNER_HOME_ANCESTOR_OWNER_MODE_OR_ACL_BLOCKED","KIT_AND_EVIDENCE_NOT_INSPECTED_HOME_BLOCKED","SOURCE_CONFIRMATION_NOT_REQUESTED_HOME_BLOCKED"],"calls":16}
+{"test":"test_01_untrusted_ancestors_block_before_custody","status":"BLOCKED","codes":["OWNER_HOME_ANCESTOR_OWNER_MODE_OR_ACL_BLOCKED","KIT_AND_EVIDENCE_NOT_INSPECTED_HOME_BLOCKED","SOURCE_CONFIRMATION_NOT_REQUESTED_HOME_BLOCKED"],"calls":16}
+{"test":"test_01_untrusted_ancestors_block_before_custody","status":"BLOCKED","codes":["OWNER_HOME_ANCESTOR_OWNER_MODE_OR_ACL_BLOCKED","KIT_AND_EVIDENCE_NOT_INSPECTED_HOME_BLOCKED","SOURCE_CONFIRMATION_NOT_REQUESTED_HOME_BLOCKED"],"calls":17}
+{"test":"test_01_untrusted_ancestors_block_before_custody","status":"BLOCKED","codes":["OWNER_HOME_PIN_OR_OWNERSHIP_MISMATCH","KIT_AND_EVIDENCE_NOT_INSPECTED_HOME_BLOCKED","SOURCE_CONFIRMATION_NOT_REQUESTED_HOME_BLOCKED"],"calls":13}
+{"test":"test_01_untrusted_ancestors_block_before_custody","status":"BLOCKED","codes":["OWNER_HOME_PIN_OR_OWNERSHIP_MISMATCH","KIT_AND_EVIDENCE_NOT_INSPECTED_HOME_BLOCKED","SOURCE_CONFIRMATION_NOT_REQUESTED_HOME_BLOCKED"],"calls":12}
+{"test":"test_01_untrusted_ancestors_block_before_custody","status":"BLOCKED","codes":["OWNER_HOME_ANCESTOR_OWNER_MODE_OR_ACL_BLOCKED","KIT_AND_EVIDENCE_NOT_INSPECTED_HOME_BLOCKED","SOURCE_CONFIRMATION_NOT_REQUESTED_HOME_BLOCKED"],"calls":14}
+{"test":"test_01_untrusted_ancestors_block_before_custody","status":"BLOCKED","codes":["OWNER_HOME_ANCESTOR_OWNER_MODE_OR_ACL_BLOCKED","KIT_AND_EVIDENCE_NOT_INSPECTED_HOME_BLOCKED","SOURCE_CONFIRMATION_NOT_REQUESTED_HOME_BLOCKED"],"calls":14}
+{"test":"test_01_untrusted_ancestors_block_before_custody","status":"BLOCKED","codes":["OWNER_HOME_ANCESTOR_OWNER_MODE_OR_ACL_BLOCKED","KIT_AND_EVIDENCE_NOT_INSPECTED_HOME_BLOCKED","SOURCE_CONFIRMATION_NOT_REQUESTED_HOME_BLOCKED"],"calls":15}
+{"test":"test_01_untrusted_ancestors_block_before_custody","status":"BLOCKED","codes":["OWNER_HOME_ANCESTOR_OWNER_MODE_OR_ACL_BLOCKED","KIT_AND_EVIDENCE_NOT_INSPECTED_HOME_BLOCKED","SOURCE_CONFIRMATION_NOT_REQUESTED_HOME_BLOCKED"],"calls":14}
+{"test":"test_01_untrusted_ancestors_block_before_custody","status":"BLOCKED","codes":["OWNER_HOME_ANCESTOR_OWNER_MODE_OR_ACL_BLOCKED","KIT_AND_EVIDENCE_NOT_INSPECTED_HOME_BLOCKED","SOURCE_CONFIRMATION_NOT_REQUESTED_HOME_BLOCKED"],"calls":13}
+{"test":"test_02_safe_ancestor_modes_preserve_readiness","status":"PASS","codes":[],"calls":59}
+{"test":"test_02_safe_ancestor_modes_preserve_readiness","status":"PASS","codes":[],"calls":59}
+{"test":"test_02_safe_ancestor_modes_preserve_readiness","status":"PASS","codes":[],"calls":59}
+{"protocol":"CREATORLOOP_READINESS_F1_REGRESSION","status":"PASS","testsRun":3,"fixtureExecutions":13,"failures":0,"errors":0,"skipped":0,"nativeMacTested":false,"sourceAuthenticated":false,"networkRequests":0,"credentialReads":0,"fixtureTargetsChanged":false,"originalSuitesRepeated":false,"elapsedSeconds":12.331,"commandSha256":"ef7a37b3bb75d4054d39e70e61b4f02016a2ecbc645dcee1bf6ddb91d7a2c3fe"}

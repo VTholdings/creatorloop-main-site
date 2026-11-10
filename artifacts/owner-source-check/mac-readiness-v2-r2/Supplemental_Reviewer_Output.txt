@@ -1,0 +1,45 @@
+SUPPLEMENTAL TECHNICAL REVIEW — NOT CHIEF ACCEPTANCE
+
+SUPPLEMENTAL_READINESS_REVIEW: FAIL
+OWNER_MAC_EXECUTION: HOLD (Chief independent acceptance pending)
+
+Reviewed version
+- Procedure commit: 9d22b856ddef66c694d2aa13cee7c2dc233840d6.
+- Exact command: https://raw.githubusercontent.com/VTholdings/creatorloop-main-site/9d22b856ddef66c694d2aa13cee7c2dc233840d6/artifacts/owner-source-check/mac-readiness-v2/Owner_Mac_Readiness_Command.txt
+- Command transfer SHA256 verified: 6a25259495d32a6e00d6236aed9e1bae51a3eb4ca121719702edfeb278f0057d (6,302 bytes).
+- Boundary guide: Owner_Mac_Readiness.md at the same procedure commit.
+- Offline dependency source: accepted V2 ZIP at d0dd305efe2c1e7da4aa5d4fd9c7cb2f72130035, artifacts/owner-source-check/cc6732d-v2/CreatorLoop_Owner_Source_Check_cc6732d_v2.zip. Prior Chief V2 acceptance was taken as given, not retested.
+
+Source labels below: C = exact command; O = ZIP owner-source-token-check.mjs; R = ZIP scripts/lib/cloudflare-readonly.mjs.
+
+CONFIRMED FINDING F1
+Severity: HIGH — incomplete prerequisite path-trust gate; not an observed compromise of the Owner Mac.
+Source: C63–64, C75–86; compare the existing trust checks at C22–35.
+
+Precise cause: The resolved home is admitted using only the expected pathname, directory/nonsymlink tests, and EUID ownership. Its permissions and ACLs are not checked. The /Users ancestor is also outside the explicit path-trust checks. Checking ownership/modes/ACLs of .vt-creatorloop and its descendants does not protect those pathnames from replacement through an untrusted-writable ancestor.
+
+A home owned by the effective Owner but mode 0777 therefore passes the home gate. A different local principal with write/search access to that ancestor can rename/rebind the custody-parent pathname despite its protected child modes. The subsequent checks and reads are pathname-based. For example, replacement after the metadata checks can redirect the SHA256SUMS read at C83 to another readable file: the digest mismatch blocks later execution, but does not undo that file read. Replacement after integrity checks also undermines the checked-path-to-import continuity. This condition does not require a compromised Owner or administrator; the procedure itself admits the unsafe ancestor state. No such replacement or credential read was performed in this review.
+
+Required narrow correction: Extend the existing pre-inspection trust gate to /Users and the resolved Owner home, retaining the EUID ownership/pin requirement for the home and rejecting untrusted write permission or unreviewed ACL grants before setting home_status=PASS, changing clean_home, or inspecting kit/evidence. Reusing trusted_path would conservatively reject all ACL entries. Do not repair permissions or ACLs within this read-only command. Submit any corrected procedure under its new exact commit/hash for independent review.
+
+ALL EIGHT FACETS
+1. Credential boundary — FAIL due to F1's admitted untrusted-writable ancestor, which can redirect later path reads. In the stable trusted-path execution examined statically, there is no credential-value request, stdin read, credential-file selection, or transmission. O84 selects validateKit, not privateStdin/checkOwnerSource.
+2. No Cloudflare request/application modification/installation/protected operation — PASS for the authored execution path. C86 supplies only --offline-validate with stdin closed. O29–47 imports R and constructs a client with a fictional literal and throwing fetcher; it does not invoke get/selfTokenMetadata. R3–8 and R12–49, R76–78 have no import/construction-time network call. No launcher execution, write, install, chmod, chown, sudo, or configuration operation is present.
+3. Effective local Owner home/mismatch rejection — PASS for resolution and mismatch handling: C50–67 uses a nonroot Darwin session, id -un and dscl /Local/Default, constrained output, /Users/tt1 pin, nonsymlink directory and EUID ownership. Wrong home skips kit/evidence and possession inspection at C101–104. F1 concerns the separate missing ancestor permission/ACL gate.
+4. Node checks — PASS within the stated trusted Owner/admin boundary: C10, C22–29 and C68–74 enforce /usr/local/bin/node, v22.23.3, regular/executable/nonsymlink status, root-or-EUID ownership, no group/world write and no ACL entries, including /usr, /usr/local and /usr/local/bin. No PATH fallback or repair. This is metadata/version trust, not independent binary authentication.
+5. Accepted installation/integrity/evidence safeguards — FAIL as a complete custody procedure because of F1. Otherwise C76–97 explicitly checks private directory/file metadata, fingerprints the checksum table before checksum-driven reads/import, requires successful checksum validation and exact successful offline JSON, and does not read evidence contents. O18–47 validates inventory/metadata/manifest/code and endpoint-selector properties. The table's entries are kit code/documentation/manifest paths, not credential paths. No silent failure-to-PASS branch was found in these checks.
+6. Possession dialog — PASS: C98–100 specifies only No/Yes buttons, defaults to No and times out after 60 seconds. There is no default answer/text-entry field or token-value input. No, timeout, cancellation or unavailable output cannot produce overall PASS. Possession remains attestation, not authentication.
+7. Bounded nonsecret JSON — PASS for output construction: C15–16, C42–48 and C59–62 use constrained home text, fixed statuses/codes and fixed booleans; raw tool/dependency output and credential values are not emitted. The fixed credentialReads/networkRequests declarations are not a remedy for F1.
+8. Trusted Terminal copy/paste/native limitations — Structurally PASS, but not native-runtime certified. C1 and C106 form one quoted heredoc command; env -i, absolute system paths, Bash --noprofile --norc -p, cleared tracing/export/history and cleaned child environments avoid inherited startup/Node-option input. The complete exact command must be pasted unchanged into the designated trusted Terminal. F1 prevents acceptance of the procedure as a whole.
+
+EVIDENCE AND LIMITS
+- One syntax-only Linux Bash check of the outer command and extracted heredoc body succeeded; neither was executed.
+- One bounded, crypto-free fictional Linux metadata fixture evaluated the exact C63 condition with a temporary pinned home, actual directory/nonsymlink tests and a stub supplying its EUID ownership. Home mode 0777, custody parent 0755, evidence directory 0700: EXACT_HOME_GATE=PASS. This confirms the admission gap, not a complete readiness PASS or native Mac exploit. The fixture was removed.
+- No native Mac execution occurred. Darwin Directory Services output, BSD stat/ls ACL rendering, system Bash and AppleScript GUI behavior were reviewed statically, not experimentally certified. Missing tools, inaccessible records, unfamiliar metadata/ACL output, wrong Node version and unavailable dialog are fail-closed false negatives, not additional confirmed defects. Conservative rejection of harmless/deny-only ACLs can likewise block a safe installation.
+- Trusted OS/Terminal and Owner/admin control remain the allowed overarching boundary. This review does not claim protection against their compromise or against concurrent mutation by those trusted principals. F1 is different: an untrusted-writable ancestor is admitted without requiring compromise of those principals.
+
+NO LIVE OPERATIONS
+Only approved immutable public raw artifacts were downloaded into an isolated temporary review directory. No readiness/launcher/token execution or module import, credentials or credential files, Cloudflare/GitHub API calls, external posts, Mac/protected-system changes, or actual source-code changes occurred. No archive-integrity, original seven-hash, Team, verifier or launcher tests were repeated.
+
+CHIEF FOLLOW-UP
+Chief must independently evaluate F1, any narrowly corrected exact procedure and remaining native limitations before acceptance. Existing V2 acceptance is preserved as given. This is solely a supplemental reviewer result; it does not approve Owner execution. OWNER_MAC_EXECUTION remains HOLD.
